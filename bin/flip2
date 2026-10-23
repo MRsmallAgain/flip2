@@ -12,10 +12,12 @@ Usage: flip2 <command> [args]
 Commands:
   apply              Sync slots.json → build overlay → install → enable (USB + root)
   slot <1-9> <pkg>   Set one menu slot and run apply
+  swap <a> <b>       Swap two menu slots (1–9) and apply
   editor             Start web editor (http://127.0.0.1:${FLIP2_EDITOR_PORT})
   recovery           Remove bad launcher Magisk module, restore stock Launcher3, apply overlay
   pack-overlay       Build Magisk zip for overlay only (launcher-overlay/dist/)
   home-keys          Apply home-keys.json to Settings.Global
+  fork <subcmd>      Launcher3 fork: build | pack | install | rollback | status | extract
 
 Environment:
   FLIP2_ROOT         Repo root (default: $FLIP2_ROOT)
@@ -36,6 +38,10 @@ case "$cmd" in
     [[ $# -ge 2 ]] || { echo "Usage: flip2 slot <1-9> <package-or-@tools>" >&2; exit 1; }
     exec "$FLIP2_OVERLAY/scripts/edit-slot.sh" "$@"
     ;;
+  swap)
+    [[ $# -ge 2 ]] || { echo "Usage: flip2 swap <1-9> <1-9>" >&2; exit 1; }
+    exec "$FLIP2_PIPELINE/overlay/swap-slots.sh" "$@"
+    ;;
   editor)
     flip2_env_init
     if adb get-state >/dev/null 2>&1; then
@@ -52,6 +58,22 @@ case "$cmd" in
     ;;
   home-keys)
     exec "$FLIP2_OVERLAY/scripts/apply-home-keys.sh"
+    ;;
+  fork)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      extract) exec "$FLIP2_FORK/scripts/extract-from-stock.sh" ;;
+      build)   exec "$FLIP2_FORK/scripts/build.sh" ;;
+      pack)    exec "$FLIP2_FORK/scripts/pack.sh" ;;
+      install) exec "$FLIP2_FORK/scripts/install.sh" ;;
+      rollback) exec "$FLIP2_FORK/scripts/rollback.sh" ;;
+      status)  exec "$FLIP2_FORK/scripts/status.sh" ;;
+      help|-h|--help)
+        echo "Usage: flip2 fork {extract|build|pack|install|rollback|status}"
+        ;;
+      *) echo "Unknown fork subcommand: $sub" >&2; exit 1 ;;
+    esac
     ;;
   ""|-h|--help|help)
     usage

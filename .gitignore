@@ -3,6 +3,10 @@
 **/build-apktool/
 **/build/
 launcher-patch/decoded/
+launcher-fork/work/
+launcher-fork/stock/
+launcher-fork/dist/
+launcher-fork/magisk-module/system/
 
 # Large binaries / pulled APKs
 launcher-patch/stock/

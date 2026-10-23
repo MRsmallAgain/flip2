@@ -8,6 +8,7 @@ flip2_paths_init() {
   fi
   export FLIP2_OVERLAY="${FLIP2_OVERLAY:-$FLIP2_ROOT/launcher-overlay}"
   export FLIP2_PATCH="${FLIP2_PATCH:-$FLIP2_ROOT/launcher-patch}"
+  export FLIP2_FORK="${FLIP2_FORK:-$FLIP2_ROOT/launcher-fork}"
   export FLIP2_PIPELINE="${FLIP2_PIPELINE:-$FLIP2_ROOT/pipeline}"
   export FLIP2_LIB="${FLIP2_LIB:-$FLIP2_ROOT/lib}"
   export FLIP2_BIN="${FLIP2_BIN:-$FLIP2_ROOT/bin}"

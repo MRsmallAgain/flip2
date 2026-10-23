@@ -9,3 +9,5 @@ source "$SCRIPT_DIR/constants.sh"
 source "$SCRIPT_DIR/env.sh"
 # shellcheck source=adb.sh
 source "$SCRIPT_DIR/adb.sh"
+# shellcheck source=slot5-policy.sh
+source "$SCRIPT_DIR/slot5-policy.sh"

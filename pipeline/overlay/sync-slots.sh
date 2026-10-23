@@ -35,9 +35,14 @@ if not items:
     raise SystemExit("No slots 1-9 set in slots.json")
 
 slot5 = (data.get("5") or "").strip()
+WHITELIST = {"com.android.music", "myLatam", "myATT", "Media center"}
+DEFAULT5 = "com.android.music"
 if slot5 and slot5 not in ("@tools", "tools", "@string/tools_key"):
+    def5 = slot5 if slot5 in WHITELIST else DEFAULT5
+    if slot5 not in WHITELIST:
+        print(f"slot 5: {slot5} not safe for stock launcher — def_appmenu_position_five -> {def5}")
     s = strings_path.read_text(encoding="utf-8")
-    line = f'    <string name="def_appmenu_position_five">{slot5}</string>'
+    line = f'    <string name="def_appmenu_position_five">{def5}</string>'
     if re.search(r'name="def_appmenu_position_five"', s):
         s = re.sub(
             r'\s*<string name="def_appmenu_position_five"[^>]*>[^<]*</string>\s*',
