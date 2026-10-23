@@ -1,0 +1,19 @@
+# Build outputs
+**/dist/
+**/build-apktool/
+**/build/
+launcher-patch/decoded/
+
+# Large binaries / pulled APKs
+launcher-patch/stock/
+**/*.apk
+**/*.idsig
+launcher-overlay/magisk-module/product/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor / local
+*.swp
+.DS_Store

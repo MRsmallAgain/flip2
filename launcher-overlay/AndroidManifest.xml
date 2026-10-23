@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.tim.flip2.launcheroverlay">
+
+    <overlay
+        android:targetPackage="com.android.launcher3"
+        android:targetName="Launcher3"
+        android:isStatic="true"
+        android:priority="999" />
+
+    <application android:hasCode="false" android:label="Flip2 Launcher Overlay" />
+</manifest>

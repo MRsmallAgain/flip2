@@ -1,0 +1,6 @@
+id=flip2_launcher_overlay
+name=Flip2 Launcher Overlay
+version=v1
+versionCode=1
+author=tim
+description=Static RRO for Launcher3 string overrides (com.tim.flip2.launcheroverlay)

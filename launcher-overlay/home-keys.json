@@ -1,0 +1,7 @@
+{
+  "_comment": "Right soft key on homescreen uses keyshortcut_rightkey. Format: Label-package-componentActivity (hyphens). Center Menu = slots.json; left Notifications = fixed TCL panel.",
+  "right": "Messages-com.android.mms-com.android.mms.ui.ConversationList",
+  "left": null,
+  "up": null,
+  "down": null
+}

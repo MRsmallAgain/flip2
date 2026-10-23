@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Flip2 toolkit CLI — modular pipelines for menu overlay and recovery.
+set -euo pipefail
+FLIP2_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=/dev/null
+source "$FLIP2_ROOT/lib/bootstrap.sh"
+
+usage() {
+  cat <<EOF
+Usage: flip2 <command> [args]
+
+Commands:
+  apply              Sync slots.json → build overlay → install → enable (USB + root)
+  slot <1-9> <pkg>   Set one menu slot and run apply
+  editor             Start web editor (http://127.0.0.1:${FLIP2_EDITOR_PORT})
+  recovery           Remove bad launcher Magisk module, restore stock Launcher3, apply overlay
+  pack-overlay       Build Magisk zip for overlay only (launcher-overlay/dist/)
+  home-keys          Apply home-keys.json to Settings.Global
+
+Environment:
+  FLIP2_ROOT         Repo root (default: $FLIP2_ROOT)
+  FLIP2_EDITOR_PORT  Editor port (default: $FLIP2_EDITOR_PORT)
+
+Docs: $FLIP2_ROOT/docs/PIPELINE.md
+EOF
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  apply)
+    exec "$FLIP2_PIPELINE/overlay/apply.sh"
+    ;;
+  slot)
+    [[ $# -ge 2 ]] || { echo "Usage: flip2 slot <1-9> <package-or-@tools>" >&2; exit 1; }
+    exec "$FLIP2_OVERLAY/scripts/edit-slot.sh" "$@"
+    ;;
+  editor)
+    flip2_env_init
+    if adb get-state >/dev/null 2>&1; then
+      adb reverse "tcp:${FLIP2_EDITOR_PORT}" "tcp:${FLIP2_EDITOR_PORT}" 2>/dev/null \
+        && echo "Phone: http://127.0.0.1:${FLIP2_EDITOR_PORT}"
+    fi
+    exec python3 "$FLIP2_OVERLAY/scripts/serve-editor.py"
+    ;;
+  recovery)
+    exec "$FLIP2_PIPELINE/recovery/resolve.sh"
+    ;;
+  pack-overlay)
+    exec "$FLIP2_OVERLAY/scripts/pack-magisk-module.sh"
+    ;;
+  home-keys)
+    exec "$FLIP2_OVERLAY/scripts/apply-home-keys.sh"
+    ;;
+  ""|-h|--help|help)
+    usage
+    ;;
+  *)
+    echo "Unknown command: $cmd" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

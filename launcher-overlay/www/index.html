@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flip2 menu slots</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 36rem; margin: 1.5rem auto; padding: 0 1rem; }
+    code, pre { background: #eee; padding: 0.2em 0.4em; border-radius: 4px; }
+    pre { padding: 0.75rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Menu slots 1–9</h1>
+  <p>Edit <code>slots.json</code> in the overlay folder (package name per key, or <code>@tools</code> for the Tools folder).</p>
+  <pre>~/.local/share/flip2/launcher-overlay/slots.json</pre>
+  <p>Apply (USB adb, root for idmap):</p>
+  <pre>~/.local/share/flip2/launcher-overlay/scripts/apply-slots.sh</pre>
+  <p>On the phone, TCL may still let you reorder in the stock launcher settings if that menu exists — overlay only sets default order and apps.</p>
+  <p>Slot <strong>5</strong> also updates <code>def_appmenu_position_five</code> when it is a normal app package.</p>
+
+  <h1>Homescreen soft keys</h1>
+  <p>On the main workspace (not inside the Menu grid):</p>
+  <ul>
+    <li><strong>Left</strong> — Notifications (opens TCL notification panel; label <code>notice</code> in overlay)</li>
+    <li><strong>Center</strong> — Menu (opens the 1–9 app grid from <code>slots.json</code>; label <code>menu</code>)</li>
+    <li><strong>Right</strong> — Shortcuts (launches app from <code>Settings.Global keyshortcut_rightkey</code>; label <code>shortcuts</code>)</li>
+  </ul>
+  <p>Relabel left/center/right: edit <code>notice</code>, <code>menu</code>, <code>shortcuts</code> in <code>res/values/strings.xml</code>, then run <code>apply-slots.sh</code>.</p>
+  <p>Change which app the <strong>right</strong> key opens: edit <code>home-keys.json</code>, then run <code>apply-home-keys.sh</code>.</p>
+  <p>Value format: <code>Label-package-componentActivity</code> with hyphens.</p>
+
+  <h1>Menu grid — edit slots</h1>
+  <p>The overlay cannot add long-press or a new <strong>Edit</strong> soft key inside Launcher3 (that needs launcher APK changes). Stock menu grid:</p>
+  <ul>
+    <li><strong>Center</strong> soft key often shows <code>select</code> (overlay can relabel to “Edit” — behavior unchanged).</li>
+    <li><strong>Long-press</strong> on an icon may start drag-to-home; order is <em>not</em> saved back into <code>allapp_list</code> / your overlay.</li>
+  </ul>
+  <p><strong>On phone</strong> (PC running editor + <code>adb reverse tcp:8765 tcp:8765</code>): <a href="/edit">/edit</a> — pick slot 1–9, app, then <strong>Apply on phone</strong>.</p>
+  <p><strong>On PC:</strong> <code>edit-slot.sh 5 com.android.settings</code> or edit <code>slots.json</code> + <code>apply-slots.sh</code>.</p>
+</body>
+</html>

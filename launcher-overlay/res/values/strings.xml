@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mediacenter_key">Media center</string>
+    <string name="tools_key">Tools</string>
+    <string name="verizon_key">Verizon Apps</string>
+    <string name="all_apps_button_label">Apps</string>
+    <string name="all_apps_home_button_label"></string>
+    <string name="folder_hint_text"></string>
+    <string name="def_appmenu_position_five">com.android.music</string>
+<!-- Homescreen MenuBar labels (left / center / right). -->
+    <string name="notice">Notifications</string>
+    <string name="menu">Menu</string>
+    <string name="shortcuts">Shortcuts</string>
+    <string name="select">Select</string>
+    <string name="options">Options</string>
+</resources>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bool/int overrides for Launcher3 @bool/@integer names (verify on device with pull script). -->
+</resources>

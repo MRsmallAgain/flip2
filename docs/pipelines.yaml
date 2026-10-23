@@ -1,0 +1,31 @@
+# Flip2 pipeline manifest — stages run in order unless noted.
+# CLI: bin/flip2
+
+overlay_apply:
+  description: Menu grid slots.json → device (RRO)
+  requires: [adb, root, apktool, apksigner]
+  stages:
+    - id: sync-slots
+      script: pipeline/overlay/sync-slots.sh
+      input: launcher-overlay/slots.json
+    - id: build-sign-install
+      script: launcher-overlay/scripts/sign-and-install.sh
+    - id: root-enable
+      script: launcher-overlay/scripts/after-root-enable.sh
+
+recovery:
+  description: After withdrawn launcher Magisk module crash
+  requires: [adb, root]
+  stages:
+    - id: remove-bad-module
+      action: rm /data/adb/modules/flip2_launcher3_null_icon_fix
+    - id: restore-stock-launcher
+      script: pipeline/recovery/resolve.sh
+      conditional: launcher_apk_size == 5029914
+    - id: overlay_apply
+      pipeline: overlay_apply
+
+pack_overlay_magisk:
+  description: Zip RRO for Magisk product overlay (safe)
+  script: launcher-overlay/scripts/pack-magisk-module.sh
+  output: launcher-overlay/dist/flip2_launcher_overlay-magisk.zip

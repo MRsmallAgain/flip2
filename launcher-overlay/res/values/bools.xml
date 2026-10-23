@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TCL Launcher3 fork toggles (match stock resource names). -->
+    <bool name="def_toolsshow_stk">false</bool>
+    <bool name="def_toolsshow_vvm">false</bool>
+    <bool name="def_toolsshow_rsuapk">false</bool>
+    <bool name="def_upkey_openmysite">false</bool>
+    <bool name="def_show_airplane_dialog">false</bool>
+    <bool name="def_show_cellular_dialog">false</bool>
+</resources>

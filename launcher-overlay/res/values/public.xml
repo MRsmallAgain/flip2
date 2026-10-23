@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Must match com.android.launcher3 resource IDs or idmap2 reports "no resources overlaid". -->
+<resources>
+    <public type="array" name="allapp_list" id="0x7f030000" />
+    <public type="array" name="tools_hasmusic_list" id="0x7f030005" />
+    <public type="array" name="tools_list" id="0x7f030006" />
+    <public type="bool" name="def_show_airplane_dialog" id="0x7f050006" />
+    <public type="bool" name="def_show_cellular_dialog" id="0x7f050007" />
+    <public type="bool" name="def_toolsshow_rsuapk" id="0x7f050008" />
+    <public type="bool" name="def_toolsshow_stk" id="0x7f050009" />
+    <public type="bool" name="def_toolsshow_vvm" id="0x7f05000a" />
+    <public type="bool" name="def_upkey_openmysite" id="0x7f05000b" />
+    <public type="string" name="mediacenter_key" id="0x7f100068" />
+    <public type="string" name="tools_key" id="0x7f1000ab" />
+    <public type="string" name="verizon_key" id="0x7f1000b0" />
+    <public type="string" name="all_apps_button_label" id="0x7f100020" />
+    <public type="string" name="all_apps_home_button_label" id="0x7f100021" />
+    <public type="string" name="def_appmenu_position_five" id="0x7f10003a" />
+    <public type="string" name="folder_hint_text" id="0x7f100047" />
+    <public type="string" name="menu" id="0x7f10006a" />
+    <public type="string" name="notice" id="0x7f10007a" />
+    <public type="string" name="shortcuts" id="0x7f1000a4" />
+    <public type="string" name="select" id="0x7f1000a0" />
+    <public type="string" name="options" id="0x7f100084" />
+</resources>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Menu grid from slots.json (1-9) -->
+    <string-array name="allapp_list">
+        <item>com.android.dialer</item>
+        <item>com.android.mms</item>
+        <item>com.android.contacts</item>
+        <item>com.android.gallery3d</item>
+        <item>com.android.music</item>
+        <item>com.tcl.camera</item>
+        <item>org.chromium.chrome</item>
+        <item>@string/tools_key</item>
+        <item>com.android.settings</item>
+    </string-array>
+
+    <string-array name="tools_list">
+        <item>com.android.soundrecorder</item>
+        <item>com.android.calendar</item>
+        <item>com.android.deskclock</item>
+        <item>com.android.note</item>
+        <item>com.android.calculator2</item>
+        <item>com.android.email</item>
+        <item>com.jrdcom.filemanager</item>
+        <item>com.android.stk</item>
+        <item>com.tcl.tct.weather</item>
+        <item>com.android.dialer</item>
+        <item>com.tcl.logger</item>
+                            </string-array>
+
+    <string-array name="tools_hasmusic_list">
+        <item>com.android.soundrecorder</item>
+        <item>com.android.calendar</item>
+        <item>com.android.deskclock</item>
+        <item>com.android.note</item>
+        <item>com.android.calculator2</item>
+        <item>com.android.email</item>
+        <item>com.jrdcom.filemanager</item>
+        <item>com.android.music</item>
+        <item>com.android.stk</item>
+        <item>com.tcl.tct.weather</item>
+        <item>com.android.dialer</item>
+        <item>com.tcl.logger</item>
+                            </string-array>
+</resources>

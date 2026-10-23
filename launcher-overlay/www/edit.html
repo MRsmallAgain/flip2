@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Edit menu slot</title>
+  <style>
+    :root { --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7; --panel: #24283b; --muted: #565f89; }
+    * { box-sizing: border-box; }
+    body {
+      font: 16px/1.4 system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(5rem, env(safe-area-inset-bottom));
+      max-width: 28rem;
+      margin-inline: auto;
+    }
+    h1 { font-size: 1.1rem; margin: 0 0 0.5rem; }
+    p.hint { color: var(--muted); font-size: 0.85rem; margin: 0 0 1rem; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 0.75rem; }
+    select, input {
+      width: 100%;
+      font-size: 16px;
+      padding: 0.65rem;
+      margin-top: 0.25rem;
+      background: var(--panel);
+      border: 1px solid var(--muted);
+      color: var(--fg);
+      border-radius: 6px;
+    }
+    #log {
+      margin-top: 1rem;
+      padding: 0.65rem;
+      background: var(--panel);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      white-space: pre-wrap;
+      min-height: 2rem;
+    }
+    .bar {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      padding: 0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom));
+      background: linear-gradient(transparent, var(--bg) 30%);
+      display: flex;
+      gap: 0.5rem;
+    }
+    button {
+      flex: 1;
+      min-height: 44px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #1a1b26;
+      font-size: 1rem;
+    }
+    button.secondary { background: var(--muted); color: var(--fg); }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>Menu grid — edit slot</h1>
+  <p class="hint">Pick position 1–9 and an app. <strong>Apply</strong> rebuilds the overlay (USB + root). Some apps (e.g. Bouncy) crash stock Menu when their icon fails to load — use a stock app for that slot. Do not install the withdrawn launcher Magisk module (see launcher-patch/RECOVERY.md).</p>
+
+  <label for="slot">Position</label>
+  <select id="slot">
+    <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+    <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+    <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+  </select>
+
+  <label for="pkg">App (package)</label>
+  <select id="pkg"><option value="">Loading…</option></select>
+  <label for="pkgManual">Or type package / @tools</label>
+  <input id="pkgManual" type="text" autocomplete="off" placeholder="com.android.dialer or @tools" />
+
+  <div id="log" aria-live="polite"></div>
+
+  <div class="bar">
+    <button type="button" class="secondary" id="btnSave">Save only</button>
+    <button type="button" id="btnApply">Apply on phone</button>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const log = (m) => { $('log').textContent = m; };
+
+    const api = async (path, opts = {}) => {
+      const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...opts.headers } });
+      const t = await r.text();
+      let j; try { j = JSON.parse(t); } catch { j = { raw: t }; }
+      if (!r.ok) throw new Error(j.error || j.raw || r.statusText);
+      return j;
+    };
+
+    function packageValue() {
+      const manual = $('pkgManual').value.trim();
+      if (manual) return manual;
+      return $('pkg').value.trim();
+    }
+
+    async function load() {
+      const [slotsJ, pkgsJ] = await Promise.all([
+        api('/api/slots'),
+        api('/api/packages').catch(() => ({ packages: [] })),
+      ]);
+      const slots = slotsJ.slots || {};
+      const n = $('slot').value;
+      const cur = slots[n] || '';
+      $('pkgManual').value = cur.startsWith('@') ? cur : '';
+      const pkgSel = $('pkg');
+      pkgSel.innerHTML = '<option value="">— pick installed app —</option>';
+      const special = [{ package: '@tools', label: 'Tools folder (@tools)' }];
+      [...special, ...(pkgsJ.packages || [])].forEach((p) => {
+        const o = document.createElement('option');
+        o.value = p.package;
+        o.textContent = p.label ? `${p.label} (${p.package})` : p.package;
+        if (p.package === cur) o.selected = true;
+        pkgSel.appendChild(o);
+      });
+      if (cur && !cur.startsWith('@') && !pkgsJ.packages?.some((p) => p.package === cur)) {
+        const o = document.createElement('option');
+        o.value = cur;
+        o.textContent = cur + ' (current)';
+        o.selected = true;
+        pkgSel.appendChild(o);
+      }
+    }
+
+    async function save(apply) {
+      const n = $('slot').value;
+      const v = packageValue();
+      if (!v) { log('Enter or pick an app.'); return; }
+      log(apply ? 'Applying…' : 'Saving…');
+      try {
+        const j = await api('/api/slots', {
+          method: 'POST',
+          body: JSON.stringify({ slots: { [n]: v }, apply }),
+        });
+        log(j.output || (apply ? 'Applied — press Home, open Menu.' : 'Saved slots.json on PC.'));
+      } catch (e) { log(String(e.message)); }
+    }
+
+    $('btnSave').onclick = () => save(false);
+    $('btnApply').onclick = () => save(true);
+    $('slot').onchange = load;
+    load().catch((e) => log('Load failed: ' + e.message));
+  </script>
+</body>
+</html>
