@@ -96,6 +96,19 @@ public class NullKeyboardService extends InputMethodService {
         if (ic == null) {
             return false;
         }
+        // Hardware delete keypad and BACK both mean "clear" on a flip phone:
+        // delete while there is text, otherwise let BACK fall through (hides IME,
+        // next press navigates back natively).
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                CharSequence before = ic.getTextBeforeCursor(1, 0);
+                if (before != null && before.length() > 0) {
+                    ic.deleteSurroundingText(1, 0);
+                    return true;
+                }
+            }
+            return false;
+        }
         // TCL Flip2 keypad has no KEY_BACKSPACE; the physical backspace key emits KEY_HELP.
         if (keyCode == KeyEvent.KEYCODE_DEL || keyCode == KeyEvent.KEYCODE_FORWARD_DEL
                 || keyCode == KeyEvent.KEYCODE_HELP) {

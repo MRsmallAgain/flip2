@@ -68,6 +68,6 @@ At `wm size 321x428` most apps painted a **30px black strip over the bottom edge
 
 Data-installed overlays targeting `android` are filtered (`STATE_NO_IDMAP`, signature policy) — must go through `/product/overlay` (Magisk module). CLI: **`flip2 navoverlay {build|install|status|rollback}`** (`rollback` = remove module + reboot).
 
-Hardware ⌫: the keypad has no delete key — **backspace emits `KEY_HELP`**, handled as delete by the null IME (v1.8+).
+Hardware ⌫: the physical key is the BACK key (code 158). Null IME v1.9+ treats BACK in a text field as delete while text exists (falls through to back navigation when empty); code 138 (KEY_HELP) additionally remapped to DEL via `flip2_keypad_backspace` KL module.
 
 See also: `flip2 display help`, [CUSTOMIZATION.md](CUSTOMIZATION.md).
