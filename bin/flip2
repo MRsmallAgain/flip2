@@ -17,7 +17,14 @@ Commands:
   recovery           Remove bad launcher Magisk module, restore stock Launcher3, apply overlay
   pack-overlay       Build Magisk zip for overlay only (launcher-overlay/dist/)
   home-keys          Apply home-keys.json to Settings.Global
-  fork <subcmd>      Launcher3 fork: build | pack | install | rollback | status | extract
+  display <sub>      Global density / font / screen-compat (see docs/DISPLAY-DPI.md)
+  fork <subcmd>      Launcher3 fork (Magisk): build | pack | install | rollback | status | extract
+  launcher4 <sub>    User APK com.tim.flip2.launcher4: build | install | set-home | uninstall | status
+  ime <sub>          Null keyboard IME: build | hide-bar | restore | status
+  navoverlay <sub>   framework-res RRO (menu bar/navbar 0px): build | install | status | rollback
+  tagdrawer <sub>    Pixel Tag Drawer system (Magisk): pack | install | rollback | status
+  vmouse <sub>       Simple mouse (neutronscott simple-release1): install | status
+  ime <sub>          Kika "Abc" strip: hide-bar | restore | status
 
 Environment:
   FLIP2_ROOT         Repo root (default: $FLIP2_ROOT)
@@ -59,6 +66,9 @@ case "$cmd" in
   home-keys)
     exec "$FLIP2_OVERLAY/scripts/apply-home-keys.sh"
     ;;
+  display)
+    exec "$FLIP2_PIPELINE/display/display.sh" "$@"
+    ;;
   fork)
     sub="${1:-help}"
     shift || true
@@ -74,6 +84,96 @@ case "$cmd" in
         ;;
       *) echo "Unknown fork subcommand: $sub" >&2; exit 1 ;;
     esac
+    ;;
+  launcher4)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      build)     exec "$FLIP2_LAUNCHER4/scripts/build.sh" ;;
+      install)   exec "$FLIP2_LAUNCHER4/scripts/install.sh" ;;
+      set-home)  exec "$FLIP2_LAUNCHER4/scripts/set-home.sh" ;;
+      uninstall) exec "$FLIP2_LAUNCHER4/scripts/uninstall.sh" ;;
+      status)
+        PKG="${FLIP2_LAUNCHER4_PKG:-com.tim.flip2.launcher4}"
+        APK="$FLIP2_LAUNCHER4/dist/launcher4.apk"
+        [[ -f "$APK" ]] && echo "Built: $APK ($(wc -c <"$APK" | tr -d ' ') bytes)" || echo "Not built — run: flip2 launcher4 build"
+        if adb get-state >/dev/null 2>&1; then
+          adb shell pm path "$PKG" 2>/dev/null || echo "Not installed on device"
+        fi
+        ;;
+      help|-h|--help)
+        echo "Usage: flip2 launcher4 {build|install|set-home|uninstall|status}"
+        echo "  Safe path: user APK + pick Home — does NOT replace /system Launcher3."
+        ;;
+      *) echo "Unknown launcher4 subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  tagdrawer)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      pack)      exec "$FLIP2_TAGDRAWER/scripts/pack.sh" ;;
+      install)   exec "$FLIP2_TAGDRAWER/scripts/install.sh" ;;
+      rollback)  exec "$FLIP2_TAGDRAWER/scripts/rollback.sh" ;;
+      status)    exec "$FLIP2_TAGDRAWER/scripts/status.sh" ;;
+      help|-h|--help)
+        echo "Usage: flip2 tagdrawer {pack|install|rollback|status}"
+        echo "  /system/app/PixelTagDrawer via Magisk. D-pad Up: home-keys.json + flip2 home-keys."
+        ;;
+      *) echo "Unknown tagdrawer subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  vmouse)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      install) exec "$FLIP2_ROOT/vmouse/scripts/install-simple.sh" ;;
+      status)
+        if adb get-state >/dev/null 2>&1; then
+          adb shell "su -c 'wc -c /data/adb/modules/vMouse/mouse 2>/dev/null; ls /data/adb/service.d/flip2-vmouse* 2>/dev/null; pgrep -a mouse 2>/dev/null'" 2>/dev/null || true
+        fi
+        BIN="$FLIP2_ROOT/vmouse/stock/mouse"
+        [[ -f "$BIN" ]] && echo "Local simple mouse: $BIN ($(wc -c <"$BIN" | tr -d ' ') bytes)" || echo "Run: flip2 vmouse install (fetches binary)"
+        ;;
+      help|-h|--help)
+        echo "Usage: flip2 vmouse {install|status}"
+        echo "  simple-release1 binary into Magisk vMouse module. Long-press left soft key to toggle."
+        echo "  https://github.com/neutronscott/flip2/releases/tag/simple-release1"
+        ;;
+      *) echo "Unknown vmouse subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  navoverlay)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      build)  exec "$FLIP2_ROOT/framework-nav-overlay/scripts/build-and-install.sh" build ;;
+      install)
+        "$FLIP2_ROOT/framework-nav-overlay/scripts/pack.sh"
+        adb push "$FLIP2_ROOT/framework-nav-overlay/dist/flip2_nav_overlay-magisk.zip" /sdcard/Download/ >/dev/null
+        adb shell "su -c 'magisk --install-module /sdcard/Download/flip2_nav_overlay-magisk.zip'" >/dev/null 2>&1 || true
+        adb shell su -c "unzip -o /sdcard/Download/flip2_nav_overlay-magisk.zip -d /data/adb/modules/flip2_nav_overlay/ >/dev/null"
+        echo "Reboot required, then: su cmd overlay enable com.tim.flip2.navoverlay (if not [x])."
+        ;;
+      status)
+        adb get-state >/dev/null 2>&1 || { echo "No adb device"; exit 1; }
+        adb shell "ls /product/overlay/Flip2NavOverlay.apk 2>/dev/null" | tr -d '\r'
+        adb shell cmd overlay list 2>/dev/null | grep navoverlay
+        adb shell "su -c 'ls /data/adb/modules/flip2_nav_overlay/module.prop 2>/dev/null'" | tr -d '\r'
+        ;;
+      rollback)
+        adb shell su -c "rm -rf /data/adb/modules/flip2_nav_overlay" && echo "Removed module — reboot to restore stock menu bar."
+        ;;
+      help|-h|--help)
+        echo "Usage: flip2 navoverlay {build|install|status|rollback}"
+        echo " framework-res RRO: decor menu bar + navigation_bar_height = 0."
+        echo "  Removes the phantom 30px black bar that clips chat input (Forkgram, Messages…)."
+        ;;
+      *) echo "Unknown navoverlay subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  ime)
+    exec "$FLIP2_PIPELINE/ime/ime.sh" "$@"
     ;;
   ""|-h|--help|help)
     usage

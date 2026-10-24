@@ -1,12 +1,12 @@
 {
-  "_comment": "Menu grid: 1-9 = icon order. @tools = Tools folder entry.",
-  "1": "com.android.dialer",
+  "_comment": "Menu 1-9. Intertune is NOT on the grid — use home-keys left (works better than menu slot 5 on Flip2). @tools = Tools folder.",
+  "1": "com.android.calculator2",
   "2": "com.android.mms",
   "3": "com.android.contacts",
   "4": "com.android.gallery3d",
-  "5": "com.android.music",
+  "5": "com.android.settings",
   "6": "com.tcl.camera",
   "7": "org.chromium.chrome",
   "8": "@tools",
-  "9": "com.android.settings"
+  "9": "com.dozingcatsoftware.bouncy"
 }

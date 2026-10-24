@@ -1,7 +1,8 @@
 {
-  "_comment": "Right soft key on homescreen uses keyshortcut_rightkey. Format: Label-package-componentActivity (hyphens). Center Menu = slots.json; left Notifications = fixed TCL panel.",
+  "_comment": "Label-package-componentActivity (no hyphens in label). left = workspace left soft key (Intertune — not on menu grid). right = d-pad right. shortcuts_bar = bottom Shortcuts.",
+  "left": "Intertune-dev.skye.intertune-com.dd3boh.outertune.MainActivity",
   "right": "Messages-com.android.mms-com.android.mms.ui.ConversationList",
-  "left": null,
-  "up": null,
+  "shortcuts_bar": "Bluetooth-com.android.settings-com.android.settings.Settings$ConnectedDeviceDashboardActivity",
+  "up": "Tags-com.iwadjp.pixeltagdrawer-com.iwadjp.pixeltagdrawer.MainActivity",
   "down": null
 }

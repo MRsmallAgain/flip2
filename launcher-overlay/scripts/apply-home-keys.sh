@@ -11,6 +11,7 @@ fi
 
 python3 <<PY
 import json
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -20,14 +21,17 @@ keys = {
     "right": "keyshortcut_rightkey",
     "up": "keyshortcut_upkey",
     "down": "keyshortcut_downkey",
+    "shortcuts_bar": "keyshortcut_shortcutsbar",
 }
 for slot, setting in keys.items():
     v = data.get(slot)
     if v is None or (isinstance(v, str) and not v.strip()):
         continue
     v = str(v).strip()
+    # Quote for device sh: & and $ in Label-package-component break unquoted args
+    shell_cmd = f"settings put global {setting} {shlex.quote(v)}"
     r = subprocess.run(
-        ["adb", "shell", "settings", "put", "global", setting, v],
+        ["adb", "shell", shell_cmd],
         capture_output=True,
         text=True,
     )

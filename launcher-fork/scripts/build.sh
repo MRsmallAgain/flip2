@@ -13,6 +13,7 @@ mkdir -p "$DIST"
 "$FLIP2_FORK/scripts/extract-from-stock.sh"
 "$FLIP2_FORK/scripts/apply-patches.sh"
 "$FLIP2_FORK/scripts/inject-slots.sh"
+"$FLIP2_LAUNCHER4/scripts/patch-menu-icons.sh" "$WORK"
 
 apktool b "$WORK" -o "$DIST/Launcher3-fork-unsigned.apk"
 ZIPALIGN="${ZIPALIGN:-$ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign}"

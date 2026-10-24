@@ -2,18 +2,19 @@
 <resources>
     <!-- Menu grid from slots.json (1-9) -->
     <string-array name="allapp_list">
-        <item>com.android.dialer</item>
+        <item>com.android.calculator2</item>
         <item>com.android.mms</item>
         <item>com.android.contacts</item>
         <item>com.android.gallery3d</item>
-        <item>com.android.music</item>
+        <item>com.android.settings</item>
         <item>com.tcl.camera</item>
         <item>org.chromium.chrome</item>
-        <item>@string/tools_key</item>
-        <item>com.android.settings</item>
+        <item>Tools</item>
+        <item>com.dozingcatsoftware.bouncy</item>
     </string-array>
 
     <string-array name="tools_list">
+        <item>com.android.settings</item>
         <item>com.android.soundrecorder</item>
         <item>com.android.calendar</item>
         <item>com.android.deskclock</item>
@@ -25,9 +26,10 @@
         <item>com.tcl.tct.weather</item>
         <item>com.android.dialer</item>
         <item>com.tcl.logger</item>
-                                    </string-array>
+                                                                                                                                                                                                                                            </string-array>
 
     <string-array name="tools_hasmusic_list">
+        <item>com.android.settings</item>
         <item>com.android.soundrecorder</item>
         <item>com.android.calendar</item>
         <item>com.android.deskclock</item>
@@ -40,5 +42,5 @@
         <item>com.tcl.tct.weather</item>
         <item>com.android.dialer</item>
         <item>com.tcl.logger</item>
-                                    </string-array>
+                                                                                                                                                                                                                                            </string-array>
 </resources>

@@ -63,6 +63,14 @@ export PATH="$HOME/.local/share/flip2/bin:$PATH"
 | `flip2 recovery` | Post-crash recovery |
 | `flip2 pack-overlay` | Magisk zip for RRO only |
 | `flip2 home-keys` | Settings.Global shortcuts |
+| `flip2 tagdrawer pack` | F-Droid APK → Magisk zip |
+| `flip2 tagdrawer install` | System app module + remove AppShelf; reboot |
+| `flip2 tagdrawer rollback` | Remove `flip2_pixel_tag_drawer` module |
+| `flip2 tagdrawer status` | Zip, `pm path`, Up key |
+
+### Pixel Tag Drawer (system)
+
+See [pixel-tag-drawer/README.md](../pixel-tag-drawer/README.md). D-pad Up is set in `launcher-overlay/home-keys.json` (`flip2 home-keys`).
 
 ## Prerequisites
 

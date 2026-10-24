@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- wm size 321x428 + ~1.34× stock dimens (menu size rolled back from +33% bump). -->
+<resources>
+    <dimen name="allapp_cellheight">116.0px</dimen>
+    <dimen name="allapp_cellheight_larger">160.0px</dimen>
+    <dimen name="allapp_iconsize">67.0px</dimen>
+    <dimen name="allapp_iconsize_larger">88.0px</dimen>
+    <dimen name="allapp_icontextsize">17.0px</dimen>
+    <dimen name="allapp_icontextsize_larger">24.0px</dimen>
+    <dimen name="toolapp_cellheight">102.0px</dimen>
+    <dimen name="toolapp_iconsize">62.0px</dimen>
+    <dimen name="toolapp_icontextsize">16.0px</dimen>
+    <dimen name="widget_big_font_size">96.0px</dimen>
+    <dimen name="notification_header_text_size">20.0sp</dimen>
+    <dimen name="notification_header_count_text_size">18.0sp</dimen>
+    <dimen name="notification_header_height">44.0dip</dimen>
+</resources>

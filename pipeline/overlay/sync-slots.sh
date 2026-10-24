@@ -27,12 +27,22 @@ for i in range(1, 10):
     if not v:
         continue
     if v in ("@tools", "tools", "@string/tools_key"):
-        items.append("@string/tools_key")
+        # Literal "Tools" matches tools_key + mAllAppIconMap (not unresolved @string in array)
+        items.append("Tools")
     else:
         items.append(v)
 
 if not items:
     raise SystemExit("No slots 1-9 set in slots.json")
+
+INTERTUNE = "dev.skye.intertune"
+for i in range(1, 10):
+    v = (data.get(str(i)) or "").strip()
+    if v == INTERTUNE:
+        print(
+            f"flip2: slot {i} is {INTERTUNE} — menu often fails to show it; "
+            "use home-keys.json left + com.android.music (or stock-safe) in slot 5 instead."
+        )
 
 slot5 = (data.get("5") or "").strip()
 WHITELIST = {"com.android.music", "myLatam", "myATT", "Media center"}

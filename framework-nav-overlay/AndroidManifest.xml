@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.tim.flip2.navoverlay"
+    android:versionCode="1"
+    android:versionName="1.0">
+    <!-- Flip2 has no navigation bar; apps read navigation_bar_height (30dp) and paint a
+         black strip that clips chat input. Zero the dimens via framework-res RRO. -->
+    <overlay
+        android:targetPackage="android"
+        android:targetName=""
+        android:priority="1"
+        android:isStatic="false" />
+    <application android:label="Flip2 Nav Overlay" android:hasCode="false" />
+</manifest>

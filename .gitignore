@@ -6,7 +6,11 @@ launcher-patch/decoded/
 launcher-fork/work/
 launcher-fork/stock/
 launcher-fork/dist/
+launcher4/work/
+launcher4/dist/
 launcher-fork/magisk-module/system/
+pixel-tag-drawer/stock/
+pixel-tag-drawer/magisk-module/system/
 
 # Large binaries / pulled APKs
 launcher-patch/stock/

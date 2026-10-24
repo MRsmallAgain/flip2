@@ -10,7 +10,7 @@
 <!-- Homescreen MenuBar labels (left / center / right). -->
     <string name="notice">Notifications</string>
     <string name="menu">Menu</string>
-    <string name="shortcuts">Shortcuts</string>
+    <string name="shortcuts">Pairing</string>
     <string name="select">Select</string>
     <string name="options">Options</string>
 </resources>

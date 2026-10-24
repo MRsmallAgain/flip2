@@ -29,3 +29,14 @@ pack_overlay_magisk:
   description: Zip RRO for Magisk product overlay (safe)
   script: launcher-overlay/scripts/pack-magisk-module.sh
   output: launcher-overlay/dist/flip2_launcher_overlay-magisk.zip
+
+tagdrawer_system:
+  description: Pixel Tag Drawer as /system/app via Magisk (D-pad Up)
+  requires: [adb, root, magisk]
+  stages:
+    - id: pack
+      script: pixel-tag-drawer/scripts/pack.sh
+      output: pixel-tag-drawer/dist/flip2_pixel_tag_drawer-magisk.zip
+    - id: install
+      script: pixel-tag-drawer/scripts/install.sh
+      note: uninstalls AppShelf; reboot required

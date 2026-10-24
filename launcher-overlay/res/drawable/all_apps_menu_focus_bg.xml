@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icon-sized focus ring; +3px vs allapp_iconsize, +6px top inset. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="70px"
+        android:height="70px"
+        android:top="6px"
+        android:gravity="top|center_horizontal">
+        <shape android:shape="rectangle">
+            <solid android:color="#ffffffff" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+</layer-list>
