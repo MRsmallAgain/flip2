@@ -23,7 +23,8 @@ APKSIGNER="$BT/apksigner"
 rm -rf "$WORK" "$OUT"
 mkdir -p "$WORK/classes" "$WORK/res" "$OUT"
 
-javac -source 1.8 -target 1.8 -bootclasspath "$ANDROID_JAR" \
+javac -source 1.8 -target 1.8 \
+  -bootclasspath "$ANDROID_JAR":"$BT/core-lambda-stubs.jar" \
   -d "$WORK/classes" "$ROOT/src/com/tim/flip2/nullkeyboard/NullKeyboardService.java"
 
 cd "$WORK/classes" && jar cf "$WORK/classes.jar" com/ && cd "$ROOT"
