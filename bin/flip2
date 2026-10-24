@@ -21,6 +21,7 @@ Commands:
   fork <subcmd>      Launcher3 fork (Magisk): build | pack | install | rollback | status | extract
   launcher4 <sub>    User APK com.tim.flip2.launcher4: build | install | set-home | uninstall | status
   ime <sub>          Null keyboard IME: build | hide-bar | restore | status
+  keypad <sub>       matrix-keypad KL: physical ⌫ → DEL (status | rollback)
   navoverlay <sub>   framework-res RRO (menu bar/navbar 0px): build | install | status | rollback
   tagdrawer <sub>    Pixel Tag Drawer system (Magisk): pack | install | rollback | status
   vmouse <sub>       Simple mouse (neutronscott simple-release1): install | status
@@ -170,6 +171,28 @@ case "$cmd" in
         echo "  Removes the phantom 30px black bar that clips chat input (Forkgram, Messages…)."
         ;;
       *) echo "Unknown navoverlay subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  keypad)
+    sub="${1:-help}"
+    shift || true
+    KH="$FLIP2_ROOT/keypad-backspace"
+    case "$sub" in
+      status)
+        adb get-state >/dev/null 2>&1 || { echo "No adb device"; exit 1; }
+        echo -n "KL line: "; adb shell su -c "cat /system/usr/keylayout/matrix-keypad.kl" 2>/dev/null | grep 'key 138' | tr -d '\r'
+        adb shell "dumpsys input 2>/dev/null" | grep -A12 'matrix-keypad ' | grep -o 'KeyLayoutFile.*' | sort -u | tr -d '\r'
+        echo -n "Module: "; adb shell su -c "ls /data/adb/modules/flip2_keypad_backspace/module.prop 2>/dev/null" | tr -d '\r'
+        ;;
+      rollback)
+        adb shell su -c "rm -rf /data/adb/modules/flip2_keypad_backspace" && echo "Removed module — reboot restores stock mapping (⌫ = FAVORITE_CONTACTS)."
+        ;;
+      help|-h|--help)
+        echo "Usage: flip2 keypad {status|rollback}"
+        echo "  matrix-keypad.kl: physical backspace (code 138/KEY_HELP) → DEL."
+        echo "  Stock ROM mapped it to FAVORITE_CONTACTS (dead key)."
+        ;;
+      *) echo "Unknown keypad subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;
   ime)
