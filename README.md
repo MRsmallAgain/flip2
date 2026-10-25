@@ -23,6 +23,7 @@ Requires: USB debugging, **root** (overlay idmap), JDK + Android SDK build-tools
 | Recovery pipeline | `pipeline/recovery/` | Stock launcher + overlay after crash |
 | RRO project | `launcher-overlay/` | `slots.json`, APK resources, Magisk pack |
 | Launcher patch | `launcher-patch/` | **Withdrawn** whole-APK Magisk fix — see RECOVERY.md |
+| Mouse pipeline | `pipeline/flipmouse/` | Vendored [FlipMouse](https://github.com/TylerBoni/FlipMouse) virtual mouse (Magisk) |
 
 Full design: **[docs/PIPELINE.md](docs/PIPELINE.md)** · shared libs: **[docs/MODULES.md](docs/MODULES.md)**
 
@@ -70,3 +71,27 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
 Vendor **1bbb:0c01** (T & A Mobile).
+
+## Virtual mouse (FlipMouse)
+
+The `pipeline/flipmouse/` tree vendors [TylerBoni/FlipMouse](https://github.com/TylerBoni/FlipMouse) — a libevdev-based virtual mouse for keypad phones, built from source with the NDK and shipped as a Magisk module. The vendored copy is patched: it stays a **passive observer until activated** (upstream grabs the keypad at startup, which collides with the null-keyboard IME's `*` key), and mouse mode is toggled without touching `*`.
+
+```bash
+flip2 flipmouse build     # NDK armv7a build: static libevdev + mouse binary → Magisk zip
+flip2 flipmouse install   # push + magisk --install-module, reboot needed
+flip2 flipmouse status    # module dir, binary size, running process
+flip2 flipmouse rollback  # remove module — reboot restores stock
+```
+
+## Credits
+
+This toolkit stands on the work of:
+
+- **[neutronscott/flip2](https://github.com/neutronscott/flip2)** — the foundation for everything here: device research, root method, fastboot/boot tools (`autobooter-linux.py`, `mtk-bootseq.py`), the original vMouse module our `vmouse` pipeline targets, and the wiki this whole modding approach depends on. Unlicense.
+- **[TylerBoni/FlipMouse](https://github.com/TylerBoni/FlipMouse)** — the virtual mouse vendored into `pipeline/flipmouse/` (keypad→mouse via libevdev/uinput, Magisk module). Read Tyler's [dumbphone-journey write-up](https://dev.to/tylerboni/escaping-the-digital-treadmill-how-to-daily-drive-a-flip-phone-in-2025-tcl-flip-2-17el). README declares MIT (upstream repo has no standalone LICENSE file yet; credited and linked here rather than silently forked — local patches are ours).
+- **[Vosk / alphacep](https://github.com/alphacep)** — offline speech recognition (Apache-2.0) powering the null-keyboard IME dictation; models from `flip2 ime models`.
+- **[libevdev](https://www.freedesktop.org/wiki/Software/libevdev/)** — input-event handling in FlipMouse (built statically by its build script).
+- **[Magisk](https://github.com/topjohnwu/Magisk)** — systemless modules used throughout.
+- **TCL / MTK stock ROM** — the Flip 2 (Gflip6, 4058G) itself; RRO overlays and key-layout edits patch around, not over, the stock system.
+
+If you reuse this repo, please carry those credits forward.
