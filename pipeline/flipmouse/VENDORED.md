@@ -15,13 +15,19 @@ both.
 
 - **Passive observer at startup** — keypads are NOT grabbed; the system sees
   every key natively and FlipMouse only watches.
-- **Activate:** double-tap Volume-Down within 450 ms (mtk-kpd). The two taps
-  still lower volume by 2 steps — accepted cost of a gesture that touches no
-  IME key.
+- **Activate:** hold OK + Volume-Down together for ~1 s, then release both.
+  Mode engages on the release so every press AND release has already been
+  delivered natively before the grab (grabbing while a key is down would
+  strand Android's synthetic-repeat timer on it). Can't misfire on normal
+  volume/OK use, and touches no IME key.
 - **While active:** keypads grabbed. D-pad moves, OK = left click, top-left
   soft key (139/KEY_MENU) scrolls up, pound (523) scrolls down, top-right soft
   key (48/KEY_B) toggles drag, Volume-Up/Down adjusts speed.
 - **Exit:** star tap (522) releases the grabs, back to passive.
+- v1.3: held-key auto-repeat synthesized in-daemon (400 ms delay, 10 steps/s,
+  wheel on slowed cadence) — the keypads have no kernel EV_REP and Android's
+  repeater never sees grabbed keys; releases are swallowed, which also fixed
+  the double-step-per-tap quirk.
 - Upstream laptop-keymap path removed (not needed here); scancodes verified
   against this unit's `/system/usr/keylayout/matrix-keypad.kl` and `mtk-kpd.kl`.
 

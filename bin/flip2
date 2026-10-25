@@ -155,8 +155,8 @@ case "$cmd" in
       rollback) exec "$FLIP2_ROOT/pipeline/flipmouse/rollback.sh" ;;
       help|-h|--help)
         echo "Usage: flip2 flipmouse {build|install|status|rollback}"
-        echo "  Vendored TylerBoni/FlipMouse, flip2-patched: passive until double-tap"
-        echo "  Volume-Down activates mouse mode; star tap exits. See pipeline/flipmouse/VENDORED.md."
+        echo "  Vendored TylerBoni/FlipMouse, flip2-patched: passive until OK+VolDown combo hold"
+        echo "  Combo hold activates mouse mode; star tap exits. See pipeline/flipmouse/VENDORED.md."
         ;;
       *) echo "Unknown flipmouse subcommand: $sub" >&2; exit 1 ;;
     esac

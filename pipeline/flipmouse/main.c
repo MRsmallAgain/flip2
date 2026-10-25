@@ -7,8 +7,10 @@
  * steals the * key from the null-keyboard IME (T9 candidate cycling +
  * hold-* dictation). Patched behavior:
  *   - passive observer until activated (no grab; the system sees every key)
- *   - activate: two Volume-Down taps within DOUBLE_TAP_WINDOW_MS (the two
- *     taps still change volume — accepted cost of a collision-free gesture)
+ *   - activate: hold OK + Volume-Down together for COMBO_HOLD_MS, then
+ *     release both — mode engages on the release so every press AND release
+ *     has already been delivered natively before we grab (grabbing while a
+ *     key is down would strand Android's synthetic-repeat timer on it)
  *   - while active: keypads grabbed; D-pad moves, OK clicks, pound scrolls
  *     down, soft-left scrolls up, soft-right toggles drag, volume = speed
  *   - a Star tap exits back to passive (grabs released, IME unaffected)
@@ -29,6 +31,7 @@
 #include <stdarg.h>
 #include <signal.h>
 #include <sys/signalfd.h>
+#include <sys/time.h>
 #include <time.h>
 
 /* Configuration */
@@ -43,7 +46,18 @@
 /* Constants */
 #define MIN_MOUSE_SPEED 1
 #define WHEEL_SLOWDOWN_FACTOR 5
-#define DOUBLE_TAP_WINDOW_MS 450
+
+/* Held-key auto-repeat (local patch): the keypads have no kernel autorepeat
+ * (no EV_REP in their capabilities) and Android's framework repeater never
+ * sees the keys while the keypads are grabbed, so holding a direction key
+ * would otherwise move exactly one step. Synthesize Android-like repeat:
+ * one step on press, then repeats after REPEAT_DELAY_MS and every
+ * REPEAT_INTERVAL_MS until release. */
+#define REPEAT_DELAY_MS 400
+#define REPEAT_INTERVAL_MS 100
+#define WHEEL_REPEAT_INTERVAL_MS (WHEEL_SLOWDOWN_FACTOR * REPEAT_INTERVAL_MS)
+/* Activation combo: OK + Volume-Down held together this long, released to engage. */
+#define COMBO_HOLD_MS 1000
 
 /* Non-standard kernel codes on this unit's matrix-keypad (matrix-keypad.kl):
  * star = 522, pound = 523. Everything else the keypad emits is already the
@@ -75,7 +89,12 @@ typedef struct dev_st
 typedef struct
 {
   int enabled;
-  long long last_voldown_ms; /* passive: time of last Volume-Down release */
+  int act_ok_down;           /* passive: OK key currently down (activation combo) */
+  int act_voldown_down;      /* passive: Volume-Down currently down (activation combo) */
+  int act_armed;             /* passive: combo held long enough — engage on release */
+  long long act_combo_since; /* passive: when both combo keys went down (0 = not both) */
+  int held_code;             /* active: keycode held for auto-repeat (0 = none) */
+  long long next_repeat_ms;  /* active: when the next repeat step is due */
   int speed;
   int drag_mode;
   struct libevdev *dev;
@@ -106,6 +125,8 @@ static int mouse_init(void);
 static void mouse_cleanup(void);
 static void mouse_activate(void);
 static void mouse_deactivate(void);
+static void repeat_stop(void);
+static void fire_repeat(void);
 static int mouse_handle_event(device_t *dev, struct input_event *ev);
 
 /* Device handling */
@@ -242,9 +263,14 @@ static int mouse_init(void)
   }
   /* Initialize mouse parameters */
   app_state.mouse.enabled = 0;
-  app_state.mouse.last_voldown_ms = 0;
+  app_state.mouse.act_ok_down = 0;
+  app_state.mouse.act_voldown_down = 0;
+  app_state.mouse.act_armed = 0;
+  app_state.mouse.act_combo_since = 0;
   app_state.mouse.speed = 4;
   app_state.mouse.drag_mode = 0;
+  app_state.mouse.held_code = 0;
+  app_state.mouse.next_repeat_ms = 0;
 
   log_message("Virtual mouse initialized (passive — double-tap Volume-Down to activate)");
   return 0;
@@ -294,15 +320,47 @@ static void mouse_activate(void)
 static void mouse_deactivate(void)
 {
   device_t *d;
+  repeat_stop();
   app_state.mouse.enabled = 0;
   for (d = app_state.devices; d; d = d->next)
     ioctl(d->fd, EVIOCGRAB, 0);
   log_message("Mouse mode disabled (passive observer)");
 }
 
+/* --- Held-key auto-repeat (local patch) --- */
+static void repeat_stop(void)
+{
+  app_state.mouse.held_code = 0;
+  app_state.mouse.next_repeat_ms = 0;
+}
+
+/* Emit one movement/wheel step for the held key and reschedule. */
+static void fire_repeat(void)
+{
+  int code = app_state.mouse.held_code;
+  int rel_code = 0, rel_value = 0;
+  long long interval = REPEAT_INTERVAL_MS;
+
+  if (!app_state.mouse.enabled || !code)
+    return;
+  switch (code)
+  {
+  case KEY_UP: rel_code = REL_Y; rel_value = -app_state.mouse.speed; break;
+  case KEY_DOWN: rel_code = REL_Y; rel_value = app_state.mouse.speed; break;
+  case KEY_LEFT: rel_code = REL_X; rel_value = -app_state.mouse.speed; break;
+  case KEY_RIGHT: rel_code = REL_X; rel_value = app_state.mouse.speed; break;
+  case KEY_MENU: rel_code = REL_WHEEL; rel_value = 1; interval = WHEEL_REPEAT_INTERVAL_MS; break;
+  case KEY_SEND: rel_code = REL_WHEEL; rel_value = -1; interval = WHEEL_REPEAT_INTERVAL_MS; break;
+  default: repeat_stop(); return;
+  }
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_REL, rel_code, rel_value);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+  app_state.mouse.next_repeat_ms = now_ms() + interval;
+  log_message("repeat step code=%d", code);
+}
+
 static int mouse_handle_event(device_t *dev, struct input_event *ev)
 {
-  static unsigned int slowdown_counter = 0;
   int keycode = ev->code;
 
   /* Process according to keycode */
@@ -344,48 +402,49 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
 
       return CHANGED_TO_MOUSE;
     }
-    break;
+    return MUTE_EVENT; /* drag toggles on press; swallow the release */
 
   case KEY_UP:
-    ev->type = EV_REL;
-    ev->code = REL_Y;
-    ev->value = -app_state.mouse.speed;
-    return CHANGED_TO_MOUSE;
-
   case KEY_DOWN:
-    ev->type = EV_REL;
-    ev->code = REL_Y;
-    ev->value = app_state.mouse.speed;
-    return CHANGED_TO_MOUSE;
-
   case KEY_LEFT:
-    ev->type = EV_REL;
-    ev->code = REL_X;
-    ev->value = -app_state.mouse.speed;
-    return CHANGED_TO_MOUSE;
-
   case KEY_RIGHT:
-    ev->type = EV_REL;
-    ev->code = REL_X;
-    ev->value = app_state.mouse.speed;
-    return CHANGED_TO_MOUSE;
-
-  case KEY_MENU: /* Scroll up */
-    if (slowdown_counter++ % WHEEL_SLOWDOWN_FACTOR)
+  case KEY_MENU: /* scroll up */
+  case KEY_SEND: /* scroll down */
+    /* Local patch: press = one step now + synthesized auto-repeat until
+     * release; release is swallowed (the press already emitted the step).
+     * Wheel keys repeat on the slowed wheel cadence. */
+    if (ev->value == 1)
+    {
+      app_state.mouse.held_code = keycode;
+      app_state.mouse.next_repeat_ms =
+          now_ms() + ((keycode == KEY_MENU || keycode == KEY_SEND)
+                          ? WHEEL_REPEAT_INTERVAL_MS
+                          : REPEAT_DELAY_MS);
+    }
+    else
+    {
+      if (app_state.mouse.held_code == keycode)
+        repeat_stop();
       return MUTE_EVENT;
-
+    }
     ev->type = EV_REL;
-    ev->code = REL_WHEEL;
-    ev->value = 1;
-    return CHANGED_TO_MOUSE;
-
-  case KEY_SEND: /* Scroll down */
-    if (slowdown_counter++ % WHEEL_SLOWDOWN_FACTOR)
-      return MUTE_EVENT;
-
-    ev->type = EV_REL;
-    ev->code = REL_WHEEL;
-    ev->value = -1;
+    if (keycode == KEY_UP || keycode == KEY_DOWN)
+    {
+      ev->code = REL_Y;
+      ev->value = (keycode == KEY_UP) ? -app_state.mouse.speed
+                                      : app_state.mouse.speed;
+    }
+    else if (keycode == KEY_LEFT || keycode == KEY_RIGHT)
+    {
+      ev->code = REL_X;
+      ev->value = (keycode == KEY_LEFT) ? -app_state.mouse.speed
+                                        : app_state.mouse.speed;
+    }
+    else /* wheel */
+    {
+      ev->code = REL_WHEEL;
+      ev->value = (keycode == KEY_MENU) ? 1 : -1;
+    }
     return CHANGED_TO_MOUSE;
 
   default:
@@ -543,18 +602,53 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
    * PASS_THRU) so nothing is re-injected through the clone device. */
   if (!app_state.mouse.enabled)
   {
-    if (ev->type == EV_KEY && ev->code == KEY_VOLUMEDOWN && ev->value == 0)
+    if (ev->type == EV_KEY)
     {
-      long long t = now_ms();
-      long long gap = t - app_state.mouse.last_voldown_ms;
-      log_message("voldown release: gap=%lldms", gap);
-      if (gap <= DOUBLE_TAP_WINDOW_MS)
+      /* Activation combo (local patch): hold OK + Volume-Down together for
+       * COMBO_HOLD_MS, then release both. Arming is judged at the first
+       * release (elapsed since both went down); engaging on the second
+       * release keeps it race-free: every press and release has already
+       * been delivered natively before we grab, so no key is left
+       * logically-down in Android (its synthetic-repeat timer would
+       * otherwise run forever). */
+      if (ev->value == 1)
       {
-        app_state.mouse.last_voldown_ms = 0;
-        mouse_activate();
-        return MUTE_EVENT; /* swallowed; we just grabbed the keypads */
+        if (ev->code == KEY_ENTER) /* OK: kernel code 28 on matrix-keypad */
+          app_state.mouse.act_ok_down = 1;
+        else if (ev->code == KEY_VOLUMEDOWN)
+          app_state.mouse.act_voldown_down = 1;
+        if (app_state.mouse.act_ok_down && app_state.mouse.act_voldown_down)
+          app_state.mouse.act_combo_since = now_ms();
       }
-      app_state.mouse.last_voldown_ms = t;
+      else
+      {
+        int was_combo = app_state.mouse.act_ok_down &&
+                        app_state.mouse.act_voldown_down;
+        if (ev->code == KEY_ENTER)
+          app_state.mouse.act_ok_down = 0;
+        else if (ev->code == KEY_VOLUMEDOWN)
+          app_state.mouse.act_voldown_down = 0;
+        if (was_combo)
+        {
+          long long held = now_ms() - app_state.mouse.act_combo_since;
+          app_state.mouse.act_combo_since = 0;
+          if (held >= COMBO_HOLD_MS)
+          {
+            app_state.mouse.act_armed = 1;
+            log_message("combo held %lldms - armed, release both keys", held);
+          }
+          else
+          {
+            app_state.mouse.act_armed = 0; /* too short: normal key use */
+          }
+        }
+        if (app_state.mouse.act_armed &&
+            !app_state.mouse.act_ok_down && !app_state.mouse.act_voldown_down)
+        {
+          app_state.mouse.act_armed = 0;
+          mouse_activate();
+        }
+      }
     }
     return MUTE_EVENT;
   }
@@ -623,14 +717,36 @@ static int run_event_loop(void)
   while (app_state.running)
   {
     rfds = fds;
-    if (select(maxfd, &rfds, NULL, NULL, NULL) < 0)
+    /* Local patch: while a key is held for auto-repeat, bound select() to the
+     * next repeat deadline instead of blocking forever. */
     {
-      if (errno == EINTR)
-        continue; /* Interrupted by signal */
+      struct timeval tv;
+      struct timeval *tvp = NULL;
+      if (app_state.mouse.enabled && app_state.mouse.held_code)
+      {
+        long long wait = app_state.mouse.next_repeat_ms - now_ms();
+        if (wait < 0)
+          wait = 0;
+        tv.tv_sec = (time_t)(wait / 1000);
+        tv.tv_usec = (suseconds_t)((wait % 1000) * 1000);
+        tvp = &tv;
+      }
+      if (select(maxfd, &rfds, NULL, NULL, tvp) < 0)
+      {
+        if (errno == EINTR)
+          continue; /* Interrupted by signal */
 
-      log_message("ERROR: select() failed");
-      log_perror("select");
-      break;
+        log_message("ERROR: select() failed");
+        log_perror("select");
+        break;
+      }
+      if (tvp && app_state.mouse.held_code &&
+          now_ms() >= app_state.mouse.next_repeat_ms)
+      {
+        /* select() hit the repeat deadline: emit one step and reschedule. */
+        fire_repeat();
+        continue;
+      }
     }
 
     for (device_t *d = app_state.devices; d; d = d->next)
