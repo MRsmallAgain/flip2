@@ -32,7 +32,7 @@ upgrade_insert = """    aget-object p1, p1, v2
 
     move-result v2
 
-    if-eqz v2, :flip2_wifi_settings_intent
+    if-nez v2, :flip2_wifi_settings_intent
 
     const-string v2, "ConnectedDeviceDashboardActivity"
 
@@ -40,7 +40,7 @@ upgrade_insert = """    aget-object p1, p1, v2
 
     move-result v2
 
-    if-eqz v2, :flip2_bluetooth_settings_intent
+    if-nez v2, :flip2_bluetooth_settings_intent
 
     const-string v2, "NetworkDashboardActivity"
 
@@ -153,7 +153,7 @@ new = old.replace(
 
     move-result v2
 
-    if-eqz v2, :flip2_wifi_settings_intent
+    if-nez v2, :flip2_wifi_settings_intent
 
     const-string v2, "ConnectedDeviceDashboardActivity"
 
@@ -161,7 +161,7 @@ new = old.replace(
 
     move-result v2
 
-    if-eqz v2, :flip2_bluetooth_settings_intent
+    if-nez v2, :flip2_bluetooth_settings_intent
 
     const-string v2, "NetworkDashboardActivity"
 
@@ -169,7 +169,7 @@ new = old.replace(
 
     move-result v2
 
-    if-eqz v2, :flip2_wireless_settings_intent
+    if-nez v2, :flip2_wireless_settings_intent
 
     .line 1836
     new-instance v1""",
@@ -194,7 +194,7 @@ full_new = """    .line 1834
 
     move-result v2
 
-    if-eqz v2, :flip2_wifi_settings_intent
+    if-nez v2, :flip2_wifi_settings_intent
 
     const-string v2, "ConnectedDeviceDashboardActivity"
 
@@ -202,7 +202,7 @@ full_new = """    .line 1834
 
     move-result v2
 
-    if-eqz v2, :flip2_bluetooth_settings_intent
+    if-nez v2, :flip2_bluetooth_settings_intent
 
     const-string v2, "NetworkDashboardActivity"
 
@@ -210,7 +210,7 @@ full_new = """    .line 1834
 
     move-result v2
 
-    if-eqz v2, :flip2_wireless_settings_intent
+    if-nez v2, :flip2_wireless_settings_intent
 
     .line 1836
     new-instance v1, Landroid/content/ComponentName;

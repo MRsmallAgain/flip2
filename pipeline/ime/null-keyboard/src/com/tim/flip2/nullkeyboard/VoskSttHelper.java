@@ -61,6 +61,9 @@ final class VoskSttHelper {
     private Model mModel;
     private String mLoadedLang;
     private SpeechService mSpeech;
+    private Recognizer mRecognizer;
+    /** Bumped on every listen start and stop; stale Vosk callbacks from an ended listen are dropped. */
+    private int mListenGen;
     private boolean mListening;
     private boolean mStarting;
     /** Text already delivered via onResult this listen — skip duplicate in onFinalResult. */
@@ -124,6 +127,7 @@ final class VoskSttHelper {
             return false;
         }
         final String lang = getLang(mApp);
+        mListenGen++;
         mStarting = true;
         mListener.onListening(); // toast immediately; model may still be loading
         mBg.execute(() -> {
@@ -151,12 +155,14 @@ final class VoskSttHelper {
             // Cancelled while loading
             return;
         }
+        final int gen = mListenGen;
         try {
             if (mModel == null || !lang.equals(mLoadedLang)) {
                 throw new Exception("No " + lang + " model — flip2 ime models");
             }
             mCommittedThisListen = null;
             Recognizer rec = new Recognizer(mModel, SAMPLE_RATE);
+            mRecognizer = rec;
             mSpeech = new SpeechService(rec, SAMPLE_RATE);
             boolean ok = mSpeech.startListening(new RecognitionListener() {
                 @Override
@@ -171,14 +177,22 @@ final class VoskSttHelper {
                 public void onResult(String hypothesis) {
                     String t = extractJson(hypothesis, "text");
                     if (t != null && t.length() > 0) {
-                        mMain.post(() -> commitAndContinue(t));
+                        mMain.post(() -> {
+                            if (gen == mListenGen) {
+                                commitAndContinue(t);
+                            }
+                        });
                     }
                 }
 
                 @Override
                 public void onFinalResult(String hypothesis) {
                     String t = extractJson(hypothesis, "text");
-                    mMain.post(() -> finishWithText(t));
+                    mMain.post(() -> {
+                        if (gen == mListenGen) {
+                            finishWithText(t);
+                        }
+                    });
                 }
 
                 @Override
@@ -221,6 +235,8 @@ final class VoskSttHelper {
 
     void stopListening(boolean deliverFinal) {
         mMain.removeCallbacks(mTimeout);
+        // Kill any Vosk callbacks still queued from this listen.
+        mListenGen++;
         mStarting = false;
         if (!mListening && mSpeech == null) {
             mListener.onIdle();
@@ -229,10 +245,18 @@ final class VoskSttHelper {
         mListening = false;
         SpeechService svc = mSpeech;
         mSpeech = null;
+        Recognizer rec = mRecognizer;
+        mRecognizer = null;
+        String finalText = null;
         if (svc != null) {
             try {
                 if (deliverFinal) {
+                    // stop() only interrupts the reader thread — onFinalResult never
+                    // fires afterwards; harvest the pending hypothesis directly.
                     svc.stop();
+                    if (rec != null) {
+                        finalText = extractJson(rec.getFinalResult(), "text");
+                    }
                 } else {
                     svc.cancel();
                 }
@@ -243,7 +267,23 @@ final class VoskSttHelper {
             } catch (Throwable ignored) {
             }
         }
+        closeRecognizer(rec);
+        boolean dup = mCommittedThisListen != null
+                && (finalText == null || finalText.equals(mCommittedThisListen));
+        mCommittedThisListen = null;
+        if (deliverFinal && finalText != null && finalText.length() > 0 && !dup) {
+            mListener.onFinal(finalText);
+        }
         mListener.onIdle();
+    }
+
+    private void closeRecognizer(Recognizer rec) {
+        if (rec != null) {
+            try {
+                rec.close();
+            } catch (Throwable ignored) {
+            }
+        }
     }
 
     void release() {
@@ -349,6 +389,8 @@ final class VoskSttHelper {
     private void shutdownSpeech() {
         SpeechService svc = mSpeech;
         mSpeech = null;
+        Recognizer rec = mRecognizer;
+        mRecognizer = null;
         if (svc != null) {
             try {
                 svc.cancel();
@@ -359,6 +401,7 @@ final class VoskSttHelper {
             } catch (Throwable ignored) {
             }
         }
+        closeRecognizer(rec);
     }
 
     /** Must run on {@link #mBg}. */

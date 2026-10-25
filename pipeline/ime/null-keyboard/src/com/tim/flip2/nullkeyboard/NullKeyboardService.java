@@ -14,6 +14,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.LinearLayout;
@@ -166,6 +167,7 @@ public class NullKeyboardService extends InputMethodService {
 
     @Override
     public void onFinishInput() {
+        Log.i("Flip2IME", "onFinishInput");
         restoreDtmfTone();
         super.onFinishInput();
     }
@@ -173,6 +175,8 @@ public class NullKeyboardService extends InputMethodService {
     @Override
     public void onStartInput(EditorInfo attribute, boolean restarting) {
         super.onStartInput(attribute, restarting);
+        Log.i("Flip2IME", "onStartInput restarting=" + restarting + " inputType=0x"
+                + Integer.toHexString(attribute.inputType) + " pkg=" + attribute.packageName);
         muteDtmfTone();
         int cls = attribute.inputType & EditorInfo.TYPE_MASK_CLASS;
         mFieldNumeric = cls == EditorInfo.TYPE_CLASS_NUMBER
@@ -230,6 +234,7 @@ public class NullKeyboardService extends InputMethodService {
     @Override
     public void onWindowShown() {
         super.onWindowShown();
+        Log.i("Flip2IME", "onWindowShown");
         try {
             android.app.Dialog d = getWindow();
             if (d != null && d.getWindow() != null) {
@@ -242,6 +247,12 @@ public class NullKeyboardService extends InputMethodService {
             }
         } catch (Throwable ignored) {
         }
+    }
+
+    @Override
+    public void onWindowHidden() {
+        super.onWindowHidden();
+        Log.i("Flip2IME", "onWindowHidden");
     }
 
     @Override
@@ -272,6 +283,7 @@ public class NullKeyboardService extends InputMethodService {
 
     /** true = event consumed (do not pass to activity). */
     private boolean handleHardwareBack(InputConnection ic, int action) {
+        Log.i("Flip2IME", "hwBack action=" + action);
         if (action == KeyEvent.ACTION_UP) {
             if (mBackConsumedForEdit) {
                 mBackConsumedForEdit = false;
@@ -282,11 +294,13 @@ public class NullKeyboardService extends InputMethodService {
         cancelPending();
         mAwaitingDoubleZeroPeriod = false;
         if (mSymbolDialog != null && mSymbolDialog.isShowing()) {
+            Log.i("Flip2IME", "hwBack dismiss symbol dialog");
             mSymbolDialog.dismiss();
             mBackConsumedForEdit = true;
             return true;
         }
         if (mT9Seq.length() > 0) {
+            Log.i("Flip2IME", "hwBack trim t9 len=" + mT9Seq.length());
             clearT9Preview(ic);
             mT9Seq = mT9Seq.substring(0, mT9Seq.length() - 1);
             mT9CandidateIndex = 0;
@@ -305,11 +319,13 @@ public class NullKeyboardService extends InputMethodService {
         clearT9();
         CharSequence before = ic.getTextBeforeCursor(1, 0);
         if (before != null && before.length() > 0) {
+            Log.i("Flip2IME", "hwBack delete char");
             ic.deleteSurroundingText(1, 0);
             mBackConsumedForEdit = true;
             return true;
         }
         mBackConsumedForEdit = false;
+        Log.i("Flip2IME", "hwBack pass-through");
         return false;
     }
 
@@ -333,6 +349,7 @@ public class NullKeyboardService extends InputMethodService {
     }
 
     private void toast(String msg) {
+        Log.i("Flip2IME", "toast reuse=" + (mToast != null) + " msg=" + msg);
         if (mToast == null) {
             mToast = Toast.makeText(this, msg, Toast.LENGTH_LONG);
         }
@@ -388,8 +405,13 @@ public class NullKeyboardService extends InputMethodService {
     }
 
     private boolean forwardKey(int keyCode, KeyEvent event) {
+        if (event.getRepeatCount() == 0) {
+            Log.i("Flip2IME", "forwardKey code=" + keyCode + " action=" + event.getAction()
+                    + " scan=" + event.getScanCode());
+        }
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) {
+            Log.i("Flip2IME", "forwardKey ic=null code=" + keyCode);
             return false;
         }
         final int action = event.getAction();
@@ -422,6 +444,7 @@ public class NullKeyboardService extends InputMethodService {
             clearT9();
             if (action == KeyEvent.ACTION_DOWN) {
                 CharSequence before = ic.getTextBeforeCursor(1, 0);
+                Log.i("Flip2IME", "del before=" + (before == null ? "null" : before.length()));
                 if (before != null && before.length() > 0) {
                     ic.deleteSurroundingText(1, 0);
                 }
@@ -538,7 +561,8 @@ public class NullKeyboardService extends InputMethodService {
                     && mAwaitingDoubleZeroPeriod
                     && mLastZeroDownMs > 0
                     && now - mLastZeroDownMs < DOUBLE_ZERO_MS
-                    && loneSpaceBeforeCursor(ic)) {
+                    && loneSpaceBeforeCursor(ic)
+                    && wordCharBeforeSpace(ic)) {
                 ic.deleteSurroundingText(1, 0);
                 ic.commitText(". ", 1);
                 clearDoubleZeroPeriodState();
@@ -653,6 +677,20 @@ public class NullKeyboardService extends InputMethodService {
     private boolean loneSpaceBeforeCursor(InputConnection ic) {
         CharSequence before = ic.getTextBeforeCursor(1, 0);
         return before != null && before.length() == 1 && before.charAt(0) == ' ';
+    }
+
+    /** True when the char before that lone space is a letter/digit — double-0 → ". " only after words,
+     *  not after the smart trailing space a . ! ? already added. At field start (only the space in
+     *  the buffer) the old double-0 → ". " behavior is preserved. */
+    private boolean wordCharBeforeSpace(InputConnection ic) {
+        CharSequence before = ic.getTextBeforeCursor(2, 0);
+        if (before == null) {
+            return false;
+        }
+        if (before.length() < 2) {
+            return before.length() == 1;
+        }
+        return Character.isLetterOrDigit(before.charAt(0));
     }
 
     private String applySmartWordCase(InputConnection ic, String word) {
@@ -889,6 +927,8 @@ public class NullKeyboardService extends InputMethodService {
 
     private void applyStarPoundTap(int keyCode, InputConnection ic) {
         if (keyCode == KeyEvent.KEYCODE_POUND) {
+            Log.i("Flip2IME", "poundTap toggle " + mToggleNumeric + " -> " + !mToggleNumeric
+                    + " t9len=" + mT9Seq.length() + " fieldNumeric=" + mFieldNumeric);
             clearT9();
             mToggleNumeric = !mToggleNumeric;
             toast(mToggleNumeric ? "123 — digits on keypad" : "ABC — T9 letters");
@@ -1026,11 +1066,24 @@ public class NullKeyboardService extends InputMethodService {
         mSymbolDialog = d;
         try {
             Window w = d.getWindow();
-            if (w != null) {
+            // Type 2012 (INPUT_METHOD_DIALOG) is permission-denied on A11 even with the
+            // IME token; TYPE_APPLICATION_ATTACHED_DIALOG (1003) is a sub-window that any
+            // process may attach to its own parent window token.
+            View imeDecor = getWindow().getWindow().getDecorView();
+            android.os.IBinder token = imeDecor != null ? imeDecor.getWindowToken() : null;
+            Log.i("Flip2IME", "symbolsDialog token=" + (token != null));
+            if (token != null) {
+                android.view.WindowManager.LayoutParams lp = w.getAttributes();
+                lp.type = WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG;
+                lp.token = token;
+                w.setAttributes(lp);
+            } else {
                 w.setType(WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG);
             }
             d.show();
+            Log.i("Flip2IME", "symbolsDialog shown");
         } catch (Throwable t) {
+            Log.i("Flip2IME", "symbolsDialog failed", t);
             toast(("Symbols"));
         }
     }
