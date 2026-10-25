@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Build Flip2 Null Keyboard APK (T9 + symbols + offline Vosk STT).
+# Native libs: vendor/jni/armeabi-v7a/{libvosk.so,libjnidispatch.so}
+# Models are NOT packaged — push with: flip2 ime models
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 FLIP2_ROOT="$(cd "$ROOT/../../.." && pwd)"
@@ -9,6 +12,7 @@ flip2_require_cmd javac zip zipalign apksigner
 
 OUT="$ROOT/dist"
 WORK="$ROOT/build"
+VENDOR="$ROOT/vendor"
 ANDROID_JAR="${ANDROID_SDK_ROOT}/platforms/android-30/android.jar"
 [[ -f "$ANDROID_JAR" ]] || ANDROID_JAR="${ANDROID_SDK_ROOT}/platforms/android-33/android.jar"
 [[ -f "$ANDROID_JAR" ]] || { echo "Need android.jar in SDK platforms/android-30 or 33" >&2; exit 1; }
@@ -20,19 +24,33 @@ D8="$BT/d8"
 ZIPALIGN="$BT/zipalign"
 APKSIGNER="$BT/apksigner"
 
+[[ -f "$VENDOR/jars/vosk-android.jar" ]] || { echo "Missing $VENDOR/jars/vosk-android.jar — restore vendor/" >&2; exit 1; }
+[[ -f "$VENDOR/jars/jna.jar" ]] || { echo "Missing $VENDOR/jars/jna.jar — restore vendor/" >&2; exit 1; }
+[[ -f "$VENDOR/jni/armeabi-v7a/libvosk.so" ]] || { echo "Missing libvosk.so" >&2; exit 1; }
+[[ -f "$VENDOR/jni/armeabi-v7a/libjnidispatch.so" ]] || { echo "Missing libjnidispatch.so" >&2; exit 1; }
+
 rm -rf "$WORK" "$OUT"
 mkdir -p "$WORK/classes" "$WORK/res" "$OUT"
 
+CP="$VENDOR/jars/vosk-android.jar:$VENDOR/jars/jna.jar:$ANDROID_JAR"
+
 javac -source 1.8 -target 1.8 \
   -bootclasspath "$ANDROID_JAR":"$BT/core-lambda-stubs.jar" \
-  -d "$WORK/classes" "$ROOT/src/com/tim/flip2/nullkeyboard/NullKeyboardService.java"
+  -classpath "$CP" \
+  -d "$WORK/classes" \
+  "$ROOT/src/com/tim/flip2/nullkeyboard/"*.java
 
 cd "$WORK/classes" && jar cf "$WORK/classes.jar" com/ && cd "$ROOT"
-"$D8" --lib "$ANDROID_JAR" --output "$WORK" "$WORK/classes.jar"
+"$D8" --lib "$ANDROID_JAR" --classpath "$VENDOR/jars/vosk-android.jar" \
+  --classpath "$VENDOR/jars/jna.jar" --output "$WORK" \
+  "$WORK/classes.jar" "$VENDOR/jars/vosk-android.jar" "$VENDOR/jars/jna.jar"
 
-mkdir -p "$WORK/res/xml" "$WORK/res/values"
+mkdir -p "$WORK/res/xml" "$WORK/res/values" "$WORK/res/raw"
 cp "$ROOT/res/xml/method.xml" "$WORK/res/xml/"
 cp "$ROOT/res/values/"*.xml "$WORK/res/values/"
+if [[ -d "$ROOT/res/raw" ]]; then
+  cp "$ROOT/res/raw/"* "$WORK/res/raw/" 2>/dev/null || true
+fi
 
 "$AAPT2" compile --dir "$WORK/res" -o "$WORK/res.zip"
 "$AAPT2" link -o "$OUT/nullkeyboard-unsigned.apk" \
@@ -43,10 +61,21 @@ cp "$ROOT/res/values/"*.xml "$WORK/res/values/"
   --target-sdk-version 30 \
   "$WORK/res.zip"
 
+# DEX + native libs into APK (Android loads from lib/<abi>/)
 zip -j "$OUT/nullkeyboard-unsigned.apk" "$WORK/classes.dex" >/dev/null
+mkdir -p "$WORK/lib/armeabi-v7a"
+cp "$VENDOR/jni/armeabi-v7a/libvosk.so" "$WORK/lib/armeabi-v7a/"
+cp "$VENDOR/jni/armeabi-v7a/libjnidispatch.so" "$WORK/lib/armeabi-v7a/"
+(
+  cd "$WORK"
+  zip -u "$OUT/nullkeyboard-unsigned.apk" \
+    "lib/armeabi-v7a/libvosk.so" \
+    "lib/armeabi-v7a/libjnidispatch.so" >/dev/null
+)
 
 "$ZIPALIGN" -f -p 4 "$OUT/nullkeyboard-unsigned.apk" "$OUT/nullkeyboard-aligned.apk"
 "$APKSIGNER" sign --ks "$ANDROID_DEBUG_KEY" --ks-pass pass:android \
   --min-sdk-version 26 \
   --out "$OUT/nullkeyboard.apk" "$OUT/nullkeyboard-aligned.apk"
 echo "Built: $OUT/nullkeyboard.apk"
+ls -lh "$OUT/nullkeyboard.apk"

@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.tim.flip2.nullkeyboard"
-    android:versionCode="11"
-    android:versionName="2.0">
+    android:versionCode="27"
+    android:versionName="2.4.2">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="30" />
-    <application android:label="Flip2 Null Keyboard" android:allowBackup="false">
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <application android:label="Flip2 Null Keyboard" android:allowBackup="false"
+        android:extractNativeLibs="true">
         <service
             android:name=".NullKeyboardService"
             android:exported="true"

@@ -20,12 +20,12 @@ Commands:
   display <sub>      Global density / font / screen-compat (see docs/DISPLAY-DPI.md)
   fork <subcmd>      Launcher3 fork (Magisk): build | pack | install | rollback | status | extract
   launcher4 <sub>    User APK com.tim.flip2.launcher4: build | install | set-home | uninstall | status
-  ime <sub>          Null keyboard IME: build | hide-bar | restore | status
+  ime <sub>          Null keyboard IME: build | hide-bar | restore | status | models | lang
   keypad <sub>       matrix-keypad KL: physical ⌫ → DEL (status | rollback)
   navoverlay <sub>   framework-res RRO (menu bar/navbar 0px): build | install | status | rollback
   tagdrawer <sub>    Pixel Tag Drawer system (Magisk): pack | install | rollback | status
   vmouse <sub>       Simple mouse (neutronscott simple-release1): install | status
-  ime <sub>          Kika "Abc" strip: hide-bar | restore | status
+  ime <sub>          Null keyboard + STT: build | hide-bar | restore | status | models | lang
 
 Environment:
   FLIP2_ROOT         Repo root (default: $FLIP2_ROOT)

@@ -25,3 +25,7 @@ __pycache__/
 # Editor / local
 *.swp
 .DS_Store
+
+# Null-keyboard Vosk vendor (native .so + jars) and model symlinks — restore via cache/AAR
+pipeline/ime/null-keyboard/vendor/
+pipeline/ime/null-keyboard/models/
