@@ -95,6 +95,11 @@ public class NullKeyboardService extends InputMethodService {
 
     private AlertDialog mSymbolDialog;
     private Toast mToast;
+    /** Top-of-screen status chip attached to the IME token; system toasts render
+     *  at the bottom edge on A11 (setGravity ignored) where the nav band hides them. */
+    private android.app.Dialog mNoticeDialog;
+    private TextView mNoticeText;
+    private final Runnable mNoticeHide = this::hideNotice;
     private VoskSttHelper mStt;
 
     // Hold state for * / # — defer tap until UP; fire hold once.
@@ -151,6 +156,7 @@ public class NullKeyboardService extends InputMethodService {
 
             @Override
             public void onIdle() {
+                hideNoticeIfListening();
             }
         });
     }
@@ -162,12 +168,21 @@ public class NullKeyboardService extends InputMethodService {
             mStt.release();
             mStt = null;
         }
+        if (mNoticeDialog != null) {
+            try {
+                mNoticeDialog.dismiss();
+            } catch (Throwable ignored) {
+            }
+            mNoticeDialog = null;
+            mNoticeText = null;
+        }
         super.onDestroy();
     }
 
     @Override
     public void onFinishInput() {
         Log.i("Flip2IME", "onFinishInput");
+        hideNotice();
         restoreDtmfTone();
         super.onFinishInput();
     }
@@ -349,15 +364,87 @@ public class NullKeyboardService extends InputMethodService {
     }
 
     private void toast(String msg) {
-        Log.i("Flip2IME", "toast reuse=" + (mToast != null) + " msg=" + msg);
-        if (mToast == null) {
-            mToast = Toast.makeText(this, msg, Toast.LENGTH_LONG);
+        Log.i("Flip2IME", "notice msg=" + msg);
+        showNotice(msg, msg.startsWith("Listening"));
+    }
+
+    /** Top-center chip attached to the IME window token — system toasts render at
+     *  the bottom edge on A11 (setGravity ignored) where the nav band hides them.
+     *  Sticky (Listening) stays until {@link #hideNoticeIfListening()}; others auto-hide. */
+    private void showNotice(String msg, boolean sticky) {
+        try {
+            if (mNoticeDialog == null) {
+                TextView tv = new TextView(this);
+                tv.setTextSize(14);
+                tv.setTextColor(Color.WHITE);
+                tv.setPadding(24, 10, 24, 10);
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(0xE6202024);
+                bg.setCornerRadius(20);
+                tv.setBackground(bg);
+                LinearLayout box = new LinearLayout(this);
+                box.setGravity(Gravity.CENTER);
+                box.addView(tv);
+                android.app.Dialog d = new android.app.Dialog(this);
+                Window w = d.getWindow();
+                w.setType(WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG);
+                w.setBackgroundDrawable(
+                        new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+                android.view.WindowManager.LayoutParams lp = w.getAttributes();
+                lp.token = getWindow().getWindow().getDecorView().getWindowToken();
+                lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+                lp.y = (int) (40 * getResources().getDisplayMetrics().density);
+                lp.width = WindowManager.LayoutParams.WRAP_CONTENT;
+                lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                lp.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+                lp.format = android.graphics.PixelFormat.TRANSLUCENT;
+                w.setAttributes(lp);
+                d.setContentView(box);
+                mNoticeDialog = d;
+                mNoticeText = tv;
+            }
+            mNoticeText.setText(msg);
+            if (!mNoticeDialog.isShowing()) {
+                mNoticeDialog.show();
+            }
+            MAIN.removeCallbacks(mNoticeHide);
+            if (!sticky) {
+                MAIN.postDelayed(mNoticeHide, 3200L);
+            }
+        } catch (Throwable t) {
+            Log.i("Flip2IME", "notice failed", t);
+            // Stale token after rebind — drop the chip so the next notice re-creates it.
+            if (mNoticeDialog != null) {
+                try {
+                    mNoticeDialog.dismiss();
+                } catch (Throwable ignored) {
+                }
+                mNoticeDialog = null;
+                mNoticeText = null;
+            }
+            if (mToast == null) {
+                mToast = Toast.makeText(this, msg, Toast.LENGTH_LONG);
+            }
+            mToast.setText(msg);
+            mToast.setDuration(Toast.LENGTH_LONG);
+            mToast.show();
         }
-        mToast.setDuration(Toast.LENGTH_LONG);
-        mToast.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0,
-                (int) (48 * getResources().getDisplayMetrics().density));
-        mToast.setText(msg);
-        mToast.show();
+    }
+
+    private void hideNotice() {
+        MAIN.removeCallbacks(mNoticeHide);
+        if (mNoticeDialog != null && mNoticeDialog.isShowing()) {
+            mNoticeDialog.hide();
+        }
+    }
+
+    /** STT ended: drop the chip only if it is the sticky Listening one (errors stay visible). */
+    private void hideNoticeIfListening() {
+        if (mNoticeText != null && mNoticeText.getText() != null
+                && mNoticeText.getText().toString().startsWith("Listening")) {
+            hideNotice();
+        }
     }
 
     /** Flip2 matrix keypad plays DTMF for * / # while typing; mute for IME session. */
