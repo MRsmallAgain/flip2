@@ -35,6 +35,9 @@ final class VoskSttHelper {
     private static final String KEY_LANG = "stt_lang";
     private static final float SAMPLE_RATE = 16000.0f;
     private static final int LISTEN_TIMEOUT_MS = 12000;
+    /** Wait after stop for Vosk callbacks queued on the main looper to land — they
+     *  were observed 38ms late on this device, racing an immediate harvest. */
+    private static final long HARVEST_DELAY_MS = 250L;
 
     /**
      * Extra roots after app-private files. /data/local/flip2/vosk is often
@@ -64,6 +67,20 @@ final class VoskSttHelper {
     private Recognizer mRecognizer;
     /** Bumped on every listen start and stop; stale Vosk callbacks from an ended listen are dropped. */
     private int mListenGen;
+    /** Freshest live partial (updated by every partial callback, gen-checked or not) —
+     *  a partial queued just before stop() is the harvest's best evidence. */
+    private String mLastPartial;
+    /** Recognizer result text from a stale (post-stop) Vosk callback — harvest fallback. */
+    private String mLateText;
+    /** Pending delayed harvest after stop; queued Vosk callbacks land before it runs. */
+    private Runnable mHarvestPending;
+    /** Recognizer held open by a pending harvest (late callbacks may still read it). */
+    private Recognizer mHarvestRec;
+    /** Set while retrying a mic init that AudioFlinger refused during teardown. */
+    private boolean mMicRetry;
+    /** Set when any non-empty partial/result was seen this listen — drives the
+     *  "no speech detected" vs "not recognized" error split on the chip. */
+    private boolean mHeardAnything;
     private boolean mListening;
     private boolean mStarting;
     /** Text already delivered via onResult this listen — skip duplicate in onFinalResult. */
@@ -126,8 +143,15 @@ final class VoskSttHelper {
             mListener.onError("Mic permission — run: flip2 ime models");
             return false;
         }
+        // Finish any pending post-stop harvest first so its late-arriving text is
+        // committed and its recognizer closed before this listen takes the mic.
+        flushPendingHarvest();
         final String lang = getLang(mApp);
         mListenGen++;
+        mLastPartial = null;
+        mLateText = null;
+        mHeardAnything = false;
+        mMicRetry = false;
         mStarting = true;
         mListener.onListening(); // toast immediately; model may still be loading
         mBg.execute(() -> {
@@ -171,8 +195,13 @@ final class VoskSttHelper {
                     if (t != null && t.length() > 0) {
                         android.util.Log.i("Flip2STT", "partial: " + t);
                         mMain.post(() -> {
+                            mLastPartial = t;
+                            mHeardAnything = true;
                             if (gen == mListenGen) {
                                 mListener.onPartial(t);
+                            } else {
+                                // Queued behind stop() — keep it for the delayed harvest.
+                                mLateText = t;
                             }
                         });
                     }
@@ -184,8 +213,13 @@ final class VoskSttHelper {
                     android.util.Log.i("Flip2STT", "segment result: [" + t + "]");
                     if (t != null && t.length() > 0) {
                         mMain.post(() -> {
+                            mHeardAnything = true;
                             if (gen == mListenGen) {
+                                mLastPartial = t;
                                 commitAndContinue(t);
+                            } else {
+                                // Queued behind stop() — keep it for the delayed harvest.
+                                mLateText = t;
                             }
                         });
                     }
@@ -197,6 +231,9 @@ final class VoskSttHelper {
                     mMain.post(() -> {
                         if (gen == mListenGen) {
                             finishWithText(t);
+                        } else if (t != null && t.length() > 0) {
+                            // Queued behind stop() — keep it for the delayed harvest.
+                            mLateText = t;
                         }
                     });
                 }
@@ -229,11 +266,23 @@ final class VoskSttHelper {
             mMain.postDelayed(mTimeout, LISTEN_TIMEOUT_MS + 500L);
         } catch (Throwable t) {
             shutdownSpeech();
-            mStarting = false;
             String msg = t.getMessage();
             if (msg == null || msg.length() == 0) {
                 msg = t.getClass().getSimpleName();
             }
+            // AudioFlinger briefly refuses a new record track while the previous
+            // one is being torn down — retry once before reporting failure.
+            if (!mMicRetry && (msg.contains("already in use")
+                    || msg.contains("initialize recorder"))) {
+                mMicRetry = true;
+                mMain.postDelayed(() -> {
+                    if (mStarting && getLang(mApp).equals(lang)) {
+                        beginMicAfterModel(lang);
+                    }
+                }, 600L);
+                return;
+            }
+            mStarting = false;
             mListener.onError(msg);
             mListener.onIdle();
         }
@@ -253,32 +302,11 @@ final class VoskSttHelper {
         mSpeech = null;
         Recognizer rec = mRecognizer;
         mRecognizer = null;
-        String finalText = null;
         if (svc != null) {
             try {
-                if (deliverFinal) {
-                    // stop() only interrupts the reader thread — onFinalResult never
-                    // fires afterwards; harvest the pending hypothesis directly.
-                    // Stopping before the silence-endpointer closes a segment leaves
-                    // the final result empty, so fall back to the in-flight partial.
-                    svc.stop();
-                    if (rec != null) {
-                        String fin = extractJson(rec.getFinalResult(), "text");
-                        String part = extractJson(rec.getPartialResult(), "text");
-                        android.util.Log.i("Flip2STT", "harvest final=[" + fin + "] partial=[" + part + "]");
-                        // Already-committed text must not be re-sent; prefer a fresh final,
-                        // else the in-flight partial (words after the last closed segment).
-                        if (fin != null && (fin.length() == 0 || fin.equals(mCommittedThisListen))) {
-                            fin = null;
-                        }
-                        if (part != null && (part.length() == 0 || part.equals(mCommittedThisListen))) {
-                            part = null;
-                        }
-                        finalText = fin != null ? fin : part;
-                    }
-                } else {
-                    svc.cancel();
-                }
+                // Release the mic right away — a new record track can be refused
+                // ("Microphone might be already in use") while the old one lingers.
+                svc.stop();
             } catch (Throwable ignored) {
             }
             try {
@@ -286,14 +314,82 @@ final class VoskSttHelper {
             } catch (Throwable ignored) {
             }
         }
+        if (deliverFinal && rec != null) {
+            // Vosk decode lags the mic by up to ~1s on this CPU: callbacks for the
+            // last spoken words are queued on the main looper and landed AFTER an
+            // immediate harvest (observed: "working" lost 38ms after the read).
+            // Keep the recognizer open and harvest after a grace period.
+            mLateText = null;
+            mHarvestRec = rec;
+            Runnable pending = this::harvestAfterStop;
+            mHarvestPending = pending;
+            mMain.postDelayed(pending, HARVEST_DELAY_MS);
+            return;
+        }
+        closeRecognizer(rec);
+        mCommittedThisListen = null;
+        mListener.onIdle();
+    }
+
+    /** Runs HARVEST_DELAY_MS after stop: Vosk callbacks queued behind the stop
+     *  have landed by now (captured in mLateText), so read the recognizer. */
+    private void harvestAfterStop() {
+        mHarvestPending = null;
+        Recognizer rec = mHarvestRec;
+        mHarvestRec = null;
+        String finalText = null;
+        if (rec != null) {
+            try {
+                String fin = extractJson(rec.getFinalResult(), "text");
+                android.util.Log.i("Flip2STT", "harvest final=[" + fin + "] late=["
+                        + mLateText + "] partial=[" + mLastPartial + "]");
+                // Already-committed text must not be re-sent; prefer a fresh final,
+                // else the late callback / in-flight partial.
+                if (fin != null && (fin.length() == 0 || fin.equals(mCommittedThisListen))) {
+                    fin = null;
+                }
+                String part = mLateText != null ? mLateText : mLastPartial;
+                if (part != null && (part.length() == 0 || part.equals(mCommittedThisListen))) {
+                    part = null;
+                }
+                finalText = fin != null ? fin : part;
+            } catch (Throwable ignored) {
+            }
+        }
+        mLateText = null;
+        mLastPartial = null;
         closeRecognizer(rec);
         boolean dup = mCommittedThisListen != null
                 && (finalText == null || finalText.equals(mCommittedThisListen));
         mCommittedThisListen = null;
-        if (deliverFinal && finalText != null && finalText.length() > 0 && !dup) {
+        if (finalText != null && finalText.length() > 0 && !dup) {
             mListener.onFinal(finalText);
+        } else if (!mHeardAnything) {
+            mListener.onError("No speech detected");
         }
         mListener.onIdle();
+    }
+
+    /** A pending post-stop harvest must not leak into the next listen: run it now. */
+    private void flushPendingHarvest() {
+        if (mHarvestPending != null) {
+            mMain.removeCallbacks(mHarvestPending);
+            mHarvestPending = null;
+            harvestAfterStop();
+        }
+    }
+
+    /** Drop a pending post-stop harvest without committing (cancel/release paths). */
+    private void cancelPendingHarvest() {
+        if (mHarvestPending != null) {
+            mMain.removeCallbacks(mHarvestPending);
+            mHarvestPending = null;
+            closeRecognizer(mHarvestRec);
+            mHarvestRec = null;
+            mLateText = null;
+            mLastPartial = null;
+            mCommittedThisListen = null;
+        }
     }
 
     private void closeRecognizer(Recognizer rec) {
@@ -306,6 +402,7 @@ final class VoskSttHelper {
     }
 
     void release() {
+        cancelPendingHarvest();
         stopListening(false);
         mBg.execute(() -> {
             synchronized (VoskSttHelper.this) {
@@ -324,6 +421,7 @@ final class VoskSttHelper {
 
     /** Drop cached model so next listen reloads after lang change. */
     void invalidateModel() {
+        cancelPendingHarvest();
         stopListening(false);
         mBg.execute(() -> {
             synchronized (VoskSttHelper.this) {
@@ -342,6 +440,7 @@ final class VoskSttHelper {
 
     /** After lang change while listening: load new model then start mic (no race with invalidateModel). */
     void switchLangAndListen() {
+        cancelPendingHarvest();
         stopListening(false);
         final String lang = getLang(mApp);
         mStarting = true;
