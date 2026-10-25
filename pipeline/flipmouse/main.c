@@ -7,10 +7,11 @@
  * steals the * key from the null-keyboard IME (T9 candidate cycling +
  * hold-* dictation). Patched behavior:
  *   - passive observer until activated (no grab; the system sees every key)
- *   - activate: hold OK + Volume-Down together for COMBO_HOLD_MS, then
- *     release both — mode engages on the release so every press AND release
- *     has already been delivered natively before we grab (grabbing while a
- *     key is down would strand Android's synthetic-repeat timer on it)
+ *   - toggle: hold the upper-left soft key (139) for HOLD_TOGGLE_MS and
+ *     release — enables mouse mode when passive, releases the cursor when
+ *     active. Toggling on release means we never grab while a key is
+ *     physically down (that would strand Android's synthetic-repeat timer);
+ *     in mouse mode a short soft-key tap still scrolls up one step.
  *   - while active: keypads grabbed; D-pad moves, OK clicks, pound scrolls
  *     down, soft-left scrolls up, soft-right toggles drag, volume = speed
  *   - a Star tap exits back to passive (grabs released, IME unaffected)
@@ -56,8 +57,10 @@
 #define REPEAT_DELAY_MS 400
 #define REPEAT_INTERVAL_MS 100
 #define WHEEL_REPEAT_INTERVAL_MS (WHEEL_SLOWDOWN_FACTOR * REPEAT_INTERVAL_MS)
-/* Activation combo: OK + Volume-Down held together this long, released to engage. */
-#define COMBO_HOLD_MS 1000
+/* Upper-left soft key (139/KEY_MENU): hold this long, then release, to toggle
+ * mouse mode (enable when passive, release the cursor when active). */
+#define SOFTKEY_CODE 139
+#define HOLD_TOGGLE_MS 2000
 
 /* Non-standard kernel codes on this unit's matrix-keypad (matrix-keypad.kl):
  * star = 522, pound = 523. Everything else the keypad emits is already the
@@ -89,10 +92,7 @@ typedef struct dev_st
 typedef struct
 {
   int enabled;
-  int act_ok_down;           /* passive: OK key currently down (activation combo) */
-  int act_voldown_down;      /* passive: Volume-Down currently down (activation combo) */
-  int act_armed;             /* passive: combo held long enough — engage on release */
-  long long act_combo_since; /* passive: when both combo keys went down (0 = not both) */
+  long long softhold_since;  /* soft key pressed at ms (0 = not held) */
   int held_code;             /* active: keycode held for auto-repeat (0 = none) */
   long long next_repeat_ms;  /* active: when the next repeat step is due */
   int speed;
@@ -263,10 +263,7 @@ static int mouse_init(void)
   }
   /* Initialize mouse parameters */
   app_state.mouse.enabled = 0;
-  app_state.mouse.act_ok_down = 0;
-  app_state.mouse.act_voldown_down = 0;
-  app_state.mouse.act_armed = 0;
-  app_state.mouse.act_combo_since = 0;
+  app_state.mouse.softhold_since = 0;
   app_state.mouse.speed = 4;
   app_state.mouse.drag_mode = 0;
   app_state.mouse.held_code = 0;
@@ -307,6 +304,8 @@ static void mouse_activate(void)
 {
   device_t *d;
   app_state.mouse.enabled = 1;
+  app_state.mouse.softhold_since = 0;
+  repeat_stop();
   for (d = app_state.devices; d; d = d->next)
   {
     if (ioctl(d->fd, EVIOCGRAB, 1) < 0)
@@ -602,52 +601,19 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
    * PASS_THRU) so nothing is re-injected through the clone device. */
   if (!app_state.mouse.enabled)
   {
-    if (ev->type == EV_KEY)
+    if (ev->type == EV_KEY && ev->code == SOFTKEY_CODE)
     {
-      /* Activation combo (local patch): hold OK + Volume-Down together for
-       * COMBO_HOLD_MS, then release both. Arming is judged at the first
-       * release (elapsed since both went down); engaging on the second
-       * release keeps it race-free: every press and release has already
-       * been delivered natively before we grab, so no key is left
-       * logically-down in Android (its synthetic-repeat timer would
-       * otherwise run forever). */
       if (ev->value == 1)
       {
-        if (ev->code == KEY_ENTER) /* OK: kernel code 28 on matrix-keypad */
-          app_state.mouse.act_ok_down = 1;
-        else if (ev->code == KEY_VOLUMEDOWN)
-          app_state.mouse.act_voldown_down = 1;
-        if (app_state.mouse.act_ok_down && app_state.mouse.act_voldown_down)
-          app_state.mouse.act_combo_since = now_ms();
+        app_state.mouse.softhold_since = now_ms();
       }
-      else
+      else if (app_state.mouse.softhold_since)
       {
-        int was_combo = app_state.mouse.act_ok_down &&
-                        app_state.mouse.act_voldown_down;
-        if (ev->code == KEY_ENTER)
-          app_state.mouse.act_ok_down = 0;
-        else if (ev->code == KEY_VOLUMEDOWN)
-          app_state.mouse.act_voldown_down = 0;
-        if (was_combo)
-        {
-          long long held = now_ms() - app_state.mouse.act_combo_since;
-          app_state.mouse.act_combo_since = 0;
-          if (held >= COMBO_HOLD_MS)
-          {
-            app_state.mouse.act_armed = 1;
-            log_message("combo held %lldms - armed, release both keys", held);
-          }
-          else
-          {
-            app_state.mouse.act_armed = 0; /* too short: normal key use */
-          }
-        }
-        if (app_state.mouse.act_armed &&
-            !app_state.mouse.act_ok_down && !app_state.mouse.act_voldown_down)
-        {
-          app_state.mouse.act_armed = 0;
+        long long held = now_ms() - app_state.mouse.softhold_since;
+        app_state.mouse.softhold_since = 0;
+        log_message("softkey held %lldms (passive)", held);
+        if (held >= HOLD_TOGGLE_MS)
           mouse_activate();
-        }
       }
     }
     return MUTE_EVENT;
@@ -661,9 +627,36 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
   if (ev->type != EV_KEY)
     return PASS_THRU_EVENT;
 
-  /* Star tap exits mouse mode (on release, so a stray press never sticks) */
+  /* Upper-left soft key: hold HOLD_TOGGLE_MS then release to exit mouse mode;
+   * a short tap keeps its old job of scrolling up one step. */
+  if (ev->code == SOFTKEY_CODE)
+  {
+    if (ev->value == 1)
+    {
+      app_state.mouse.softhold_since = now_ms();
+      return MUTE_EVENT;
+    }
+    if (app_state.mouse.softhold_since)
+    {
+      long long held = now_ms() - app_state.mouse.softhold_since;
+      app_state.mouse.softhold_since = 0;
+      log_message("softkey held %lldms (active)", held);
+      if (held >= HOLD_TOGGLE_MS)
+      {
+        mouse_deactivate();
+        return MUTE_EVENT;
+      }
+    }
+    libevdev_uinput_write_event(app_state.mouse.uidev, EV_REL, REL_WHEEL, 1);
+    libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+    log_message("softkey tap: scroll up");
+    return MUTE_EVENT;
+  }
+
+  /* Star tap also exits mouse mode (on release, so a stray press never sticks) */
   if (ev->code == STAR_CODE)
   {
+    log_message("star key value=%d", ev->value);
     if (ev->value == 0)
       mouse_deactivate();
     return MUTE_EVENT;

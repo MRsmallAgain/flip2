@@ -12,5 +12,5 @@ adb push "$ZIP" /sdcard/Download/FlipMouse.zip
 adb shell su -c 'magisk --install-module /sdcard/Download/FlipMouse.zip' >/dev/null 2>&1 || true
 adb push "$FLIP2_ROOT/pipeline/flipmouse/scripts/ondevice-install.sh" /data/local/tmp/fm-install.sh >/dev/null
 adb shell su -c 'sh /data/local/tmp/fm-install.sh' | tr -d '\r'
-echo "Installed + started. Activate: hold OK + Volume-Down ~1s, release both. Exit: star tap."
+echo "Installed + started. Toggle: hold upper-left soft key 2s, release. (star also exits)"
 echo "Rollback: flip2 flipmouse rollback"

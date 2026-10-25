@@ -1,6 +1,6 @@
 id=FlipMouse
 name=FlipMouse
-version=1.2-flip2
-versionCode=3
+version=1.4-flip2
+versionCode=5
 author=tylerboni
-description=Virtual mouse for flip phones. flip2 patched build: passive until OK+VolDown combo hold; star tap exits. Source: github.com/TylerBoni/FlipMouse
+description=Virtual mouse for flip phones. flip2 patched build: soft-left 2s hold toggles mouse mode. Source: github.com/TylerBoni/FlipMouse
