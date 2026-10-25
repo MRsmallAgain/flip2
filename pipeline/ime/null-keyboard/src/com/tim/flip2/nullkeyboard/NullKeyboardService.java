@@ -141,7 +141,8 @@ public class NullKeyboardService extends InputMethodService {
 
             @Override
             public void onPartial(String text) {
-                // Keep quiet on partials — Flip2 toast would spam.
+                // Live feedback: show what the mic hears so the user can tell it's working.
+                showNotice("Listening: " + text, true);
             }
 
             @Override
@@ -474,6 +475,7 @@ public class NullKeyboardService extends InputMethodService {
     }
 
     private void commitSttText(String text) {
+        Log.i("Flip2STT", "commitSttText: [" + text + "]");
         if (text == null || text.length() == 0) {
             return;
         }

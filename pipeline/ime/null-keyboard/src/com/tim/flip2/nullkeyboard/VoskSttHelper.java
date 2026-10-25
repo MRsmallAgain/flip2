@@ -169,13 +169,19 @@ final class VoskSttHelper {
                 public void onPartialResult(String hypothesis) {
                     String t = extractJson(hypothesis, "partial");
                     if (t != null && t.length() > 0) {
-                        mMain.post(() -> mListener.onPartial(t));
+                        android.util.Log.i("Flip2STT", "partial: " + t);
+                        mMain.post(() -> {
+                            if (gen == mListenGen) {
+                                mListener.onPartial(t);
+                            }
+                        });
                     }
                 }
 
                 @Override
                 public void onResult(String hypothesis) {
                     String t = extractJson(hypothesis, "text");
+                    android.util.Log.i("Flip2STT", "segment result: [" + t + "]");
                     if (t != null && t.length() > 0) {
                         mMain.post(() -> {
                             if (gen == mListenGen) {
@@ -253,9 +259,22 @@ final class VoskSttHelper {
                 if (deliverFinal) {
                     // stop() only interrupts the reader thread — onFinalResult never
                     // fires afterwards; harvest the pending hypothesis directly.
+                    // Stopping before the silence-endpointer closes a segment leaves
+                    // the final result empty, so fall back to the in-flight partial.
                     svc.stop();
                     if (rec != null) {
-                        finalText = extractJson(rec.getFinalResult(), "text");
+                        String fin = extractJson(rec.getFinalResult(), "text");
+                        String part = extractJson(rec.getPartialResult(), "text");
+                        android.util.Log.i("Flip2STT", "harvest final=[" + fin + "] partial=[" + part + "]");
+                        // Already-committed text must not be re-sent; prefer a fresh final,
+                        // else the in-flight partial (words after the last closed segment).
+                        if (fin != null && (fin.length() == 0 || fin.equals(mCommittedThisListen))) {
+                            fin = null;
+                        }
+                        if (part != null && (part.length() == 0 || part.equals(mCommittedThisListen))) {
+                            part = null;
+                        }
+                        finalText = fin != null ? fin : part;
                     }
                 } else {
                     svc.cancel();
