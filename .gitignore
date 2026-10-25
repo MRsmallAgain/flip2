@@ -29,3 +29,7 @@ __pycache__/
 # Null-keyboard Vosk vendor (native .so + jars) and model symlinks — restore via cache/AAR
 pipeline/ime/null-keyboard/vendor/
 pipeline/ime/null-keyboard/models/
+
+# FlipMouse vendored pipeline
+pipeline/flipmouse/upstream/
+pipeline/flipmouse/build/

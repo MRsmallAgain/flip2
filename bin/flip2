@@ -25,6 +25,7 @@ Commands:
   navoverlay <sub>   framework-res RRO (menu bar/navbar 0px): build | install | status | rollback
   tagdrawer <sub>    Pixel Tag Drawer system (Magisk): pack | install | rollback | status
   vmouse <sub>       Simple mouse (neutronscott simple-release1): install | status
+  flipmouse <sub>    FlipMouse virtual mouse (vendored, Magisk): build | install | status | rollback
   ime <sub>          Null keyboard + STT: build | hide-bar | restore | status | models | lang
 
 Environment:
@@ -142,6 +143,22 @@ case "$cmd" in
         echo "  https://github.com/neutronscott/flip2/releases/tag/simple-release1"
         ;;
       *) echo "Unknown vmouse subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  flipmouse)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      build)    exec "$FLIP2_ROOT/pipeline/flipmouse/build.sh" "$@" ;;
+      install)  exec "$FLIP2_ROOT/pipeline/flipmouse/install.sh" ;;
+      status)   exec "$FLIP2_ROOT/pipeline/flipmouse/status.sh" ;;
+      rollback) exec "$FLIP2_ROOT/pipeline/flipmouse/rollback.sh" ;;
+      help|-h|--help)
+        echo "Usage: flip2 flipmouse {build|install|status|rollback}"
+        echo "  Vendored TylerBoni/FlipMouse, flip2-patched: passive until double-tap"
+        echo "  Volume-Down activates mouse mode; star tap exits. See pipeline/flipmouse/VENDORED.md."
+        ;;
+      *) echo "Unknown flipmouse subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;
   navoverlay)
