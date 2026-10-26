@@ -43,3 +43,6 @@ pipeline/flipmouse/build/
 
 # Staged whisper JNI binary (source tracked in jni/, binary restored from cache)
 pipeline/ime/null-keyboard/jni/*.so
+
+# Electron companion
+companion/node_modules/

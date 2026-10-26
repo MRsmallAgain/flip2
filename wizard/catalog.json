@@ -1,0 +1,112 @@
+{
+  "$comment": "Flip2 setup wizard download catalog. Every hash below was computed from the real upstream file (sha256sum), not guessed; sizes are exact byte counts. The browser verifies each download with WebCrypto SHA-256 against these pins before anything is pushed to the phone. Nothing in this catalog is stored in the repo or attached to releases — these are pointers to upstream artifacts.",
+  "version": "1.1.0-flip2",
+  "pinned": "2026-10-26",
+  "files": [
+    {
+      "id": "neutron",
+      "file": "neutron.img",
+      "purpose": "Custom boot image (root boot). Flashed to the boot partition ONLY, and only after the user unlocks the bootloader — a step that erases the phone. Never flash super, vbmeta, system, product, or the preloader; never write the EMMC_BOOT header. neutron-noavb.img is NOT used.",
+      "url": "https://github.com/neutronscott/flip2/releases/download/v2024.09.17.kefs/neutron.img",
+      "size": 25165824,
+      "sha256": "31237917ef51fa6e7ee588da1cfc84bb378859de2d49681fdd4f84290841d3c1",
+      "license": "Unlicense",
+      "author": "neutronscott (flip2 project)",
+      "upstream": "github.com/neutronscott/flip2 release v2024.09.17.kefs"
+    },
+    {
+      "id": "installer-full",
+      "file": "flip2-installer-full-magisk.zip",
+      "purpose": "Flip2 Magisk module bundle (full tier): nav overlay, keypad backspace remap, FlipMouse daemon, Pixel Tag Drawer system placement, launcher overlay. Contents are unzipped into /data/adb/modules by wizard/device/install.sh — matches the published SHA256SUMS of release v1.1.0-flip2.",
+      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.1.0-flip2/flip2-installer-full-magisk.zip",
+      "size": 16099133,
+      "sha256": "086cec89acf69f856e2b9b6f32a1de7da572e2eeba657be3d3a0ea6d47b57857",
+      "license": "See flip2 repo",
+      "author": "MRsmallAgain (flip2 project)",
+      "upstream": "github.com/MRsmallAgain/flip2 release v1.1.0-flip2"
+    },
+    {
+      "id": "forkgram",
+      "file": "forkgram-13.0.2.0-flip2-patched.apk",
+      "purpose": "Forkgram messenger (Telegram fork) patched for the Flip 2's small screen and keypad.",
+      "url": "https://github.com/MRsmallAgain/TelegramAndroid/releases/download/flip2-13.0.2.0-r1/forkgram-13.0.2.0-flip2-patched.apk",
+      "size": 40136550,
+      "sha256": "bc378c74c378c23c2115ca1755b5322b15d30132098bcc8136ef1f13a817ce38",
+      "license": "GPL-3.0",
+      "author": "Forkgram / MRsmallAgain patch",
+      "upstream": "github.com/MRsmallAgain/TelegramAndroid tag flip2-13.0.2.0-r1"
+    },
+    {
+      "id": "whisper-tiny",
+      "file": "ggml-tiny-q5_1.bin",
+      "purpose": "whisper.cpp ggml tiny model (q5_1), used for speech-to-text by the Flip2 Null Keyboard IME. Copied to files/whisper/en/model.bin AND files/whisper/uk/model.bin (one multilingual bin serves both languages).",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny-q5_1.bin",
+      "size": 32152673,
+      "sha256": "818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7",
+      "license": "MIT (whisper.cpp); model weights per OpenAI whisper terms",
+      "author": "whisper.cpp (ggerganov)",
+      "upstream": "huggingface.co/ggerganov/whisper.cpp ggml-tiny-q5_1.bin"
+    },
+    {
+      "id": "vosk-en",
+      "file": "vosk-model-small-en-us-0.15.zip",
+      "purpose": "Vosk small US-English model — fallback STT for the IME. Unzips to a top-level model dir (am/, conf/, graph/, ivector/) which install.sh places at files/vosk/en/.",
+      "url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
+      "size": 41205931,
+      "sha256": "30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498",
+      "license": "Apache-2.0",
+      "author": "Alpha Cephei (Vosk)",
+      "upstream": "alphacephei.com/vosk/models/"
+    },
+    {
+      "id": "vosk-uk",
+      "file": "vosk-model-small-uk-v3-nano.zip",
+      "purpose": "Vosk Ukrainian nano model — fallback STT for the IME. Unzips to a top-level model dir which install.sh places at files/vosk/uk/. stt_lang defaults to uk.",
+      "url": "https://alphacephei.com/vosk/models/vosk-model-small-uk-v3-nano.zip",
+      "size": 77622640,
+      "sha256": "d6b50be0a2d20f891720f3a83c98290bb2d396fd666142dbf716e8ad302f8233",
+      "license": "Apache-2.0",
+      "author": "Alpha Cephei (Vosk)",
+      "upstream": "alphacephei.com/vosk/models/"
+    },
+    {
+      "id": "tagdrawer",
+      "file": "com.iwadjp.pixeltagdrawer_7.apk",
+      "purpose": "Pixel Tag Drawer v7 (0.1.6) — photo tag browser wired to the Home-key Up shortcut.",
+      "url": "https://f-droid.org/repo/com.iwadjp.pixeltagdrawer_7.apk",
+      "size": 8433539,
+      "sha256": "8215454c5b7c8b1465cbc82f304f1cc448fb0c93b63ffc7d15f16b31ce7f6435",
+      "license": "MIT",
+      "author": "iwadjp (F-Droid)",
+      "upstream": "f-droid.org com.iwadjp.pixeltagdrawer version 7"
+    },
+    {
+      "id": "bouncy",
+      "file": "com.dozingcatsoftware.bouncy_43.apk",
+      "purpose": "Bouncy Ball v43 (1.16.0) — demo game proving multi-touch/motion works after the keypad remap.",
+      "url": "https://f-droid.org/repo/com.dozingcatsoftware.bouncy_43.apk",
+      "size": 3233743,
+      "sha256": "ffda0d9cb0b1b2aa58be9559dda891c4fa24391bc481d297a8e3d96c31f62721",
+      "license": "GPL-3.0",
+      "author": "dozingcatsoftware (F-Droid)",
+      "upstream": "f-droid.org com.dozingcatsoftware.bouncy version 43"
+    },
+    {
+      "id": "intertune",
+      "file": "dev.skye.intertune_96.apk",
+      "purpose": "Intertune v96 (0.12.1) — music player wired to the Home-key Left shortcut.",
+      "url": "https://f-droid.org/repo/dev.skye.intertune_96.apk",
+      "size": 14504398,
+      "sha256": "64779316cc70046276c03964358dc7a7471dca9c7f2b24e1c4a79966745638fe",
+      "license": "GPL-3.0",
+      "author": "skye (F-Droid)",
+      "upstream": "f-droid.org dev.skye.intertune version 96"
+    }
+  ],
+  "not_downloaded": [
+    {
+      "id": "chrome",
+      "reason": "Menu slot 7 stays org.chromium.chrome — already on the phone; the wizard never downloads a browser."
+    }
+  ]
+}

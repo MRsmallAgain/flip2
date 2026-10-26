@@ -13,6 +13,8 @@ Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voi
 
 Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Launcher3 RRO overlay**, and **recovery** after bad Magisk launcher experiments.
 
+No CLI? A **[browser setup wizard](docs/SETUP-WIZARD.md)** (`wizard/`) does the full install from Chrome on Linux over WebUSB — verified downloads, push, install, verify — plus an erase-gated rooting slice. Prefer a desktop app? `flip2 companion` runs the same wizard in Electron with one-click udev rules and no device chooser.
+
 **Quick start**
 
 ```bash

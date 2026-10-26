@@ -14,6 +14,7 @@ Commands:
   slot <1-9> <pkg>   Set one menu slot and run apply
   swap <a> <b>       Swap two menu slots (1–9) and apply
   editor             Start web editor (http://127.0.0.1:${FLIP2_EDITOR_PORT})
+  companion          Setup wizard in Electron (one-click udev, auto USB pick)
   recovery           Remove bad launcher Magisk module, restore stock Launcher3, apply overlay
   pack-overlay       Build Magisk zip for overlay only (launcher-overlay/dist/)
   home-keys          Apply home-keys.json to Settings.Global
@@ -63,6 +64,14 @@ case "$cmd" in
         && echo "Phone: http://127.0.0.1:${FLIP2_EDITOR_PORT}"
     fi
     exec python3 "$FLIP2_OVERLAY/scripts/serve-editor.py"
+    ;;
+  companion)
+    local_bin="$FLIP2_ROOT/companion/node_modules/.bin/electron"
+    if [[ ! -x "$local_bin" ]]; then
+      echo "companion: Electron not installed -- run npm install in $FLIP2_ROOT/companion" >&2
+      exit 1
+    fi
+    exec "$local_bin" "$FLIP2_ROOT/companion"
     ;;
   recovery)
     exec "$FLIP2_PIPELINE/recovery/resolve.sh"

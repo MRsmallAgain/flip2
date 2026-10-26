@@ -1,0 +1,9 @@
+# TCL Flip 2 / Gflip6 — adb (T & A Mobile Phones)
+# Install: sudo cp this file to /etc/udev/rules.d/51-android-flip2-adb.rules
+#          sudo udevadm control --reload-rules && sudo udevadm trigger
+# Unplug/replug USB; adb devices should show "device" not "no permissions"
+# adb composite PIDs: 0167 (MTP+ADB) and 0c01 (adb-only)
+SUBSYSTEM=="usb", ATTR{idVendor}=="1bbb", ATTR{idProduct}=="0167", MODE="0666", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="1bbb", ATTR{idProduct}=="0c01", MODE="0666", GROUP="plugdev"
+# MediaTek preloader (0e8d:2000) / fastboot (when in download mode)
+SUBSYSTEM=="usb", ATTR{idVendor}=="0e8d", ATTR{idProduct}=="2000", MODE="0666", GROUP="plugdev"
