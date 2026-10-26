@@ -1,0 +1,201 @@
+{
+  "$schema_comment": "Flip2 deployment manifest \u2014 source of truth for all deploy tiers. Consumed by pack-all.sh, pack-installer.sh, setup.sh, image/build-tree.sh.",
+  "version_scheme": "<name> X.Y.Z-flip2 + monotonic versionCode",
+  "components": [
+    {
+      "name": "navoverlay",
+      "artifact": "magisk-module",
+      "zip": "framework-nav-overlay/dist/flip2_nav_overlay-magisk.zip",
+      "build": "flip2 navoverlay build",
+      "module_id": "flip2_nav_overlay",
+      "root_install": true,
+      "root_runtime": true,
+      "rootless_survives_deroot": false,
+      "reboot": true,
+      "tiers": [
+        "full",
+        "image"
+      ],
+      "install_order": 10
+    },
+    {
+      "name": "keypad",
+      "artifact": "magisk-module",
+      "zip": "keypad-backspace/dist/flip2_keypad_backspace-magisk.zip",
+      "build": "keypad-backspace/scripts/pack.sh (prebuilt KL; no compile)",
+      "module_id": "flip2_keypad_backspace",
+      "root_install": true,
+      "root_runtime": false,
+      "rootless_survives_deroot": false,
+      "reboot": true,
+      "tiers": [
+        "full",
+        "image"
+      ],
+      "install_order": 20
+    },
+    {
+      "name": "flipmouse",
+      "artifact": "magisk-module",
+      "zip": "pipeline/flipmouse/build/FlipMouse.zip",
+      "build": "flip2 flipmouse build",
+      "module_id": "FlipMouse",
+      "root_install": true,
+      "root_runtime": true,
+      "rootless_survives_deroot": false,
+      "reboot": false,
+      "tiers": [
+        "full"
+      ],
+      "install_order": 30
+    },
+    {
+      "name": "tagdrawer",
+      "artifact": "magisk-module",
+      "zip": "pixel-tag-drawer/dist/flip2_pixel_tag_drawer-magisk.zip",
+      "build": "flip2 tagdrawer pack",
+      "module_id": "flip2_pixel_tag_drawer",
+      "root_install": true,
+      "root_runtime": false,
+      "rootless_survives_deroot": false,
+      "reboot": true,
+      "tiers": [
+        "full",
+        "image"
+      ],
+      "install_order": 40
+    },
+    {
+      "name": "launcher_overlay",
+      "artifact": "magisk-module",
+      "zip": "launcher-overlay/dist/flip2_launcher_overlay-magisk.zip",
+      "build": "flip2 pack-overlay",
+      "module_id": "flip2_launcher_overlay",
+      "root_install": true,
+      "root_runtime": true,
+      "rootless_survives_deroot": false,
+      "reboot": true,
+      "tiers": [
+        "full",
+        "image"
+      ],
+      "install_order": 50,
+      "notes": "Only meaningful with stock Launcher3 as HOME; with Launcher4 the menu is baked into the APK instead."
+    },
+    {
+      "name": "launcher4",
+      "artifact": "user-apk",
+      "apk": "launcher4/dist/launcher4.apk",
+      "build": "flip2 launcher4 build",
+      "package": "com.tim.flip2.launcher4",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "clean",
+        "full",
+        "image"
+      ],
+      "install_order": 60,
+      "post_install": "set as HOME (cmd package set-home-activity)"
+    },
+    {
+      "name": "ime",
+      "artifact": "user-apk",
+      "apk": "pipeline/ime/null-keyboard/dist/nullkeyboard.apk",
+      "build": "flip2 ime build",
+      "package": "com.tim.flip2.nullkeyboard",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "clean",
+        "full",
+        "image"
+      ],
+      "install_order": 70,
+      "settings": [
+        "secure show_ime_with_hard_keyboard 1",
+        "secure enabled_input_methods com.tim.flip2.nullkeyboard/.NullKeyboardService",
+        "secure default_input_method com.tim.flip2.nullkeyboard/.NullKeyboardService",
+        "secure accessibility_soft_keyboard_mode 1",
+        "system dtmf_tone 0",
+        "system dtmf_tone_type 0"
+      ],
+      "appops": [
+        "WRITE_SETTINGS allow"
+      ],
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "optional": {
+        "vosk_models": "~40MB EN + ~75MB UK, pushed from models/ symlink or user URL; never bundled"
+      }
+    },
+    {
+      "name": "forkgram",
+      "artifact": "user-apk",
+      "build": "flip2 forkgram release",
+      "package": "org.forkgram.classic",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "clean",
+        "full"
+      ],
+      "install_order": 80,
+      "external": {
+        "repo": "MRsmallAgain/TelegramAndroid",
+        "tag": "flip2-13.0.2.0-r1",
+        "asset": "forkgram-13.0.2.0-flip2-patched.apk",
+        "note": "GPL; not stored in this repo \u2014 downloaded at install time"
+      }
+    },
+    {
+      "name": "home_keys",
+      "artifact": "settings-write",
+      "build": null,
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "clean",
+        "full",
+        "image"
+      ],
+      "install_order": 90,
+      "settings": [
+        "global keyshortcut_leftkey|rightkey|upkey|downkey|shortcuts_bar from launcher-overlay/home-keys.json"
+      ]
+    }
+  ],
+  "deroot_summary": {
+    "survives": [
+      "launcher4",
+      "ime",
+      "forkgram",
+      "home_keys",
+      "default HOME",
+      "default IME"
+    ],
+    "dies": [
+      "flipmouse (reads /dev/input)",
+      "keypad KL remap",
+      "navoverlay (30px bar returns)",
+      "tagdrawer system placement",
+      "launcher_overlay RRO (menu survives via launcher4 baked slots)"
+    ]
+  },
+  "tiers": {
+    "image": "Tier A \u2014 system tree for base-image builds (system/app + product/overlay)",
+    "clean": "Tier B clean \u2014 user APKs + settings only; installer self-removes; de-root friendly",
+    "full": "Tier B full / Tier C \u2014 everything, root required",
+    "bundle": "Tier D \u2014 per-component zips + APKs + SHA256SUMS"
+  },
+  "version": "1.0.0-flip2"
+}

@@ -24,8 +24,23 @@ Requires: USB debugging, **root** (overlay idmap), JDK + Android SDK build-tools
 | RRO project | `launcher-overlay/` | `slots.json`, APK resources, Magisk pack |
 | Launcher patch | `launcher-patch/` | **Withdrawn** whole-APK Magisk fix — see RECOVERY.md |
 | Mouse pipeline | `pipeline/flipmouse/` | Vendored [FlipMouse](https://github.com/TylerBoni/FlipMouse) virtual mouse (Magisk) |
+| Deploy pipeline | `pipeline/deploy/` | Four-tier packaging: image tree, installer zip, live setup, bundle |
+| Image pipeline | `pipeline/image/` | System-tree assembly for base-image builds |
 
 Full design: **[docs/PIPELINE.md](docs/PIPELINE.md)** · shared libs: **[docs/MODULES.md](docs/MODULES.md)**
+
+## Deployment tiers
+
+All tiers are driven by **`pipeline/deploy/manifest.json`** — the single source of truth for components, artifacts, root needs, and which tier includes what. Four ways to deploy the same set:
+
+| Tier | Command | Output | Use |
+|------|---------|--------|-----|
+| **A** base image | `flip2 image build-tree` | `pipeline/deploy/dist/flip2-system-tree/` merged into *your own* stock firmware → fastbootd flash ([docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md)) | baked into the image, survives de-root |
+| **B** installer zip | `flip2 installer pack [--flavor clean\|full]` | `flip2-installer-<flavor>-magisk.zip` — flash once via the Magisk app; self-removes after first boot | one-shot provisioning; `clean` installs only the root-independent set (de-root friendly) |
+| **C** live setup | `flip2 setup full` | runs the existing per-component installs over adb, PASS/FAIL summary | the already-rooted device |
+| **D** bundle | `flip2 pack-all` | `pipeline/deploy/dist/flip2-packages-<version>/` + `SHA256SUMS` | manual installs / release uploads |
+
+De-rooting: the installer writes **`/data/local/flip2/deroot.sh`** at install time so it works even after root is gone; from a host, `flip2 deroot` pushes and runs it. What survives de-root: Launcher4, Null Keyboard, Forkgram, home-keys, default HOME/IME. What legitimately dies: FlipMouse, the keypad ⌫ remap, the nav-bar overlay, TagDrawer's system placement. The final step is always manual: Magisk app → Uninstall → Restore Images.
 
 ## Menu grid (MVP)
 
