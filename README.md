@@ -1,5 +1,16 @@
 # Flip2 toolkit (TCL Gflip6 / Flip 2)
 
+Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voice dictation on the real keypad, a virtual mouse driven by the directional keys, a tag app drawer, a clean custom launcher, and a hardened Telegram client — installed **one zip, one boot**, or baked straight into your own firmware, with a **de-root path that actually works**.
+
+<p align="center">
+  <img src="docs/screenshots/home.png" width="19%" alt="Homescreen" /> 
+  <img src="docs/screenshots/menu-grid.png" width="19%" alt="Menu grid" /> 
+  <img src="docs/screenshots/tag-drawer.png" width="19%" alt="Tag drawer app launcher" /> 
+  <img src="docs/screenshots/null-keyboard.png" width="19%" alt="Null keyboard: full-screen apps, no IME bar" />
+</p>
+
+*Homescreen · customizable menu grid · TagDrawer app launcher · null-keyboard IME (no keyboard covering your screen)*
+
 Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Launcher3 RRO overlay**, and **recovery** after bad Magisk launcher experiments.
 
 **Quick start**
