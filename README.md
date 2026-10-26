@@ -83,6 +83,17 @@ flip2 flipmouse status    # module dir, binary size, running process
 flip2 flipmouse rollback  # remove module — reboot restores stock
 ```
 
+## Forkgram patch (BACK deletes in text fields)
+
+Telegram/Forkgram keeps hardware keys in the app (`ALT_FOCUSABLE_IM`), so the null-keyboard IME never receives BACK there and BACK closes the app. `pipeline/forkgram/` patches Forkgram's own `onBackPressed()` to delete in a focused, non-empty text field instead, and forces the IME to be shown. Physical and on-screen BACK both deliver `KEYCODE_BACK`, so both are covered.
+
+```bash
+flip2 forkgram patch              # pull installed APK, patch, sign, install
+flip2 forkgram patch --no-install # build only
+```
+
+The original APK is backed up to `~/forkgram-original-13.0.2.0.apk`. The patched build is debug-signed, so switching from F-Droid requires one uninstall (`--uninstall`, wipes app data). See `pipeline/forkgram/README.md`.
+
 ## Credits
 
 This toolkit stands on the work of:

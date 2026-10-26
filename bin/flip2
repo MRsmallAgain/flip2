@@ -26,6 +26,7 @@ Commands:
   tagdrawer <sub>    Pixel Tag Drawer system (Magisk): pack | install | rollback | status
   vmouse <sub>       Simple mouse (neutronscott simple-release1): install | status
   flipmouse <sub>    FlipMouse virtual mouse (vendored, Magisk): build | install | status | rollback
+  forkgram <sub>     Patched Forkgram APK: patch (BACK deletes in text fields)
   ime <sub>          Null keyboard + STT: build | hide-bar | restore | status | models | lang
 
 Environment:
@@ -159,6 +160,19 @@ case "$cmd" in
         echo "  Hold upper-left soft key 2s + release to toggle. Star also exits. See pipeline/flipmouse/VENDORED.md."
         ;;
       *) echo "Unknown flipmouse subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  forkgram)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      patch) exec "$FLIP2_ROOT/pipeline/forkgram/patch-forkgram.sh" "$@" ;;
+      help|-h|--help)
+        echo "Usage: flip2 forkgram patch [--apk PATH] [--no-install] [--uninstall]"
+        echo "  Telegram owns hardware BACK, so the IME cannot delete there; this"
+        echo "  patch makes BACK delete in focused text fields. See pipeline/forkgram/README.md."
+        ;;
+      *) echo "Unknown forkgram subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;
   navoverlay)
