@@ -37,3 +37,16 @@ flip2 recovery           # after bad launcher Magisk module
 ## adb
 
 If `no permissions`, user installs `launcher-patch/scripts/51-android-flip2-adb.rules`. ZCode sandbox may block USB; user runs `flip2` from local terminal.
+
+## Project skills
+
+Repeated workflows are in `.agents/skills/`. Read the matching `SKILL.md` before improvising a recipe.
+
+| Skill | Use when |
+|-------|----------|
+| `flip2-adb` | `no permissions`, unauthorized, or USB missing from this shell |
+| `flip2-ime-stt` | Null keyboard, Whisper, Vosk, `stt_lang`, hold-`*` dictation |
+| `flip2-flipmouse` | Cursor toggle, 1s hold, shortcuts in mouse mode |
+| `flip2-ondevice-keys` | `sendevent` holds on `/dev/input/event2` |
+| `flip2-deploy` | Tiers A–D, `flip2 setup full`, de-root, image flash |
+| `flip2-release` | Pack the four zips and publish a GitHub release |
