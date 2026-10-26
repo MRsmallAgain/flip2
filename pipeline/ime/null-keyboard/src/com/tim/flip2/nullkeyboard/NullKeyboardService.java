@@ -14,6 +14,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.provider.Settings;
+import android.text.InputType;
 import android.util.Log;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
@@ -34,7 +35,10 @@ import java.util.List;
  * Punct.    : 1 multi-tap (.,?!'";:-)() etc.); . ! ? add trailing space in smart mode
  * Smart     : sentence caps + pronoun I (T9 and dictation)
  * Case      : * tap, when no word is in progress, cycles smart -> lower -> UPPER
- * 123 mode  : # always toggles ABC/123 (in 123, * types *)
+ * Modes     : # cycles T9 predictive -> ABC multi-tap -> 123 digits
+ *             Multi-tap is the classic non-predictive mode: press 2 once for
+ *             a, twice for b, and so on within 900 ms. Password fields start
+ *             in multi-tap with lower case, so secrets are typed literally.
  * Symbols   : hold # — built-in emoji + special char picker
  * STT       : hold * — offline Vosk (EN/UK); models via {@code flip2 ime models}
  *             while listening: # cycles EN↔UK and restarts; * stops
@@ -45,6 +49,11 @@ public class NullKeyboardService extends InputMethodService {
     private static final long TAP_TIMEOUT_MS = 900L;
     /** Hold threshold for * / # — shorter than system key-repeat start (~400–500ms). */
     private static final long HOLD_MS = 380L;
+
+    /** Effective keypad text mode; # cycles T9 -> multi-tap -> numeric. */
+    private static final int MODE_T9 = 0;
+    private static final int MODE_MULTITAP = 1;
+    private static final int MODE_NUMERIC = 2;
 
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
@@ -83,14 +92,17 @@ public class NullKeyboardService extends InputMethodService {
 
     private int mCaseMode = CASE_SMART;
     private boolean mFieldNumeric = false;   // field says digits (inputType)
-    private boolean mToggleNumeric = false;  // user # toggle
+    private boolean mFieldPassword = false;  // password/PIN field: literal typing
+    private int mMode = MODE_T9;             // effective mode for this field
+    /** Manual choice for ordinary text fields; password/number fields override it. */
+    private int mUserMode = MODE_T9;
 
-    // multi-tap state
+    // multi-tap state (letters 2-9 and punctuation on 1)
     private int mPendingKeyCode = -1;
     private int mPendingIndex = 0;
     private long mPendingStart = 0L;
-    /** Chars last inserted by key-1 multi-tap (1 or 2 when smart adds space after . ! ?). */
-    private int mPunctVisibleLen;
+    /** Chars last inserted by a multi-tap cycle (1, or 2 when smart adds a space). */
+    private int mPendingVisibleLen;
     private final Runnable mPendingTimeout = this::onPendingTimeout;
 
     private AlertDialog mSymbolDialog;
@@ -206,10 +218,23 @@ public class NullKeyboardService extends InputMethodService {
         } else {
             restoreDtmfTone();
         }
+        cancelPending();
         mFieldNumeric = cls == EditorInfo.TYPE_CLASS_NUMBER
                 || cls == EditorInfo.TYPE_CLASS_PHONE
                 || cls == EditorInfo.TYPE_CLASS_DATETIME;
-        cancelPending();
+        mFieldPassword = isPasswordInputType(attribute.inputType);
+        if (mFieldPassword && !mFieldNumeric) {
+            // Secrets are not natural language: no prediction, no smart caps.
+            // Multi-tap gives one explicit letter per press.
+            mMode = MODE_MULTITAP;
+            mCaseMode = CASE_LOWER;
+        } else if (mFieldNumeric) {
+            // Includes numeric PIN fields (TYPE_NUMBER_VARIATION_PASSWORD).
+            mMode = MODE_NUMERIC;
+        } else {
+            mMode = mUserMode;
+        }
+        Log.i("Flip2IME", "mode=" + modeName(mMode) + " password=" + mFieldPassword);
         clearT9();
         mAwaitingDoubleZeroPeriod = false;
         mLastZeroDownMs = 0;
@@ -400,7 +425,42 @@ public class NullKeyboardService extends InputMethodService {
     }
 
     private boolean numericMode() {
-        return mFieldNumeric ^ mToggleNumeric;
+        return mMode == MODE_NUMERIC;
+    }
+
+    private static String modeName(int mode) {
+        switch (mode) {
+            case MODE_MULTITAP:
+                return "multitap";
+            case MODE_NUMERIC:
+                return "numeric";
+            default:
+                return "t9";
+        }
+    }
+
+    private static int nextMode(int mode) {
+        switch (mode) {
+            case MODE_T9:
+                return MODE_MULTITAP;
+            case MODE_MULTITAP:
+                return MODE_NUMERIC;
+            default:
+                return MODE_T9;
+        }
+    }
+
+    /** Password and PIN fields: type literally, never predict. */
+    private static boolean isPasswordInputType(int inputType) {
+        int cls = inputType & InputType.TYPE_MASK_CLASS;
+        int variation = inputType & InputType.TYPE_MASK_VARIATION;
+        if (cls == InputType.TYPE_CLASS_TEXT) {
+            return variation == InputType.TYPE_TEXT_VARIATION_PASSWORD
+                    || variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                    || variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD;
+        }
+        return cls == InputType.TYPE_CLASS_NUMBER
+                && variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD;
     }
 
     private void toast(String msg) {
@@ -652,12 +712,14 @@ public class NullKeyboardService extends InputMethodService {
             return true;
         }
 
-        // T9 predictive: 2–9 append digits (including repeats); * cycles candidates.
+        // 2–9: multi-tap letters in ABC mode, T9 predictive otherwise.
         if (keyCode >= KeyEvent.KEYCODE_2 && keyCode <= KeyEvent.KEYCODE_9) {
-            cancelPending();
             clearDoubleZeroPeriodState();
-            boolean consumed = handleT9LetterKey(keyCode, ic);
-            return consumed;
+            if (mMode == MODE_MULTITAP) {
+                return handleMultiTapLetter(keyCode, ic);
+            }
+            cancelPending();
+            return handleT9LetterKey(keyCode, ic);
         }
 
         // KEYCODE_1: punct multi-tap; smart mode adds space after . ! ?
@@ -667,10 +729,10 @@ public class NullKeyboardService extends InputMethodService {
             long now = SystemClock.uptimeMillis();
             if (mPendingKeyCode == keyCode && now - mPendingStart < TAP_TIMEOUT_MS) {
                 mPendingIndex = (mPendingIndex + 1) % row.length;
-                if (mPunctVisibleLen > 0) {
-                    ic.deleteSurroundingText(mPunctVisibleLen, 0);
+                if (mPendingVisibleLen > 0) {
+                    ic.deleteSurroundingText(mPendingVisibleLen, 0);
                 }
-                mPunctVisibleLen = commitPunctuationChar(ic, row[mPendingIndex]);
+                mPendingVisibleLen = commitPunctuationChar(ic, row[mPendingIndex]);
             } else {
                 cancelPending();
                 if (mT9Seq.length() > 0) {
@@ -686,7 +748,7 @@ public class NullKeyboardService extends InputMethodService {
                 if (before != null && before.length() == 1 && before.charAt(0) == ' ') {
                     ic.deleteSurroundingText(1, 0);
                 }
-                mPunctVisibleLen = commitPunctuationChar(ic, row[0]);
+                mPendingVisibleLen = commitPunctuationChar(ic, row[0]);
             }
             MAIN.removeCallbacks(mPendingTimeout);
             MAIN.postDelayed(mPendingTimeout, TAP_TIMEOUT_MS);
@@ -701,7 +763,8 @@ public class NullKeyboardService extends InputMethodService {
                 commitT9Word(ic, true);
                 mLastZeroDownMs = now;
                 mAwaitingDoubleZeroPeriod = true;
-            } else if (mCaseMode == CASE_SMART
+            } else if (mMode == MODE_T9
+                    && mCaseMode == CASE_SMART
                     && mAwaitingDoubleZeroPeriod
                     && mLastZeroDownMs > 0
                     && now - mLastZeroDownMs < DOUBLE_ZERO_MS
@@ -787,7 +850,9 @@ public class NullKeyboardService extends InputMethodService {
     }
 
     private void finalizePendingPunctuation() {
-        if (mPendingKeyCode != KeyEvent.KEYCODE_1 || mCaseMode != CASE_SMART) {
+        if (mMode != MODE_T9
+                || mPendingKeyCode != KeyEvent.KEYCODE_1
+                || mCaseMode != CASE_SMART) {
             return;
         }
         InputConnection ic = getCurrentInputConnection();
@@ -905,7 +970,7 @@ public class NullKeyboardService extends InputMethodService {
         finalizePendingPunctuation();
         mPendingKeyCode = -1;
         mPendingIndex = 0;
-        mPunctVisibleLen = 0;
+        mPendingVisibleLen = 0;
     }
 
     private void cancelPending() {
@@ -919,7 +984,7 @@ public class NullKeyboardService extends InputMethodService {
     private void cancelPendingWithoutFinalize() {
         mPendingKeyCode = -1;
         mPendingIndex = 0;
-        mPunctVisibleLen = 0;
+        mPendingVisibleLen = 0;
         MAIN.removeCallbacks(mPendingTimeout);
     }
 
@@ -967,6 +1032,34 @@ public class NullKeyboardService extends InputMethodService {
         word = applyCaseToWord(ic, word);
         ic.commitText(word, 1);
         mT9PreviewLen = word.length();
+    }
+
+    /**
+     * Classic non-predictive entry: tap 2 once for a, twice for b, three times
+     * for c, with a 900 ms window per key. Each tap commits a letter, and the
+     * next tap on the same key replaces it until the window expires.
+     */
+    private boolean handleMultiTapLetter(int keyCode, InputConnection ic) {
+        char[] row = KEY_ROWS[keyCode - KeyEvent.KEYCODE_0];
+        long now = SystemClock.uptimeMillis();
+        if (mPendingKeyCode == keyCode && now - mPendingStart < TAP_TIMEOUT_MS) {
+            mPendingIndex = (mPendingIndex + 1) % row.length;
+            if (mPendingVisibleLen > 0) {
+                ic.deleteSurroundingText(mPendingVisibleLen, 0);
+            }
+        } else {
+            cancelPendingWithoutFinalize();
+            mPendingKeyCode = keyCode;
+            mPendingIndex = 0;
+            mPendingStart = now;
+            mPendingVisibleLen = 0;
+        }
+        char c = applyCase(keyCode, ic, row[mPendingIndex]);
+        ic.commitText(String.valueOf(c), 1);
+        mPendingVisibleLen = 1;
+        MAIN.removeCallbacks(mPendingTimeout);
+        MAIN.postDelayed(mPendingTimeout, TAP_TIMEOUT_MS);
+        return true;
     }
 
     private boolean handleT9LetterKey(int keyCode, InputConnection ic) {
@@ -1071,11 +1164,30 @@ public class NullKeyboardService extends InputMethodService {
 
     private void applyStarPoundTap(int keyCode, InputConnection ic) {
         if (keyCode == KeyEvent.KEYCODE_POUND) {
-            Log.i("Flip2IME", "poundTap toggle " + mToggleNumeric + " -> " + !mToggleNumeric
-                    + " t9len=" + mT9Seq.length() + " fieldNumeric=" + mFieldNumeric);
+            cancelPending();
             clearT9();
-            mToggleNumeric = !mToggleNumeric;
-            toast(mToggleNumeric ? "123 — digits on keypad" : "ABC — T9 letters");
+            if (mFieldPassword && !mFieldNumeric) {
+                // Never let a text password fall into T9 prediction.
+                mMode = mMode == MODE_MULTITAP ? MODE_NUMERIC : MODE_MULTITAP;
+            } else {
+                mMode = nextMode(mMode);
+            }
+            if (!mFieldPassword && !mFieldNumeric) {
+                mUserMode = mMode;
+            }
+            Log.i("Flip2IME", "poundTap mode=" + modeName(mMode)
+                    + " fieldNumeric=" + mFieldNumeric + " password=" + mFieldPassword);
+            switch (mMode) {
+                case MODE_MULTITAP:
+                    toast("ABC — multi-tap (no prediction)");
+                    break;
+                case MODE_NUMERIC:
+                    toast("123 — digits on keypad");
+                    break;
+                default:
+                    toast("T9 — predictive text");
+                    break;
+            }
             return;
         }
         if (numericMode()) {

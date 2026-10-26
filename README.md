@@ -83,6 +83,20 @@ flip2 flipmouse status    # module dir, binary size, running process
 flip2 flipmouse rollback  # remove module — reboot restores stock
 ```
 
+## Null keyboard IME (T9 + dictation)
+
+`pipeline/ime/null-keyboard` is a zero-height IME: the physical keypad goes through it and the screen stays free.
+
+- `#` cycles text modes: **T9 predictive → ABC multi-tap → 123 digits**. Multi-tap is the classic non-predictive mode — press `2` once for a, twice for b, three times for c within 900 ms.
+- Password and PIN fields choose the right mode automatically: text passwords start in ABC multi-tap with lower case (T9 is not offered there), numeric PINs start in 123.
+- `*` cycles case while no word is being predicted; hold `*` for Vosk dictation; hold `#` for symbols.
+
+```bash
+flip2 ime build      # compile the APK
+flip2 ime hide-bar   # install, set default, disable Kika, grant mic
+flip2 ime restore    # back to the stock IME
+```
+
 ## Forkgram patch (BACK deletes in text fields)
 
 Telegram/Forkgram keeps hardware keys in the app (`ALT_FOCUSABLE_IM`), so the null-keyboard IME never receives BACK there and BACK closes the app. `pipeline/forkgram/` patches Forkgram's own `onBackPressed()` to delete in a focused, non-empty text field instead, and forces the IME to be shown. Physical and on-screen BACK both deliver `KEYCODE_BACK`, so both are covered.
