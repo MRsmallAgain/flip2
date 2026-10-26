@@ -130,17 +130,38 @@ Tier-level checks after step 5:
 - d-pad Up opens PixelTagDrawer; ⌫ deletes in chat (keypad KL)
 - no 30px nav bar (nav overlay RRO active)
 
-## Device probes (fill in from your device)
+## Device probes (measured on the reference 4058G, 2026-10-26)
 
-These need adb once the udev rule is installed
-(`launcher-patch/scripts/51-android-flip2-adb.rules`); record what your
-4058G reports:
+Results from the reference device — expect the same on any 4058G:
 
-```bash
-adb shell getprop ro.build.ab_update          # A/B slots?
-adb shell ls /dev/block/by-name/              # partition map (super, boot_a/b, vbmeta*)
-fastboot getvar current-slot
-fastboot reboot fastboot                      # fastbootd availability
-```
+- **`adb shell getprop ro.build.ab_update`** → *empty*. The 4058G is
+  **A-only** (single boot slot, no A/B). There is no `current-slot` to
+  switch; flashing boot replaces the one slot.
+- **`ls /dev/block/by-name/`** → MediaTek layout, no `_a`/`_b` suffixes:
+  `boot`, `super` (dynamic partitions), `dtbo`, `recovery`,
+  `vbmeta`, `vbmeta_system`, `vbmeta_vendor`, `vendor_boot`, plus
+  `protect1/2`, `nvdata`, `metadata`, `userdata` and the MTK firmware
+  partitions (`lk`, `tee1/2`, `spmfw`, `mcupmfw`, `md1img`, …).
+  **`super` is present → fastbootd (userspace fastboot) is required for
+  flashing our system/product tree; the bootloader's fastboot cannot
+  resize dynamic partitions.** Back up the three `vbmeta*` partitions
+  before anything else.
+- **`fastboot getvar current-slot` / `fastboot reboot fastboot`:** NOT
+  reachable via plain `adb reboot bootloader`. Watched on the USB bus:
+  the device passes through transient MediaTek IDs (`0e8d:0003` bootrom
+  serial, then `0e8d:2000` MT65xx Preloader for ~2 s) and **boots
+  straight back to Android** — it never sits in stock fastboot.
+  Entering fastboot/fastbootd on this device requires the bootrom
+  vector from the flip2 wiki (`autobooter-linux.py` + `mtk-bootseq.py`,
+  wrapped by `~/flip2-enter-fastboot.sh`), not an adb reboot. The
+  `0e8d:*` udev rule in
+  `launcher-patch/scripts/51-android-flip2-adb.rules` makes those
+  transient preloader nodes accessible to plugdev on Linux.
 
-Document the answers here before the first real flash.
+Note for Linux hosts: `adb reboot bootloader`-style reboots re-enumerate
+the USB device with a fresh node. If `/etc/udev/rules.d/` is empty (no
+persistent rule), the new node loses its ACL and adb reports "no
+permissions" — install the rule from
+`launcher-patch/scripts/51-android-flip2-adb.rules` (covers both
+`1bbb:0c01` adb and `0e8d:*` preloader/fastboot) rather than re-chmodding
+each session.
