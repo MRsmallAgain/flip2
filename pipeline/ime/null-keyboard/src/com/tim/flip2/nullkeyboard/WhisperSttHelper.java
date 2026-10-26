@@ -8,6 +8,7 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.Manifest;
 
 import java.io.File;
@@ -57,9 +58,14 @@ final class WhisperSttHelper implements SttEngine {
     static {
         boolean ok;
         try {
+            // libwhisper.so is linked against the NDK shared C++ runtime.
+            // Load it first so a missing libc++_shared.so fails here, not as a
+            // silent whisperjni dlopen that leaves the IME on Vosk.
+            System.loadLibrary("c++_shared");
             System.loadLibrary("whisperjni");
             ok = true;
         } catch (Throwable t) {
+            Log.e("Flip2STT", "whisperjni load failed", t);
             ok = false;
         }
         sLibOk = ok;
@@ -102,7 +108,8 @@ final class WhisperSttHelper implements SttEngine {
     /** Native whisper_context pointer (owned; freed via nativeFree). */
     private long mCtx;
     private String mLoadedLang;
-    private boolean mListening;
+    /** Volatile: the capture thread reads it, stopListening writes it on the main thread. */
+    private volatile boolean mListening;
     private boolean mStarting;
     /** Set by stopListening — the capture delivers its transcription only when true. */
     private boolean mDeliverFinal;
@@ -148,6 +155,8 @@ final class WhisperSttHelper implements SttEngine {
             return false;
         }
         final String lang = getLang(mApp);
+        mMicRetry = false;
+        mDeliverFinal = false;
         mStarting = true;
         mListener.onListening();
         mBg.execute(() -> {
@@ -166,6 +175,9 @@ final class WhisperSttHelper implements SttEngine {
         if (!mStarting) {
             return; // cancelled while loading
         }
+        // The capture thread exits as soon as mListening is false. Set it
+        // before the loop starts or the mic opens and closes with no audio.
+        mListening = true;
         final int gen = ++mListenGen;
         mMain.removeCallbacks(mTimeout);
         mMain.postDelayed(mTimeout, LISTEN_TIMEOUT_MS);
@@ -241,9 +253,13 @@ final class WhisperSttHelper implements SttEngine {
                 mMicRetry = true;
                 mMain.postDelayed(() -> {
                     if (mStarting && gen == mListenGen && getLang(mApp).equals(lang)) {
+                        mListening = true;
                         mMain.removeCallbacks(mTimeout);
                         mMain.postDelayed(mTimeout, LISTEN_TIMEOUT_MS);
                         mBg.execute(() -> captureLoop(lang, gen));
+                    } else {
+                        mStarting = false;
+                        mListener.onIdle();
                     }
                 }, 600L);
                 return;

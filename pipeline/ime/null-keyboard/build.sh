@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Build Flip2 Null Keyboard APK (T9 + symbols + offline STT: Whisper + Vosk).
 # Native libs: vendor/jni/armeabi-v7a/{libvosk.so,libjnidispatch.so,
-#             libwhisper.so,libwhisperjni.so}
+#             libwhisper.so,libwhisperjni.so,libc++_shared.so}
+# libwhisper.so is linked against the NDK shared C++ runtime, so
+# libc++_shared.so must ship in the same lib dir or Whisper never loads.
 # Models are NOT packaged — push with: flip2 ime whisper / flip2 ime models
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -31,6 +33,7 @@ APKSIGNER="$BT/apksigner"
 [[ -f "$VENDOR/jni/armeabi-v7a/libjnidispatch.so" ]] || { echo "Missing libjnidispatch.so" >&2; exit 1; }
 [[ -f "$VENDOR/jni/armeabi-v7a/libwhisper.so" ]] || { echo "Missing libwhisper.so" >&2; exit 1; }
 [[ -f "$VENDOR/jni/armeabi-v7a/libwhisperjni.so" ]] || { echo "Missing libwhisperjni.so" >&2; exit 1; }
+[[ -f "$VENDOR/jni/armeabi-v7a/libc++_shared.so" ]] || { echo "Missing libc++_shared.so" >&2; exit 1; }
 
 rm -rf "$WORK" "$OUT"
 mkdir -p "$WORK/classes" "$WORK/res" "$OUT"
@@ -67,7 +70,7 @@ fi
 # DEX + native libs into APK (Android loads from lib/<abi>/)
 zip -j "$OUT/nullkeyboard-unsigned.apk" "$WORK/classes.dex" >/dev/null
 mkdir -p "$WORK/lib/armeabi-v7a"
-for lib in libvosk.so libjnidispatch.so libwhisper.so libwhisperjni.so; do
+for lib in libvosk.so libjnidispatch.so libwhisper.so libwhisperjni.so libc++_shared.so; do
   cp "$VENDOR/jni/armeabi-v7a/$lib" "$WORK/lib/armeabi-v7a/"
 done
 (
@@ -76,7 +79,8 @@ done
     "lib/armeabi-v7a/libvosk.so" \
     "lib/armeabi-v7a/libjnidispatch.so" \
     "lib/armeabi-v7a/libwhisper.so" \
-    "lib/armeabi-v7a/libwhisperjni.so" >/dev/null
+    "lib/armeabi-v7a/libwhisperjni.so" \
+    "lib/armeabi-v7a/libc++_shared.so" >/dev/null
 )
 
 "$ZIPALIGN" -f -p 4 "$OUT/nullkeyboard-unsigned.apk" "$OUT/nullkeyboard-aligned.apk"

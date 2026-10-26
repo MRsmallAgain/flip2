@@ -131,7 +131,8 @@
         "android.permission.RECORD_AUDIO"
       ],
       "optional": {
-        "vosk_models": "~40MB EN + ~75MB UK, pushed from models/ symlink or user URL; never bundled"
+        "vosk_models": "~40MB EN + ~75MB UK, pushed from models/ symlink or user URL; never bundled",
+        "whisper_models": "ggml .bin under files/whisper/{en,uk}; flip2 ime whisper; never bundled. One multilingual bin can serve both langs."
       }
     },
     {
@@ -197,5 +198,5 @@
     "full": "Tier B full / Tier C \u2014 everything, root required",
     "bundle": "Tier D \u2014 per-component zips + APKs + SHA256SUMS"
   },
-  "version": "1.0.0-flip2"
+  "version": "1.1.0-flip2"
 }
