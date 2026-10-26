@@ -11,8 +11,8 @@
 //
 // install.sh expects exactly these names in /data/local/flip2/incoming/:
 //   5 module zips, launcher4.apk nullkeyboard.apk forkgram.apk intertune.apk
-//   bouncy.apk ggml-tiny-q5_1.bin vosk-model-small-en-us-0.15.zip
-//   vosk-model-small-uk-v3-nano.zip
+//   bouncy.apk materialfiles.apk ggml-tiny-q5_1.bin
+//   vosk-model-small-en-us-0.15.zip vosk-model-small-uk-v3-nano.zip
 // plus install.sh itself at /data/local/flip2/install.sh.
 
 var INCOMING = '/data/local/flip2/incoming/';
@@ -54,15 +54,17 @@ var PIPE = {
     out['forkgram.apk'] = files['forkgram'];
     out['intertune.apk'] = files['intertune'];
     out['bouncy.apk'] = files['bouncy'];
+    out['materialfiles.apk'] = files['materialfiles'];
     out['ggml-tiny-q5_1.bin'] = files['whisper-tiny'];
     out['vosk-model-small-en-us-0.15.zip'] = files['vosk-en'];
     out['vosk-model-small-uk-v3-nano.zip'] = files['vosk-uk'];
 
-    // sanity: the 13 names install.sh requires
+    // sanity: the 14 names install.sh requires
     var need = ['flip2_nav_overlay-magisk.zip', 'flip2_keypad_backspace-magisk.zip',
       'FlipMouse.zip', 'flip2_pixel_tag_drawer-magisk.zip', 'flip2_launcher_overlay-magisk.zip',
       'launcher4.apk', 'nullkeyboard.apk', 'forkgram.apk', 'intertune.apk', 'bouncy.apk',
-      'ggml-tiny-q5_1.bin', 'vosk-model-small-en-us-0.15.zip', 'vosk-model-small-uk-v3-nano.zip'];
+      'materialfiles.apk', 'ggml-tiny-q5_1.bin', 'vosk-model-small-en-us-0.15.zip',
+      'vosk-model-small-uk-v3-nano.zip'];
     for (i = 0; i < need.length; i++) {
       if (!out[need[i]]) throw new Error('push set incomplete: ' + need[i]);
     }

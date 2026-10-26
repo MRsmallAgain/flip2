@@ -1,5 +1,5 @@
 {
-  "$schema_comment": "Flip2 deployment manifest \u2014 source of truth for all deploy tiers. Consumed by pack-all.sh, pack-installer.sh, setup.sh, image/build-tree.sh.",
+  "$schema_comment": "Flip2 deployment manifest — source of truth for all deploy tiers. Consumed by pack-all.sh, pack-installer.sh, setup.sh, image/build-tree.sh.",
   "version_scheme": "<name> X.Y.Z-flip2 + monotonic versionCode",
   "components": [
     {
@@ -153,7 +153,26 @@
         "repo": "MRsmallAgain/TelegramAndroid",
         "tag": "flip2-13.0.2.0-r1",
         "asset": "forkgram-13.0.2.0-flip2-patched.apk",
-        "note": "GPL; not stored in this repo \u2014 downloaded at install time"
+        "note": "GPL; not stored in this repo — downloaded at install time"
+      }
+    },
+    {
+      "name": "materialfiles",
+      "artifact": "user-apk",
+      "package": "me.zhanghai.android.files",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "clean",
+        "full"
+      ],
+      "install_order": 85,
+      "external": {
+        "url": "https://f-droid.org/repo/me.zhanghai.android.files_40.apk",
+        "asset": "me.zhanghai.android.files_40.apk",
+        "note": "GPL-3.0; not stored in this repo - downloaded at install time"
       }
     },
     {
@@ -180,6 +199,7 @@
       "launcher4",
       "ime",
       "forkgram",
+      "materialfiles",
       "home_keys",
       "default HOME",
       "default IME"
@@ -193,10 +213,10 @@
     ]
   },
   "tiers": {
-    "image": "Tier A \u2014 system tree for base-image builds (system/app + product/overlay)",
-    "clean": "Tier B clean \u2014 user APKs + settings only; installer self-removes; de-root friendly",
-    "full": "Tier B full / Tier C \u2014 everything, root required",
-    "bundle": "Tier D \u2014 per-component zips + APKs + SHA256SUMS"
+    "image": "Tier A — system tree for base-image builds (system/app + product/overlay)",
+    "clean": "Tier B clean — user APKs + settings only; installer self-removes; de-root friendly",
+    "full": "Tier B full / Tier C — everything, root required",
+    "bundle": "Tier D — per-component zips + APKs + SHA256SUMS"
   },
-  "version": "1.1.0-flip2"
+  "version": "1.1.1-flip2"
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Tier B: pack the single-shot flip2 Magisk installer zip.
 # Bakes all device-side data (APK list, pre-quoted settings lines, module
-# list, forkgram URL) into plain files from manifest.json so the on-device
-# service.sh needs no jq and no quoting gymnastics.
+# list, external-APK URLs) into plain files from manifest.json so the
+# on-device service.sh needs no jq and no quoting gymnastics.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=/dev/null
@@ -74,7 +74,7 @@ ROWS="$(jq -r --arg flavor "$FLAVOR" '
   | select([.tiers[]] | index($flavor))
   | [ .install_order, .name, .artifact, (.zip // ""), (.apk // ""),
       (.package // ""), (.module_id // ""), (.external.repo // ""),
-      (.external.tag // ""), (.external.asset // "") ] | join("|")
+      (.external.tag // ""), (.external.asset // ""), (.external.url // "") ] | join("|")
 ' "$MANIFEST" | sort -n)"
 
 rm -rf "$OUT"
@@ -90,6 +90,7 @@ cp "$TPL/service.sh" "$OUT/service.sh"
 DATA="$OUT/payload/data"
 printf '%s\n' "$FLAVOR" > "$DATA/flavor.txt"
 : > "$DATA/apks.txt"
+: > "$DATA/external-apks.txt"
 : > "$DATA/modules.txt"
 : > "$DATA/settings.txt"
 : > "$DATA/appops.txt"
@@ -99,7 +100,7 @@ MISSING=()
 log() { echo "==> $*"; }
 
 log "packing flip2 installer ($FLAVOR flavor, v$VERSION)"
-while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset; do
+while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eurl; do
   [[ -n "$name" ]] || continue
   echo "  + $name ($artifact)"
   case "$artifact" in
@@ -112,9 +113,15 @@ while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset; do
         else
           MISSING+=("$apk")
         fi
-      elif [[ -n "$erepo" ]]; then
-        # External APK (forkgram): never bundled, downloaded at install time.
-        printf 'https://github.com/%s/releases/download/%s/%s\n' "$erepo" "$etag" "$easset" > "$DATA/forkgram-url.txt"
+      elif [[ -n "$eurl" || -n "$erepo" ]]; then
+        # External APK: never bundled, downloaded at install time.
+        # Line: <package>|<URL> — direct URL, or GitHub release URL built
+        # from repo/tag/asset (forkgram).
+        url="$eurl"
+        if [[ -z "$url" ]]; then
+          url="https://github.com/$erepo/releases/download/$etag/$easset"
+        fi
+        printf '%s|%s\n' "$pkg" "$url" >> "$DATA/external-apks.txt"
       fi
       ;;
     magisk-module)

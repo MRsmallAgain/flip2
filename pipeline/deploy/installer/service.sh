@@ -47,33 +47,41 @@ if [ -f "$MOD/payload/data/apks.txt" ]; then
   done < "$MOD/payload/data/apks.txt"
 fi
 
-# --- Forkgram: downloaded at install time, never bundled (GPL) -------------
-FURL=$(cat "$MOD/payload/data/forkgram-url.txt" 2>/dev/null || true)
-if [ -n "$FURL" ]; then
-  if pm list packages 2>/dev/null | grep -q '^package:org.forkgram.classic$'; then
-    echo "forkgram already installed"
-  elif [ -x "$BB" ] && "$BB" wget -O "$STAGE/forkgram.apk" "$FURL" && [ -s "$STAGE/forkgram.apk" ]; then
-    if pm install -r "$STAGE/forkgram.apk" >/dev/null 2>&1; then
-      echo "installed: org.forkgram.classic"
-      rm -f "$STAGE/forkgram.apk"
-    else
-      echo "FAILED to install forkgram APK (kept at $STAGE/forkgram.apk)"
+# --- External APKs: downloaded at install time, never bundled ---------------
+# forkgram (GitHub release) and Material Files (F-Droid direct URL) bake into
+# payload/data/external-apks.txt as "<package>|<url>" lines.
+if [ -f "$MOD/payload/data/external-apks.txt" ]; then
+  while IFS='|' read -r pkg url; do
+    [ -n "$pkg" ] && [ -n "$url" ] || continue
+    if pm list packages 2>/dev/null | grep -q "^package:$pkg$"; then
+      echo "$pkg already installed"
+      continue
     fi
-  else
-    echo "forkgram download failed (Wi-Fi connected?). Retry later:"
-    echo "  sh $STAGE/install-forkgram.sh"
-    {
-      echo '#!/system/bin/sh'
-      echo '# Retry: download + install Forkgram (needs Wi-Fi; run via adb shell).'
-      echo "URL=$FURL"
-      echo 'B=/data/adb/magisk/busybox'
-      echo '[ -x "$B" ] || { echo "no Magisk busybox"; exit 1; }'
-      echo '"$B" wget -O /data/local/flip2/forkgram.apk "$URL" \\'
-      echo '  && pm install -r /data/local/flip2/forkgram.apk'
-      echo '  && rm -f /data/local/flip2/forkgram.apk'
-    } > "$STAGE/install-forkgram.sh"
-    chmod 755 "$STAGE/install-forkgram.sh"
-  fi
+    f=$STAGE/$pkg.apk
+    if [ -x "$BB" ] && "$BB" wget -O "$f" "$url" && [ -s "$f" ]; then
+      if pm install -r "$f" >/dev/null 2>&1; then
+        echo "installed: $pkg"
+        rm -f "$f"
+      else
+        echo "FAILED to install $pkg (kept at $f)"
+      fi
+    else
+      echo "$pkg download failed (Wi-Fi connected?). Retry later:"
+      echo "  sh $STAGE/install-$pkg.sh"
+      {
+        echo '#!/system/bin/sh'
+        echo "# Retry: download + install $pkg (needs Wi-Fi; run via adb shell)."
+        echo "URL=$url"
+        echo "PKG=$pkg"
+        echo 'B=/data/adb/magisk/busybox'
+        echo '[ -x "$B" ] || { echo "no Magisk busybox"; exit 1; }'
+        echo '"$B" wget -O /data/local/flip2/$PKG.apk "$URL" \\'
+        echo '  && pm install -r /data/local/flip2/$PKG.apk'
+        echo '  && rm -f /data/local/flip2/$PKG.apk'
+      } > "$STAGE/install-$pkg.sh"
+      chmod 755 "$STAGE/install-$pkg.sh"
+    fi
+  done < "$MOD/payload/data/external-apks.txt"
 fi
 
 # --- flip2 Magisk modules (full flavor only) -------------------------------

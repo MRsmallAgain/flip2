@@ -3,7 +3,8 @@
 
 flip2_sign_find_tool() {
   # $1 = tool name (zipalign | apksigner). Honors explicit override var.
-  local tool="$1" override="${tool^^}" p
+  local tool="$1"
+  local override="${tool^^}" p
   override="${override//-/_}"
   if [[ -n "${!override:-}" && -x "${!override}" ]]; then
     echo "${!override}"

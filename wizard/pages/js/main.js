@@ -256,7 +256,7 @@ function initInstall() {
   $('inst-btn').addEventListener('click', function () {
     var files = {};
     ['installer-full', 'tagdrawer', 'forkgram', 'intertune', 'bouncy',
-      'whisper-tiny', 'vosk-en', 'vosk-uk'].forEach(function (id) {
+      'materialfiles', 'whisper-tiny', 'vosk-en', 'vosk-uk'].forEach(function (id) {
       if (VERIFIED[id]) files[id] = new Uint8Array(VERIFIED[id]);
     });
     this.disabled = true;

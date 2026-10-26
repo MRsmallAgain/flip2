@@ -95,6 +95,7 @@ if not tools_block.strip():
         <item>com.android.calculator2</item>
         <item>com.android.email</item>
         <item>com.jrdcom.filemanager</item>
+        <item>me.zhanghai.android.files</item>
         <item>com.android.stk</item>
         <item>com.tcl.tct.weather</item>
         <item>com.android.dialer</item>

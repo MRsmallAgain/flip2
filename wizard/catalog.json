@@ -1,6 +1,6 @@
 {
   "$comment": "Flip2 setup wizard download catalog. Every hash below was computed from the real upstream file (sha256sum), not guessed; sizes are exact byte counts. The browser verifies each download with WebCrypto SHA-256 against these pins before anything is pushed to the phone. Nothing in this catalog is stored in the repo or attached to releases — these are pointers to upstream artifacts.",
-  "version": "1.1.0-flip2",
+  "version": "1.1.1-flip2",
   "pinned": "2026-10-26",
   "files": [
     {
@@ -17,13 +17,13 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "purpose": "Flip2 Magisk module bundle (full tier): nav overlay, keypad backspace remap, FlipMouse daemon, Pixel Tag Drawer system placement, launcher overlay. Contents are unzipped into /data/adb/modules by wizard/device/install.sh — matches the published SHA256SUMS of release v1.1.0-flip2.",
-      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.1.0-flip2/flip2-installer-full-magisk.zip",
-      "size": 16099133,
-      "sha256": "086cec89acf69f856e2b9b6f32a1de7da572e2eeba657be3d3a0ea6d47b57857",
+      "purpose": "Flip2 single-shot Magisk installer (full tier): installs user APKs (launcher4, Null Keyboard), downloads external APKs (Forkgram, Material Files), unpacks the flip2 Magisk modules, applies baked settings and home-keys, then self-removes. Matches release v1.1.1-flip2.",
+      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.1.1-flip2/flip2-installer-full-magisk.zip",
+      "size": 16102817,
+      "sha256": "5511f77ab0cbb83e2b6858d99b4aeaa13e307e12b3fb5f9d3218f569d891d79d",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "github.com/MRsmallAgain/flip2 release v1.1.0-flip2"
+      "upstream": "github.com/MRsmallAgain/flip2 release v1.1.1-flip2"
     },
     {
       "id": "forkgram",
@@ -101,6 +101,17 @@
       "license": "GPL-3.0",
       "author": "skye (F-Droid)",
       "upstream": "f-droid.org dev.skye.intertune version 96"
+    },
+    {
+      "id": "materialfiles",
+      "file": "me.zhanghai.android.files_40.apk",
+      "purpose": "Material Files v1.7.5 — root-capable GUI file manager for the Tools folder, so /data/adb and Magisk modules are browsable on the phone itself.",
+      "url": "https://f-droid.org/repo/me.zhanghai.android.files_40.apk",
+      "size": 10944578,
+      "sha256": "2fe900bf43d725b655008d438f5ca46d0da0f301e3784403b5b96c3fc2df6e8a",
+      "license": "GPL-3.0",
+      "author": "zhanghai (F-Droid)",
+      "upstream": "f-droid.org me.zhanghai.android.files version 40"
     }
   ],
   "not_downloaded": [

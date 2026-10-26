@@ -11,7 +11,8 @@
 #     — extracted from the published full installer zip payload/modules/;
 #       the page rebuilds the Tag Drawer zip so it embeds the fresh F-Droid APK
 #   launcher4.apk nullkeyboard.apk  — payload/apks/ from the same zip
-#   forkgram.apk intertune.apk bouncy.apk — browser downloads (catalog.json)
+#   forkgram.apk intertune.apk bouncy.apk materialfiles.apk — browser
+#     downloads (catalog.json)
 #   ggml-tiny-q5_1.bin vosk-model-small-en-us-0.15.zip vosk-model-small-uk-v3-nano.zip
 #
 # Install order follows pipeline/deploy/manifest.json (10→90). Stops on the
@@ -92,6 +93,7 @@ install_apk nullkeyboard.apk com.tim.flip2.nullkeyboard
 install_apk forkgram.apk    org.forkgram.classic
 install_apk intertune.apk   dev.skye.intertune
 install_apk bouncy.apk      com.dozingcatsoftware.bouncy
+install_apk materialfiles.apk me.zhanghai.android.files
 
 # --- IME settings (manifest 70): values mirror payload data/settings.txt ---
 settings put secure show_ime_with_hard_keyboard '1' \

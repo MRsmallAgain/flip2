@@ -8,7 +8,7 @@
 MODS="flip2_nav_overlay flip2_keypad_backspace FlipMouse flip2_pixel_tag_drawer flip2_launcher_overlay flip2_launcher3_null_icon_fix"
 KIME="com.iqqijni.dvt912key/.keyboard_service.view.HDKeyboardService"
 NULL_IME="com.tim.flip2.nullkeyboard/.NullKeyboardService"
-APKS="com.tim.flip2.launcher4 com.tim.flip2.nullkeyboard org.forkgram.classic"
+APKS="com.tim.flip2.launcher4 com.tim.flip2.nullkeyboard org.forkgram.classic me.zhanghai.android.files"
 KEYS="keyshortcut_leftkey keyshortcut_rightkey keyshortcut_upkey keyshortcut_downkey keyshortcut_shortcutsbar"
 
 UNINSTALL=0

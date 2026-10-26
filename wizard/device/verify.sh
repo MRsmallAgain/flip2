@@ -64,6 +64,7 @@ for entry in \
   'Bouncy com.dozingcatsoftware.bouncy' \
   'Forkgram org.forkgram.classic' \
   'Tag Drawer com.iwadjp.pixeltagdrawer' \
+  'Material Files me.zhanghai.android.files' \
   'Launcher4 com.tim.flip2.launcher4' \
   'Null Keyboard com.tim.flip2.nullkeyboard'; do
   pkg=${entry##* }; label=${entry% *}

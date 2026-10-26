@@ -125,7 +125,7 @@ MD
 
 jq -r '.components
   | sort_by(.install_order)[]
-  | "| \(.install_order) | \(.name) | \(if .artifact == "settings-write" then "home-keys.json + apply-home-keys.sh" elif .external then "\(.external.asset) (download from \(.external.repo), tag \(.external.tag))" else (.zip // .apk | split("/")[-1]) end) | \(.artifact) | \(.root_install) | \(.root_runtime) | \(.reboot) |"' "$MANIFEST" \
+  | "| \(.install_order) | \(.name) | \(if .artifact == "settings-write" then "home-keys.json + apply-home-keys.sh" elif .external then (if .external.url then "\(.external.asset) (download from \(.external.url))" else "\(.external.asset) (download from \(.external.repo), tag \(.external.tag))" end) else (.zip // .apk | split("/")[-1]) end) | \(.artifact) | \(.root_install) | \(.root_runtime) | \(.reboot) |"' "$MANIFEST" \
   >> "$OUT/README.md"
 
 cat >> "$OUT/README.md" <<'MD'
@@ -164,7 +164,7 @@ pm disable-user --user 0 com.iqqijni.dvt912key
 ## De-root expectations
 
 Survive de-root: launcher4, null keyboard (APK + settings), Forkgram,
-home_keys, default HOME/IME.
+Material Files, home_keys, default HOME/IME.
 Dies on de-root: FlipMouse (reads /dev/input), keypad ⌫ keylayout remap,
 nav overlay (30px nav bar returns), tagdrawer system placement,
 launcher-overlay RRO (Launcher4's baked menu survives).
