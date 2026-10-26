@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Build Flip2 Null Keyboard APK (T9 + symbols + offline Vosk STT).
-# Native libs: vendor/jni/armeabi-v7a/{libvosk.so,libjnidispatch.so}
-# Models are NOT packaged — push with: flip2 ime models
+# Build Flip2 Null Keyboard APK (T9 + symbols + offline STT: Whisper + Vosk).
+# Native libs: vendor/jni/armeabi-v7a/{libvosk.so,libjnidispatch.so,
+#             libwhisper.so,libwhisperjni.so}
+# Models are NOT packaged — push with: flip2 ime whisper / flip2 ime models
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 FLIP2_ROOT="$(cd "$ROOT/../../.." && pwd)"
@@ -28,6 +29,8 @@ APKSIGNER="$BT/apksigner"
 [[ -f "$VENDOR/jars/jna.jar" ]] || { echo "Missing $VENDOR/jars/jna.jar — restore vendor/" >&2; exit 1; }
 [[ -f "$VENDOR/jni/armeabi-v7a/libvosk.so" ]] || { echo "Missing libvosk.so" >&2; exit 1; }
 [[ -f "$VENDOR/jni/armeabi-v7a/libjnidispatch.so" ]] || { echo "Missing libjnidispatch.so" >&2; exit 1; }
+[[ -f "$VENDOR/jni/armeabi-v7a/libwhisper.so" ]] || { echo "Missing libwhisper.so" >&2; exit 1; }
+[[ -f "$VENDOR/jni/armeabi-v7a/libwhisperjni.so" ]] || { echo "Missing libwhisperjni.so" >&2; exit 1; }
 
 rm -rf "$WORK" "$OUT"
 mkdir -p "$WORK/classes" "$WORK/res" "$OUT"
@@ -64,13 +67,16 @@ fi
 # DEX + native libs into APK (Android loads from lib/<abi>/)
 zip -j "$OUT/nullkeyboard-unsigned.apk" "$WORK/classes.dex" >/dev/null
 mkdir -p "$WORK/lib/armeabi-v7a"
-cp "$VENDOR/jni/armeabi-v7a/libvosk.so" "$WORK/lib/armeabi-v7a/"
-cp "$VENDOR/jni/armeabi-v7a/libjnidispatch.so" "$WORK/lib/armeabi-v7a/"
+for lib in libvosk.so libjnidispatch.so libwhisper.so libwhisperjni.so; do
+  cp "$VENDOR/jni/armeabi-v7a/$lib" "$WORK/lib/armeabi-v7a/"
+done
 (
   cd "$WORK"
   zip -u "$OUT/nullkeyboard-unsigned.apk" \
     "lib/armeabi-v7a/libvosk.so" \
-    "lib/armeabi-v7a/libjnidispatch.so" >/dev/null
+    "lib/armeabi-v7a/libjnidispatch.so" \
+    "lib/armeabi-v7a/libwhisper.so" \
+    "lib/armeabi-v7a/libwhisperjni.so" >/dev/null
 )
 
 "$ZIPALIGN" -f -p 4 "$OUT/nullkeyboard-unsigned.apk" "$OUT/nullkeyboard-aligned.apk"

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Flip2 chat IME: Kika shows Abc + candidate bar and breaks backspace on hardware keypad.
-# hide-bar: Flip2 Null Keyboard — zero UI, T9 + symbols + offline Vosk STT (EN/UK).
+# hide-bar: Flip2 Null Keyboard — zero UI, T9 + symbols + offline STT
+#           (Whisper preferred, Vosk fallback; EN/UK).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=/dev/null
@@ -17,6 +18,9 @@ MODEL_HOST_EN="$NULL_DIR/models/en"
 MODEL_HOST_UK="$NULL_DIR/models/uk"
 # App-private path (SELinux-safe for IME uid). /data/local/flip2/vosk is system_data_file.
 MODEL_DEVICE_ROOT="/data/data/$NULL_PKG/files/vosk"
+# Whisper ggml models: one multilingual .bin (tiny-q5_1) can serve both lang dirs.
+WHISPER_HOST_ROOT="$NULL_DIR/models/whisper"
+WHISPER_DEVICE_ROOT="/data/data/$NULL_PKG/files/whisper"
 
 usage() {
   cat <<EOF
@@ -27,10 +31,13 @@ Usage: flip2 ime <subcommand>
   status      IME packages, default_input_method, STT models/lang
   build       Build nullkeyboard.apk (needs JDK — see pipeline/ime/null-keyboard/build.sh)
   models      Push EN+UK Vosk models to device + grant RECORD_AUDIO
+  whisper     Push ggml Whisper model(s) from models/whisper/{en,uk} to device
   lang [en|uk]  Show or set STT language
 
-STT: hold * to listen (Vosk offline). While listening: # = EN↔UK, * = stop.
-Models stay on-device (~40MB EN + ~75MB UK), not inside the APK.
+STT: hold * to listen (Whisper offline when a ggml model is on-device, else
+Vosk). While listening: # = EN↔UK, * = stop.
+Models stay on-device (~40MB EN + ~75MB UK Vosk, ~32MB Whisper ggml), not
+inside the APK.
 EOF
 }
 
@@ -77,6 +84,46 @@ push_models() {
   adb shell "su -c 'du -sh $MODEL_DEVICE_ROOT/en $MODEL_DEVICE_ROOT/uk'" 2>/dev/null | tr -d '\r'
   adb shell "su -c 'ls -Za $MODEL_DEVICE_ROOT/en/am/final.mdl 2>/dev/null | head -1'" 2>/dev/null | tr -d '\r'
 }
+push_whisper() {
+  local owner lang src staged=""
+  local en_src uk_src
+  en_src="$(readlink -f "$WHISPER_HOST_ROOT/en" 2>/dev/null || true)"
+  uk_src="$(readlink -f "$WHISPER_HOST_ROOT/uk" 2>/dev/null || true)"
+  if [[ ! -d "$en_src" && ! -d "$uk_src" ]]; then
+    echo "No Whisper models at $WHISPER_HOST_ROOT/{en,uk}" >&2
+    echo "Drop a ggml .bin (e.g. ggml-tiny-q5_1.bin, multilingual EN+UK) there;" >&2
+    echo "one multilingual bin may be symlinked into both lang dirs." >&2
+    exit 1
+  fi
+
+  echo "Pushing Whisper models -> $WHISPER_DEVICE_ROOT/{en,uk}"
+  owner="$(adb shell "su -c 'stat -c %u:%g /data/data/$NULL_PKG'" 2>/dev/null | tr -d '\r')"
+  [[ -n "$owner" ]] || owner="u0_a116:u0_a116"
+
+  adb shell "rm -rf /sdcard/Download/flip2-whisper && mkdir -p /sdcard/Download/flip2-whisper" >/dev/null
+  for lang in en uk; do
+    local src
+    src="$(readlink -f "$WHISPER_HOST_ROOT/$lang" 2>/dev/null || true)"
+    if [[ -d "$src" ]]; then
+      echo "  $lang..."
+      adb push "$src" "/sdcard/Download/flip2-whisper/$lang" >/dev/null
+      staged="$staged $lang"
+    fi
+  done
+  [[ -n "$staged" ]] || { echo "Nothing staged" >&2; exit 1; }
+
+  local copy_cmds=""
+  for lang in $staged; do
+    copy_cmds="$copy_cmds cp -a /sdcard/Download/flip2-whisper/$lang $WHISPER_DEVICE_ROOT/$lang;"
+  done
+  # Copy into app files dir and chown to package uid (correct SELinux label via restorecon)
+  adb shell "su -c 'mkdir -p /data/data/$NULL_PKG/files; mkdir -p $WHISPER_DEVICE_ROOT; $copy_cmds chown -R $owner /data/data/$NULL_PKG/files; restorecon -RF /data/data/$NULL_PKG/files 2>/dev/null || true; rm -rf /sdcard/Download/flip2-whisper'" >/dev/null
+  grant_mic
+  echo "Whisper models on device:"
+  adb shell "su -c 'du -sh $WHISPER_DEVICE_ROOT/*'" 2>/dev/null | tr -d '\r'
+  echo "Engine: Whisper will be used on next IME start (Vosk stays as fallback)."
+}
+
 set_lang() {
   local lang="${1:-}"
   case "$lang" in
@@ -118,6 +165,10 @@ case "$cmd" in
     flip2_adb_require_device
     push_models
     ;;
+  whisper)
+    flip2_adb_require_device
+    push_whisper
+    ;;
   lang)
     flip2_adb_require_device
     if [[ $# -eq 0 ]]; then
@@ -145,6 +196,9 @@ case "$cmd" in
     if ! adb shell "su -c 'test -d $MODEL_DEVICE_ROOT/en/am && test -d $MODEL_DEVICE_ROOT/uk/am'" >/dev/null 2>&1; then
       echo "STT models not on device — pushing…"
       push_models
+    fi
+    if ! adb shell "su -c 'ls $WHISPER_DEVICE_ROOT/*/*.bin >/dev/null 2>&1'" >/dev/null 2>&1; then
+      echo "No Whisper model on device (Vosk will be used) — flip2 ime whisper"
     fi
     echo "Default IME: Flip2 Null Keyboard. Kika disabled."
     echo "STT: hold * to dictate (EN/UK). While listening: # = switch lang, * = stop."
@@ -183,6 +237,8 @@ case "$cmd" in
     get_lang
     echo "STT models:"
     adb shell "su -c 'du -sh $MODEL_DEVICE_ROOT/en $MODEL_DEVICE_ROOT/uk 2>/dev/null || echo missing'" 2>/dev/null | tr -d '\r' || echo "  (none — flip2 ime models)"
+    echo "Whisper models:"
+    adb shell "su -c 'du -sh $WHISPER_DEVICE_ROOT/* 2>/dev/null || echo missing'" 2>/dev/null | tr -d '\r' || echo "  (none — flip2 ime whisper)"
     adb shell "dumpsys input_method 2>/dev/null | grep -E 'mCurId|CandidatesView|InputViewShown' | head -5" 2>/dev/null || true
     ;;
   *)

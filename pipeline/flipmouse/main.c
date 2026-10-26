@@ -13,7 +13,8 @@
  *     physically down (that would strand Android's synthetic-repeat timer);
  *     in mouse mode a short soft-key tap still scrolls up one step.
  *   - while active: keypads grabbed; D-pad moves, OK clicks, pound scrolls
- *     down, soft-left scrolls up, soft-right toggles drag, volume = speed
+ *     down, soft-left scrolls up, del toggles drag, volume = speed. The
+ *     right soft key passes through so the Shortcuts bar still fires.
  *   - a Star tap exits back to passive (grabs released, IME unaffected)
  */
 
@@ -60,14 +61,17 @@
 /* Upper-left soft key (139/KEY_MENU): hold this long, then release, to toggle
  * mouse mode (enable when passive, release the cursor when active). */
 #define SOFTKEY_CODE 139
-#define HOLD_TOGGLE_MS 2000
+#define HOLD_TOGGLE_MS 1000
 
 /* Non-standard kernel codes on this unit's matrix-keypad (matrix-keypad.kl):
  * star = 522, pound = 523. Everything else the keypad emits is already the
  * standard Linux keycode (103/108/105/106 = arrows, 28 = ENTER, 139 = MENU,
- * 48 = B, 231 = SEND, 158 = BACK). */
+ * 231 = SEND, 158 = BACK). 48 is the right soft key — matrix-keypad.kl maps
+ * it to SOFT_RIGHT, the Shortcuts-bar trigger — so it must pass through
+ * untouched in mouse mode; drag toggles on DEL (138) instead. */
 #define STAR_CODE 522
 #define POUND_CODE 523
+#define DEL_CODE 138
 
 /* Event action return codes */
 typedef enum
@@ -269,7 +273,7 @@ static int mouse_init(void)
   app_state.mouse.held_code = 0;
   app_state.mouse.next_repeat_ms = 0;
 
-  log_message("Virtual mouse initialized (passive — hold upper-left soft key 2s and release to activate)");
+  log_message("Virtual mouse initialized (passive — hold upper-left soft key 1s and release to activate)");
   return 0;
 }
 
@@ -389,7 +393,9 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     ev->code = BTN_LEFT;
     return CHANGED_TO_MOUSE;
 
-  case KEY_B:
+  case DEL_CODE: /* keypad DEL (138) toggles drag — formerly raw 48, which is
+                  * the right soft key (Shortcuts trigger) and must pass
+                  * through so launcher shortcuts work in mouse mode */
     if (ev->value == 1)
     { /* Key press */
       app_state.mouse.drag_mode = !app_state.mouse.drag_mode;

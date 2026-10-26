@@ -26,7 +26,7 @@ import java.util.concurrent.Executors;
  *
  * Model construction is heavy (~seconds) — always done off the main thread.
  */
-final class VoskSttHelper {
+final class VoskSttHelper implements SttEngine {
 
     static final String LANG_EN = "en";
     static final String LANG_UK = "uk";
@@ -48,18 +48,15 @@ final class VoskSttHelper {
             "/data/local/flip2/vosk",
     };
 
-    interface Listener {
-        void onListening();
-        void onPartial(String text);
-        void onFinal(String text);
-        void onError(String message);
-        void onIdle();
+    /** Same contract as {@link SttEngine.Listener}; kept as a distinct type so
+     *  existing call sites compile unchanged. */
+    interface Listener extends SttEngine.Listener {
     }
 
     private final Context mApp;
     private final Handler mMain = new Handler(Looper.getMainLooper());
     private final ExecutorService mBg = Executors.newSingleThreadExecutor();
-    private final Listener mListener;
+    private final SttEngine.Listener mListener;
 
     private Model mModel;
     private String mLoadedLang;
@@ -87,7 +84,7 @@ final class VoskSttHelper {
     private String mCommittedThisListen;
     private final Runnable mTimeout = this::onListenTimeout;
 
-    VoskSttHelper(Context context, Listener listener) {
+    VoskSttHelper(Context context, SttEngine.Listener listener) {
         mApp = context.getApplicationContext();
         mListener = listener;
         try {
@@ -122,7 +119,7 @@ final class VoskSttHelper {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
-    boolean isListening() {
+    public boolean isListening() {
         return mListening || mStarting;
     }
 
@@ -135,7 +132,7 @@ final class VoskSttHelper {
         return startListening();
     }
 
-    boolean startListening() {
+    public boolean startListening() {
         if (mListening || mStarting) {
             return true;
         }
@@ -288,7 +285,7 @@ final class VoskSttHelper {
         }
     }
 
-    void stopListening(boolean deliverFinal) {
+    public void stopListening(boolean deliverFinal) {
         mMain.removeCallbacks(mTimeout);
         // Kill any Vosk callbacks still queued from this listen.
         mListenGen++;
@@ -401,7 +398,7 @@ final class VoskSttHelper {
         }
     }
 
-    void release() {
+    public void release() {
         cancelPendingHarvest();
         stopListening(false);
         mBg.execute(() -> {
@@ -439,7 +436,7 @@ final class VoskSttHelper {
     }
 
     /** After lang change while listening: load new model then start mic (no race with invalidateModel). */
-    void switchLangAndListen() {
+    public void switchLangAndListen() {
         cancelPendingHarvest();
         stopListening(false);
         final String lang = getLang(mApp);

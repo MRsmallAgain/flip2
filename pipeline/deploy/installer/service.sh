@@ -154,6 +154,32 @@ else
   echo "Vosk models not bundled. Add URLs with 'flip2 installer pack --vosk-url en=<url> --vosk-url uk=<url>' or push manually."
 fi
 
+# --- Whisper ggml models (optional, user-supplied URLs, never bundled) ------
+if [ -f "$MOD/payload/data/whisper-urls.txt" ]; then
+  NULL_PKG=com.tim.flip2.nullkeyboard
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    name=${line%% *}
+    url=${line#* }
+    echo "fetching whisper model: $name"
+    T=$STAGE/whisper-$name.bin
+    if [ -x "$BB" ] && "$BB" wget -O "$T" "$url" && [ -s "$T" ]; then
+      D=/data/data/$NULL_PKG/files/whisper/$name
+      mkdir -p "$D"
+      mv "$T" "$D/model.bin"
+      OWNER=$(stat -c %u:%g /data/data/$NULL_PKG 2>/dev/null)
+      [ -n "$OWNER" ] && chown -R "$OWNER" /data/data/$NULL_PKG/files/whisper
+      restorecon -RF /data/data/$NULL_PKG/files/whisper 2>/dev/null
+      echo "whisper $name placed"
+    else
+      echo "whisper $name download failed; push manually (see README)"
+      rm -f "$T"
+    fi
+  done < "$MOD/payload/data/whisper-urls.txt"
+else
+  echo "Whisper models not bundled (Vosk will be used). Add URLs with 'flip2 installer pack --whisper-url en=<url>' or push manually."
+fi
+
 # --- de-root helper + instructions -----------------------------------------
 cp "$MOD/payload/deroot.sh" "$STAGE/deroot.sh"
 chmod 755 "$STAGE/deroot.sh"

@@ -40,3 +40,6 @@ pipeline/ime/null-keyboard/models/
 # FlipMouse vendored pipeline
 pipeline/flipmouse/upstream/
 pipeline/flipmouse/build/
+
+# Staged whisper JNI binary (source tracked in jni/, binary restored from cache)
+pipeline/ime/null-keyboard/jni/*.so

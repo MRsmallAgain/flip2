@@ -40,8 +40,9 @@ import java.util.List;
  *             a, twice for b, and so on within 900 ms. Password fields start
  *             in multi-tap with lower case, so secrets are typed literally.
  * Symbols   : hold # — built-in emoji + special char picker
- * STT       : hold * — offline Vosk (EN/UK); models via {@code flip2 ime models}
- *             while listening: # cycles EN↔UK and restarts; * stops
+ * STT       : hold * — offline Whisper when a ggml model is on-device
+ *             ({@code flip2 ime whisper}), Vosk fallback ({@code flip2 ime
+ *             models}); EN/UK; while listening: # cycles EN↔UK, * stops
  * Embeds:     hardware DEL / BACK / HELP; BACK = clear while text, else back-nav.
  */
 public class NullKeyboardService extends InputMethodService {
@@ -112,7 +113,7 @@ public class NullKeyboardService extends InputMethodService {
     private android.app.Dialog mNoticeDialog;
     private TextView mNoticeText;
     private final Runnable mNoticeHide = this::hideNotice;
-    private VoskSttHelper mStt;
+    private SttEngine mStt;
 
     // Hold state for * / # — defer tap until UP; fire hold once.
     private int mHoldKeyCode = -1;
@@ -147,7 +148,7 @@ public class NullKeyboardService extends InputMethodService {
         // original value back before any new session mutes it again.
         restoreDtmfTone();
         T9PredictiveHelper.loadWords(this);
-        mStt = new VoskSttHelper(this, new VoskSttHelper.Listener() {
+        final SttEngine.Listener sttListener = new SttEngine.Listener() {
             @Override
             public void onListening() {
                 String lang = VoskSttHelper.getLang(NullKeyboardService.this);
@@ -174,7 +175,14 @@ public class NullKeyboardService extends InputMethodService {
             public void onIdle() {
                 hideNoticeIfListening();
             }
-        });
+        };
+        // Whisper preferred when its JNI lib loaded and a ggml model is present;
+        // Vosk otherwise. Both engines read the same stt_lang preference, so the
+        // choice does not need revisiting on language change.
+        mStt = WhisperSttHelper.libOk()
+                && WhisperSttHelper.modelAvailable(this, WhisperSttHelper.getLang(this))
+                        ? (SttEngine) new WhisperSttHelper(this, sttListener)
+                        : (SttEngine) new VoskSttHelper(this, sttListener);
     }
 
     @Override
