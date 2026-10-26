@@ -42,6 +42,12 @@ flip2 flipmouse status
 flip2 flipmouse rollback   # remove module
 ```
 
+The module's `service.sh` (1.4.1-flip2) supervises the daemon: it waits for
+the matrix keypad, detaches stdio, logs to `/cache/FlipMouse.log`, and
+restarts the process if it exits. `flip2 flipmouse install` runs the same
+script immediately, so the mouse survives both an adb-shell teardown and a
+reboot instead of silently disappearing.
+
 Upstream source stays in `pipeline/flipmouse/upstream/` (git-ignored, refresh
 with `git -C pipeline/flipmouse/upstream pull`). This directory (`main.c`,
 `build.sh`, `install.sh`, `status.sh`, `rollback.sh`, `properties/`) is what
