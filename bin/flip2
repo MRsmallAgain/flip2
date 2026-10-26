@@ -26,7 +26,7 @@ Commands:
   tagdrawer <sub>    Pixel Tag Drawer system (Magisk): pack | install | rollback | status
   vmouse <sub>       Simple mouse (neutronscott simple-release1): install | status
   flipmouse <sub>    FlipMouse virtual mouse (vendored, Magisk): build | install | status | rollback
-  forkgram <sub>     Patched Forkgram APK: patch (BACK deletes in text fields)
+  forkgram <sub>     Patched Forkgram APK: patch | release (BACK deletes in text fields)
   ime <sub>          Null keyboard + STT: build | hide-bar | restore | status | models | lang
 
 Environment:
@@ -167,10 +167,15 @@ case "$cmd" in
     shift || true
     case "$sub" in
       patch) exec "$FLIP2_ROOT/pipeline/forkgram/patch-forkgram.sh" "$@" ;;
+      release) exec "$FLIP2_ROOT/pipeline/forkgram/install-release.sh" "$@" ;;
       help|-h|--help)
-        echo "Usage: flip2 forkgram patch [--apk PATH] [--no-install] [--uninstall]"
-        echo "  Telegram owns hardware BACK, so the IME cannot delete there; this"
-        echo "  patch makes BACK delete in focused text fields. See pipeline/forkgram/README.md."
+        echo "Usage: flip2 forkgram {patch|release}"
+        echo "  patch [--apk PATH] [--no-install] [--uninstall]"
+        echo "      Build the patched APK from a local/device base APK."
+        echo "  release [--no-install] [--uninstall]"
+        echo "      Download, verify, and install the hosted patch build."
+        echo "  Telegram owns hardware BACK, so the IME cannot delete there; the patch"
+        echo "  makes BACK delete in focused text fields. See pipeline/forkgram/README.md."
         ;;
       *) echo "Unknown forkgram subcommand: $sub" >&2; exit 1 ;;
     esac

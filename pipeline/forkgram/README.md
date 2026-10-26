@@ -27,6 +27,20 @@ but they cannot override `ALT_FOCUSABLE_IM`. This pipeline patches the app.
 Both the physical BACK key and the on-screen nav-bar BACK deliver
 `KEYCODE_BACK`, so the same `onBackPressed()` handler covers both.
 
+## Hosted build
+
+The patched APK is published from our Forkgram fork:
+
+- Fork: <https://github.com/MRsmallAgain/TelegramAndroid>
+- Release: <https://github.com/MRsmallAgain/TelegramAndroid/releases/tag/flip2-13.0.2.0-r1>
+- Source-level upstream PR: <https://github.com/Forkgram/TelegramAndroid/pull/539>
+
+```sh
+flip2 forkgram release              # download, verify SHA-256, install
+flip2 forkgram release --no-install # download and verify only
+flip2 forkgram release --uninstall  # uninstall first (wipes app data)
+```
+
 ## Usage
 
 ```sh

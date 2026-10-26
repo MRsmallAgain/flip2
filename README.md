@@ -90,7 +90,10 @@ Telegram/Forkgram keeps hardware keys in the app (`ALT_FOCUSABLE_IM`), so the nu
 ```bash
 flip2 forkgram patch              # pull installed APK, patch, sign, install
 flip2 forkgram patch --no-install # build only
+flip2 forkgram release            # install the hosted patched build (SHA-256 verified)
 ```
+
+The patched APK is hosted in our Forkgram fork: [release `flip2-13.0.2.0-r1`](https://github.com/MRsmallAgain/TelegramAndroid/releases/tag/flip2-13.0.2.0-r1). The source-level change is proposed upstream as [Forkgram PR #539](https://github.com/Forkgram/TelegramAndroid/pull/539).
 
 The original APK is backed up to `~/forkgram-original-13.0.2.0.apk`. The patched build is debug-signed, so switching from F-Droid requires one uninstall (`--uninstall`, wipes app data). See `pipeline/forkgram/README.md`.
 
