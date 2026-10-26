@@ -47,6 +47,10 @@ grant_mic() {
   adb shell pm grant "$NULL_PKG" android.permission.RECORD_AUDIO 2>/dev/null \
     || adb shell "su -c 'pm grant $NULL_PKG android.permission.RECORD_AUDIO'" 2>/dev/null \
     || echo "WARN: could not grant RECORD_AUDIO — grant manually" >&2
+  # DTMF tone muting (matrix * / # beep while typing) needs this special appop.
+  adb shell cmd appops set "$NULL_PKG" WRITE_SETTINGS allow 2>/dev/null \
+    || adb shell "su -c 'cmd appops set $NULL_PKG WRITE_SETTINGS allow'" 2>/dev/null \
+    || echo "WARN: could not grant WRITE_SETTINGS appop — DTMF muting disabled" >&2
 }
 
 push_models() {

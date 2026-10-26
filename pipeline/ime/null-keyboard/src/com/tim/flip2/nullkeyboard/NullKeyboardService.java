@@ -131,6 +131,9 @@ public class NullKeyboardService extends InputMethodService {
     @Override
     public void onCreate() {
         super.onCreate();
+        // If a previous IME process died while DTMF was muted, put the user's
+        // original value back before any new session mutes it again.
+        restoreDtmfTone();
         T9PredictiveHelper.loadWords(this);
         mStt = new VoskSttHelper(this, new VoskSttHelper.Listener() {
             @Override
@@ -193,8 +196,16 @@ public class NullKeyboardService extends InputMethodService {
         super.onStartInput(attribute, restarting);
         Log.i("Flip2IME", "onStartInput restarting=" + restarting + " inputType=0x"
                 + Integer.toHexString(attribute.inputType) + " pkg=" + attribute.packageName);
-        muteDtmfTone();
         int cls = attribute.inputType & EditorInfo.TYPE_MASK_CLASS;
+        // TYPE_NULL clients (launcher DecorView, SystemUI) are not text fields:
+        // don't mute DTMF for them and don't force the IME open — otherwise the
+        // dialpad stays silenced on the home screen.
+        boolean textField = cls != EditorInfo.TYPE_NULL;
+        if (textField) {
+            muteDtmfTone();
+        } else {
+            restoreDtmfTone();
+        }
         mFieldNumeric = cls == EditorInfo.TYPE_CLASS_NUMBER
                 || cls == EditorInfo.TYPE_CLASS_PHONE
                 || cls == EditorInfo.TYPE_CLASS_DATETIME;
@@ -203,6 +214,30 @@ public class NullKeyboardService extends InputMethodService {
         mAwaitingDoubleZeroPeriod = false;
         mLastZeroDownMs = 0;
         mBackConsumedForEdit = false;
+        // Some apps (Telegram/Forkgram in particular) never call showSoftInput
+        // when they detect a hardware keypad. The IME then stays hidden, so
+        // onKeyPreIme/onKeyDown never run and physical BACK reaches the app
+        // (closing it) instead of deleting in the field. Ask to be shown
+        // explicitly — zero-height, so this stays invisible.
+        if (textField) {
+            // Apps that never call showSoftInput (Telegram/Forkgram in
+            // hardware-keyboard mode) would otherwise leave the IME hidden, so
+            // its hardware-key handlers never run. Ask to be shown explicitly.
+            // Note: apps that also flag their window ALT_FOCUSABLE_IM (Telegram)
+            // still keep hardware keys to themselves — the window manager then
+            // reports the IME window visible=false and this request can't
+            // override it; there BACK stays with the app by design.
+            MAIN.postDelayed(() -> {
+                try {
+                    if (!isInputViewShown()) {
+                        requestShowSelf(1); // 1 = SHOW_EXPLICIT (hidden constant)
+                        Log.i("Flip2IME", "requestShowSelf(SHOW_EXPLICIT)");
+                    }
+                } catch (Throwable t) {
+                    Log.i("Flip2IME", "requestShowSelf failed: " + t);
+                }
+            }, 60);
+        }
     }
 
     @Override
@@ -256,8 +291,12 @@ public class NullKeyboardService extends InputMethodService {
             if (d != null && d.getWindow() != null) {
                 Window w = d.getWindow();
                 WindowManager.LayoutParams lp = w.getAttributes();
-                if (lp.height != 0) {
-                    lp.height = 0;
+                // 1px, not 0: a 0-height window is reported to the input
+                // dispatcher as visible=false, so hardware keys never reach
+                // the IME (BACK then goes to the app). One transparent pixel
+                // is visually undetectable and keeps key routing working.
+                if (lp.height != 1) {
+                    lp.height = 1;
                     w.setAttributes(lp);
                 }
             }
@@ -448,14 +487,24 @@ public class NullKeyboardService extends InputMethodService {
         }
     }
 
-    /** Flip2 matrix keypad plays DTMF for * / # while typing; mute for IME session. */
+    /** Flip2 matrix keypad plays DTMF for * / # while typing; mute for IME session.
+     *  The original value is persisted so it survives process death and rapid
+     *  client switches (an in-memory copy could save an already-muted 0 as
+     *  "original" and leave the dialpad silent for good). */
+    private static final String PREFS = "flip2_ime";
+    private static final String KEY_DTMF_ORIG = "dtmf_orig";
+
     private void muteDtmfTone() {
         try {
-            if (mSavedDtmfTone == null) {
-                mSavedDtmfTone = Settings.System.getInt(
-                        getContentResolver(), Settings.System.DTMF_TONE_WHEN_DIALING, 1);
+            android.content.SharedPreferences sp =
+                    getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE);
+            if (!sp.contains(KEY_DTMF_ORIG)) {
+                sp.edit().putInt(KEY_DTMF_ORIG, Settings.System.getInt(
+                        getContentResolver(), Settings.System.DTMF_TONE_WHEN_DIALING, 1)).commit();
             }
-            if (mSavedDtmfTone != null && mSavedDtmfTone != 0) {
+            int orig = sp.getInt(KEY_DTMF_ORIG, 1);
+            mSavedDtmfTone = orig;
+            if (orig != 0) {
                 Settings.System.putInt(getContentResolver(),
                         Settings.System.DTMF_TONE_WHEN_DIALING, 0);
             }
@@ -463,13 +512,19 @@ public class NullKeyboardService extends InputMethodService {
         }
     }
 
+    /** Undo muteDtmfTone using the persisted original. Safe to call repeatedly. */
     private void restoreDtmfTone() {
         try {
-            if (mSavedDtmfTone != null) {
-                Settings.System.putInt(getContentResolver(),
-                        Settings.System.DTMF_TONE_WHEN_DIALING, mSavedDtmfTone);
+            android.content.SharedPreferences sp =
+                    getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE);
+            if (!sp.contains(KEY_DTMF_ORIG)) {
                 mSavedDtmfTone = null;
+                return;
             }
+            Settings.System.putInt(getContentResolver(),
+                    Settings.System.DTMF_TONE_WHEN_DIALING, sp.getInt(KEY_DTMF_ORIG, 1));
+            sp.edit().remove(KEY_DTMF_ORIG).commit();
+            mSavedDtmfTone = null;
         } catch (Throwable ignored) {
         }
     }
