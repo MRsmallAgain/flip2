@@ -23,11 +23,7 @@ mkdir -p "$DIST"
 "$FLIP2_LAUNCHER4/scripts/merge-overlay-res.sh" "$WORK"
 
 apktool b "$WORK" -o "$DIST/launcher4-unsigned.apk"
-ZIPALIGN="${ZIPALIGN:-$ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign}"
-"$ZIPALIGN" -p -f 4 "$DIST/launcher4-unsigned.apk" "$DIST/launcher4-aligned.apk"
-KEY="${ANDROID_DEBUG_KEY:-$HOME/.android/debug.keystore}"
-apksigner sign --ks "$KEY" --ks-pass pass:android --key-pass pass:android \
-  --out "$DIST/launcher4.apk" "$DIST/launcher4-aligned.apk"
+flip2_sign_apk "$DIST/launcher4-unsigned.apk" "$DIST/launcher4-aligned.apk" "$DIST/launcher4.apk"
 echo "Built: $DIST/launcher4.apk"
 if [[ -x "$FLIP2_LAUNCHER4/scripts/verify-apk.sh" ]]; then
   "$FLIP2_LAUNCHER4/scripts/verify-apk.sh" "$DIST/launcher4.apk"

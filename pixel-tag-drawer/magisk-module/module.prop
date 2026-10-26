@@ -1,6 +1,6 @@
 id=flip2_pixel_tag_drawer
 name=Flip2 Pixel Tag Drawer (system)
-version=v1
+version=1.0.0-flip2
 versionCode=7
 author=tim
 description=Pixel Tag Drawer as /system/app — D-pad Up app drawer. Rollback: flip2 tagdrawer rollback

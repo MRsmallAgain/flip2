@@ -1,6 +1,6 @@
 id=flip2_launcher3_fork
 name=Flip2 Launcher3 fork
-version=v1
+version=1.0.0-flip2
 versionCode=1
 author=tim
 description=Custom Launcher3: null-safe icons, slot5 from allapp_list. Rollback: flip2 fork rollback

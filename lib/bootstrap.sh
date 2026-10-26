@@ -9,5 +9,9 @@ source "$SCRIPT_DIR/constants.sh"
 source "$SCRIPT_DIR/env.sh"
 # shellcheck source=adb.sh
 source "$SCRIPT_DIR/adb.sh"
+# shellcheck source=magisk.sh
+source "$SCRIPT_DIR/magisk.sh"
+# shellcheck source=sign.sh
+source "$SCRIPT_DIR/sign.sh"
 # shellcheck source=slot5-policy.sh
 source "$SCRIPT_DIR/slot5-policy.sh"

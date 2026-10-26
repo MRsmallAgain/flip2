@@ -1,6 +1,6 @@
 id=flip2_launcher3_null_icon_fix
 name=Flip2 Launcher3 null icon fix
-version=v1
+version=1.0.0-flip2
 versionCode=1
 author=tim
 description=Patched Launcher3: no crash when menu icon bitmap is null (e.g. Bouncy).

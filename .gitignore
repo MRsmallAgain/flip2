@@ -26,6 +26,13 @@ __pycache__/
 *.swp
 .DS_Store
 
+# Keystores / signing secrets (never commit)
+*.keystore
+*.jks
+*.keystore.asc
+keystore.properties
+
+
 # Null-keyboard Vosk vendor (native .so + jars) and model symlinks — restore via cache/AAR
 pipeline/ime/null-keyboard/vendor/
 pipeline/ime/null-keyboard/models/

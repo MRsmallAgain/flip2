@@ -1,6 +1,8 @@
 # Flip2 pipeline manifest — stages run in order unless noted.
 # CLI: bin/flip2
 
+# --- launcher ---------------------------------------------------------------
+
 overlay_apply:
   description: Menu grid slots.json → device (RRO)
   requires: [adb, root, apktool, apksigner]
@@ -30,6 +32,26 @@ pack_overlay_magisk:
   script: launcher-overlay/scripts/pack-magisk-module.sh
   output: launcher-overlay/dist/flip2_launcher_overlay-magisk.zip
 
+fork:
+  description: Launcher3 fork as Magisk module (risky — prefer launcher4)
+  requires: [adb, root, apktool, apksigner]
+  cli: flip2 fork {extract|build|pack|install|rollback|status}
+  scripts: launcher-fork/scripts/
+
+launcher4:
+  description: Patched stock Launcher3 as user APK com.tim.flip2.launcher4 (safe path)
+  requires: [apktool, apksigner, adb (install)]
+  cli: flip2 launcher4 {build|install|set-home|uninstall|status}
+  scripts: launcher4/scripts/
+  stages:
+    - id: build
+      script: launcher4/scripts/build.sh
+      input: launcher-overlay/slots.json + launcher-overlay res
+    - id: install
+      script: launcher4/scripts/install.sh
+    - id: set-home
+      script: launcher4/scripts/set-home.sh
+
 tagdrawer_system:
   description: Pixel Tag Drawer as /system/app via Magisk (D-pad Up)
   requires: [adb, root, magisk]
@@ -40,3 +62,111 @@ tagdrawer_system:
     - id: install
       script: pixel-tag-drawer/scripts/install.sh
       note: uninstalls AppShelf; reboot required
+
+# --- input / framework ------------------------------------------------------
+
+ime:
+  description: Null keyboard IME (T9/multi-tap/numeric, STT) — build, settings, models
+  requires: [adb, gradle, root (settings + hide-bar)]
+  cli: flip2 ime {build|hide-bar|restore|status|models|lang}
+  script: pipeline/ime/ime.sh
+  notes:
+    - hide-bar sets secure settings show_ime_with_hard_keyboard=1, default IME, disables Kika
+    - models push Vosk EN (~40MB) + UK (~75MB) to /data/data (never in repo)
+
+keypad:
+  description: matrix-keypad.kl ⌫ (code 138) → DEL via Magisk module
+  requires: [adb, root, reboot]
+  cli: flip2 keypad {status|rollback}
+  module: keypad-backspace/magisk-module (KL ships prebuilt; no build step)
+
+navoverlay:
+  description: framework-res RRO navigation_bar_height=0 (kills phantom 30px bar)
+  requires: [adb, root, apktool, apksigner, reboot]
+  cli: flip2 navoverlay {build|install|status|rollback}
+  scripts: framework-nav-overlay/scripts/
+  stages:
+    - id: build
+      script: framework-nav-overlay/scripts/build-and-install.sh build
+    - id: pack
+      script: framework-nav-overlay/scripts/pack.sh
+      output: framework-nav-overlay/dist/flip2_nav_overlay-magisk.zip
+    - id: install
+      script: inline in bin/flip2 (push + magisk --install-module + unzip fallback)
+    - id: enable
+      note: su cmd overlay enable com.tim.flip2.navoverlay after reboot
+
+flipmouse:
+  description: FlipMouse virtual mouse (vendored+patched) — supervised boot service
+  requires: [NDK, adb, root]
+  cli: flip2 flipmouse {build|install|status|rollback}
+  scripts: pipeline/flipmouse/{build,install,status,rollback}.sh
+  notes:
+    - build cross-compiles armv7a static-libevdev binary → module zip
+    - install stages module AND starts daemon immediately (Magisk 25.2 staging workaround)
+    - toggle: hold upper-left soft key 2s, release
+
+vmouse:
+  description: Simple mouse (neutronscott simple-release1) into vMouse module
+  requires: [adb, root]
+  cli: flip2 vmouse {install|status}
+  script: vmouse/scripts/install-simple.sh
+
+# --- apps -------------------------------------------------------------------
+
+forkgram:
+  description: Patched Forkgram (BACK deletes in text fields) — device-APK patch or hosted release
+  requires: [adb, apktool, apksigner]
+  cli: flip2 forkgram {patch|release}
+  scripts:
+    - pipeline/forkgram/patch-forkgram.sh
+    - pipeline/forkgram/install-release.sh
+  notes: patched APK hosted only in MRsmallAgain/TelegramAndroid fork release (GPL); not in this repo
+
+display:
+  description: Global density / font / screen-compat
+  requires: [adb, root]
+  cli: flip2 display <sub>
+  script: pipeline/display/display.sh
+
+# --- home keys (cross-launcher) --------------------------------------------
+
+home_keys:
+  description: home-keys.json → Settings.Global keyshortcut_* (left/right/up/down)
+  requires: [adb, root]
+  script: launcher-overlay/scripts/apply-home-keys.sh
+  input: launcher-overlay/home-keys.json
+
+# --- deployment tiers -------------------------------------------------------
+
+deploy_manifest:
+  description: Source of truth for all tiers (artifact types, root needs, targets)
+  file: pipeline/deploy/manifest.json
+
+setup_full:
+  description: Tier C — full rooted set, verified install order, status summary
+  requires: [adb, root, all component prerequisites]
+  script: pipeline/deploy/setup.sh
+  cli: flip2 setup full
+
+installer_pack:
+  description: Tier B — single-shot Magisk installer zip (--flavor clean = de-root friendly)
+  script: pipeline/deploy/pack-installer.sh
+  cli: flip2 installer pack [--flavor clean|full]
+  output: pipeline/deploy/dist/flip2-installer-magisk.zip
+
+deroot:
+  description: Remove flip2 root components; keep user APKs + settings; print boot-restore steps
+  script: pipeline/deploy/deroot.sh
+  cli: flip2 deroot
+
+pack_all:
+  description: Tier D — per-component Magisk zips + APKs + SHA256SUMS bundle
+  script: pipeline/deploy/pack-all.sh
+  cli: flip2 pack-all
+  output: pipeline/deploy/dist/flip2-packages-<version>/
+
+image_build_tree:
+  description: Tier A — assemble dist/flip2-system-tree/ for base-image builds (see docs/IMAGE-BUILD.md)
+  script: pipeline/image/build-tree.sh
+  cli: flip2 image build-tree

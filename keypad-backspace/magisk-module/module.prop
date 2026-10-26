@@ -1,6 +1,6 @@
 id=flip2_keypad_backspace
 name=Flip2 Keypad Backspace
-version=v1
+version=1.0.0-flip2
 versionCode=1
 author=tim
 description=matrix-keypad.kl: physical backspace key (KEY_HELP, code 138) was mapped to FAVORITE_CONTACTS — remap to BACKSPACE so delete works everywhere. Rollback: flip2 keypad rollback (+reboot)

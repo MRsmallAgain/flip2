@@ -269,7 +269,7 @@ static int mouse_init(void)
   app_state.mouse.held_code = 0;
   app_state.mouse.next_repeat_ms = 0;
 
-  log_message("Virtual mouse initialized (passive — double-tap Volume-Down to activate)");
+  log_message("Virtual mouse initialized (passive — hold upper-left soft key 2s and release to activate)");
   return 0;
 }
 

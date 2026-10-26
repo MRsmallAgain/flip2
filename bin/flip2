@@ -20,14 +20,18 @@ Commands:
   display <sub>      Global density / font / screen-compat (see docs/DISPLAY-DPI.md)
   fork <subcmd>      Launcher3 fork (Magisk): build | pack | install | rollback | status | extract
   launcher4 <sub>    User APK com.tim.flip2.launcher4: build | install | set-home | uninstall | status
-  ime <sub>          Null keyboard IME: build | hide-bar | restore | status | models | lang
+  ime <sub>          Null keyboard + STT: build | hide-bar | restore | status | models | lang
   keypad <sub>       matrix-keypad KL: physical ⌫ → DEL (status | rollback)
   navoverlay <sub>   framework-res RRO (menu bar/navbar 0px): build | install | status | rollback
   tagdrawer <sub>    Pixel Tag Drawer system (Magisk): pack | install | rollback | status
   vmouse <sub>       Simple mouse (neutronscott simple-release1): install | status
   flipmouse <sub>    FlipMouse virtual mouse (vendored, Magisk): build | install | status | rollback
   forkgram <sub>     Patched Forkgram APK: patch | release (BACK deletes in text fields)
-  ime <sub>          Null keyboard + STT: build | hide-bar | restore | status | models | lang
+  setup <tier>       Deployment: full (rooted set in verified order) | clean
+  installer <sub>    Single-shot Magisk installer: pack [--flavor clean|full]
+  pack-all           Build per-component Magisk zips + APKs + SHA256SUMS bundle
+  deroot             Remove flip2 root components; keep user APKs + settings
+  image <sub>        Base-image system tree: build-tree
 
 Environment:
   FLIP2_ROOT         Repo root (default: $FLIP2_ROOT)
@@ -233,6 +237,41 @@ case "$cmd" in
     ;;
   ime)
     exec "$FLIP2_PIPELINE/ime/ime.sh" "$@"
+    ;;
+  setup)
+    exec "$FLIP2_ROOT/pipeline/deploy/setup.sh" "$@"
+    ;;
+  installer)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      pack) exec "$FLIP2_ROOT/pipeline/deploy/pack-installer.sh" "$@" ;;
+      help|-h|--help)
+        echo "Usage: flip2 installer pack [--flavor clean|full] [--no-zip]"
+        echo "  Single-shot Magisk installer zip. clean = user APKs + settings only,"
+        echo "  self-removing, de-root friendly. full = full rooted set."
+        ;;
+      *) echo "Unknown installer subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  pack-all)
+    exec "$FLIP2_ROOT/pipeline/deploy/pack-all.sh" "$@"
+    ;;
+  deroot)
+    exec "$FLIP2_ROOT/pipeline/deploy/deroot.sh" "$@"
+    ;;
+  image)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      build-tree) exec "$FLIP2_ROOT/pipeline/image/build-tree.sh" "$@" ;;
+      help|-h|--help)
+        echo "Usage: flip2 image build-tree"
+        echo "  Assemble dist/flip2-system-tree/ (system apps + overlays) for base-image builds."
+        echo "  See docs/IMAGE-BUILD.md."
+        ;;
+      *) echo "Unknown image subcommand: $sub" >&2; exit 1 ;;
+    esac
     ;;
   ""|-h|--help|help)
     usage
