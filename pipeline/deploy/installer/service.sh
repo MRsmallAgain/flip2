@@ -22,17 +22,28 @@ FLAVOR=$(cat "$MOD/payload/data/flavor.txt" 2>/dev/null || echo full)
 echo "flavor: $FLAVOR"
 mkdir -p "$STAGE"
 
+# --- wait for pm (system_server is not ready this early in boot) -----------
+i=0
+until pm list packages >/dev/null 2>&1; do
+  i=$((i + 1)); [ "$i" -ge 30 ] && break
+  sleep 2
+done
+
 # --- user APKs -------------------------------------------------------------
+# pm cannot read files under /data/adb — copy to /data/local/tmp first.
 if [ -f "$MOD/payload/data/apks.txt" ]; then
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     f=${line%% *}
     pkg=${line#* }
-    if pm install -r "$MOD/payload/apks/$f" >/dev/null 2>&1; then
+    cp "$MOD/payload/apks/$f" "$STAGE/$f"
+    chmod 644 "$STAGE/$f"
+    if pm install -r "$STAGE/$f" >/dev/null 2>&1; then
       echo "installed: $pkg"
     else
       echo "FAILED to install: $pkg ($f)"
     fi
+    rm -f "$STAGE/$f"
   done < "$MOD/payload/data/apks.txt"
 fi
 
@@ -67,6 +78,11 @@ fi
 
 # --- flip2 Magisk modules (full flavor only) -------------------------------
 if [ "$FLAVOR" = full ] && [ -f "$MOD/payload/data/modules.txt" ]; then
+  # Stop the running FlipMouse supervisor + daemon first: unzip cannot replace
+  # the executing mouse binary (Text file busy).
+  pkill -f 'FlipMouse/service.sh' 2>/dev/null
+  pkill -f 'FlipMouse/mouse' 2>/dev/null
+  sleep 1
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     mid=${line%% *}
