@@ -15,16 +15,18 @@ both.
 
 - **Passive observer at startup** — keypads are NOT grabbed; the system sees
   every key natively and FlipMouse only watches.
-- **Toggle:** hold the **upper-left soft key** (139/KEY_MENU) for 2 s, then
+- **Toggle:** hold the **upper-left soft key** (139/KEY_MENU) for 1 s, then
   release — enables mouse mode when passive, releases the cursor when active.
   Toggling on release means the grab never happens while a key is physically
   down (that would strand Android's synthetic-repeat timer). In mouse mode a
   short soft-key tap still scrolls up one step. Star tap also exits (backup).
   Volume keys are never used as a gesture, so they always work.
 - **While active:** keypads grabbed. D-pad moves (auto-repeat on hold),
-  OK = left click, soft-key tap = scroll up / soft-key 2 s hold = exit,
-  pound (523) scrolls down, top-right soft key (48/KEY_B) toggles drag,
-  Volume-Up/Down adjusts speed.
+  OK = left click, soft-key tap = scroll up / soft-key 1 s hold = exit,
+  pound (523) scrolls down, keypad DEL (138) toggles drag,
+  Volume-Up/Down adjusts speed. Raw key 48 is the right soft key
+  (SOFT_RIGHT, the Shortcuts-bar trigger) and passes through untouched so
+  launcher shortcuts still fire while the cursor is on.
 - **Exit:** star tap (522) releases the grabs, back to passive.
 - v1.3: held-key auto-repeat synthesized in-daemon (400 ms delay, 10 steps/s,
   wheel on slowed cadence) — the keypads have no kernel EV_REP and Android's

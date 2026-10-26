@@ -160,8 +160,9 @@ case "$cmd" in
       rollback) exec "$FLIP2_ROOT/pipeline/flipmouse/rollback.sh" ;;
       help|-h|--help)
         echo "Usage: flip2 flipmouse {build|install|status|rollback}"
-        echo "  Vendored TylerBoni/FlipMouse, flip2-patched: soft-left 2s hold toggles"
-        echo "  Hold upper-left soft key 2s + release to toggle. Star also exits. See pipeline/flipmouse/VENDORED.md."
+        echo "  Vendored TylerBoni/FlipMouse, flip2-patched: soft-left 1s hold toggles"
+        echo "  Hold upper-left soft key 1s + release to toggle. Star also exits."
+        echo "  Right soft key passes through (Shortcuts). Drag is DEL. See pipeline/flipmouse/VENDORED.md."
         ;;
       *) echo "Unknown flipmouse subcommand: $sub" >&2; exit 1 ;;
     esac

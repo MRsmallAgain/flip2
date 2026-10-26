@@ -115,11 +115,14 @@ flip2 flipmouse rollback  # remove module — reboot restores stock
 
 - `#` cycles text modes: **T9 predictive → ABC multi-tap → 123 digits**. Multi-tap is the classic non-predictive mode — press `2` once for a, twice for b, three times for c within 900 ms.
 - Password and PIN fields choose the right mode automatically: text passwords start in ABC multi-tap with lower case (T9 is not offered there), numeric PINs start in 123.
-- `*` cycles case while no word is being predicted; hold `*` for Vosk dictation; hold `#` for symbols.
+- `*` cycles case while no word is being predicted; hold `*` for offline dictation (Whisper when a ggml model is on the phone, otherwise Vosk); hold `#` for symbols. While listening, `#` cycles EN and UK and `*` stops.
 
 ```bash
 flip2 ime build      # compile the APK
 flip2 ime hide-bar   # install, set default, disable Kika, grant mic
+flip2 ime whisper    # push ggml Whisper model(s) from models/whisper/{en,uk}
+flip2 ime models     # push EN+UK Vosk models (fallback engine)
+flip2 ime lang uk    # dictation language (shared by both engines)
 flip2 ime restore    # back to the stock IME
 ```
 
@@ -143,7 +146,8 @@ This toolkit stands on the work of:
 
 - **[neutronscott/flip2](https://github.com/neutronscott/flip2)** — the foundation for everything here: device research, root method, fastboot/boot tools (`autobooter-linux.py`, `mtk-bootseq.py`), the original vMouse module our `vmouse` pipeline targets, and the wiki this whole modding approach depends on. Unlicense.
 - **[TylerBoni/FlipMouse](https://github.com/TylerBoni/FlipMouse)** — the virtual mouse vendored into `pipeline/flipmouse/` (keypad→mouse via libevdev/uinput, Magisk module). Read Tyler's [dumbphone-journey write-up](https://dev.to/tylerboni/escaping-the-digital-treadmill-how-to-daily-drive-a-flip-phone-in-2025-tcl-flip-2-17el). README declares MIT (upstream repo has no standalone LICENSE file yet; credited and linked here rather than silently forked — local patches are ours).
-- **[Vosk / alphacep](https://github.com/alphacep)** — offline speech recognition (Apache-2.0) powering the null-keyboard IME dictation; models from `flip2 ime models`.
+- **[whisper.cpp](https://github.com/ggml-org/whisper.cpp)** — on-device dictation preferred by the null keyboard when a ggml model is present (`flip2 ime whisper`).
+- **[Vosk / alphacep](https://github.com/alphacep)** — offline speech recognition (Apache-2.0) used as the fallback engine; models from `flip2 ime models`.
 - **[libevdev](https://www.freedesktop.org/wiki/Software/libevdev/)** — input-event handling in FlipMouse (built statically by its build script).
 - **[Magisk](https://github.com/topjohnwu/Magisk)** — systemless modules used throughout.
 - **TCL / MTK stock ROM** — the Flip 2 (Gflip6, 4058G) itself; RRO overlays and key-layout edits patch around, not over, the stock system.
