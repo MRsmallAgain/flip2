@@ -77,9 +77,11 @@ neutronscott's `neutron.img`, after unlock. It never touches `super`,
 header.
 
 The handshake is a Web Serial port of `autobooter-linux.py`: watch for the
-MTK preloader (`0e8d:2000`) at 115200 baud, write `FASTBOOT`, expect
-`READYTOOB`. A wrong answer stops everything (nothing flashes); a missed
-one-second window just means remove/reinsert the battery again. The fastboot
+MTK preloader (`0e8d:2000`) at 115200 baud, write `FASTBOOT`, and accept only
+an 8-byte `READYTOO`, a `READYTOOB` prefix, or the 18-byte
+`READYREADYTOOBTSAF`. Any other non-empty answer stops everything (nothing
+flashes, and that reply is not retried); a missed one-second window just
+means remove/reinsert the battery again. The fastboot
 steps follow in the page (`pages/js/fastboot.js`): unlock with the on-screen
 keypad confirm, `download` + `flash:boot` of the hash-verified `neutron.img`,
 reboot. By construction those are the only destructive commands the module

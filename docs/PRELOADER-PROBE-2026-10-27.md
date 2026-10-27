@@ -21,7 +21,7 @@ READYREADYTOOBTSAF
 
 That is `READY` + `READY` + `TOOBTSAF`. `TOOBTSAF` is the 8-byte `FASTBOOT` reversed. The first 8 bytes are `READYREA`, not `READYTOO`. Exit 99 (hard-stop, no retry, nothing else written) was the correct result for this probe.
 
-The wizard string `READYTOOB` and the host confirm `READYTOO` do not match this reply. Fastboot still enumerated because the preloader acted on the OUT bytes. Enumeration was the operational signal. Do not treat `READYREADYTOOBTSAF` as a wizard success, and do not change the confirm parser so this phone continues into unlock or boot flash.
+The wizard string `READYTOOB` and the host confirm `READYTOO` are not this reply. Fastboot still enumerated because the preloader acted on the OUT bytes. This probe program stays a handshake recorder: it does not send unlock or flash. On `feature/rooting-slice` only, `wizard/pages/js/bootrom.js` accepts exactly 8-byte `READYTOO`, a `READYTOOB` prefix, or this 18-byte `READYREADYTOOBTSAF`. Any other non-empty reply still hard-stops, with no retry into unlock or boot flash. That parser change is not on `master`.
 
 ## After the handshake
 

@@ -1,13 +1,15 @@
 // Web Serial port of autobooter-linux.py: watch for the MediaTek preloader
-// (0e8d:2000), send the boot sequence at 115200 baud, expect
-// READY + reversed last four characters (FASTBOOT -> READYTOOB).
+// (0e8d:2000), send the boot sequence at 115200 baud.
 //
-// Semantics carried over verbatim from the script:
-//   confirm == reply  -> success, phone is in fastboot mode
-//   non-empty != confirm -> HARD STOP (the script's exit 99). Nothing flashes.
-//   empty reply / port gone -> keep polling, 100 ms apart
-// A missed one-second window never flashes anything; the user just
-// removes/reinserts the battery (or taps power) again.
+// A reply is success only when it is exactly one of:
+//   8 bytes READYTOO
+//   a prefix of READY + the boot sequence's last four characters, reversed
+//     (FASTBOOT -> READYTOOB)
+//   the 18-byte READYREADYTOOBTSAF returned by FASTBOOT on 2026-10-27
+// Any other non-empty reply is a HARD STOP (the script's exit 99). Nothing
+// flashes, and that reply must not be retried into unlock. An empty reply or
+// a missing port keeps polling, 100 ms apart. A missed window never flashes
+// anything; the user removes/reinserts the battery (or taps power) again.
 
 var BOOTROM = {
   MTK_VID: 0x0e8d, MTK_PID: 0x2000,
@@ -16,6 +18,16 @@ var BOOTROM = {
   _confirm: function (bootseq) {
     // python: b"READY" + bytes(bootseq[:-4:-1], "ascii")
     return 'READY' + bootseq.slice(-4).split('').reverse().join('');
+  },
+
+  // Prefix match is only the computed confirm. The other two successes are
+  // exact FASTBOOT strings, so a shorter or longer reply still hard-stops.
+  _accepted: function (text, bootseq) {
+    var confirm = this._confirm(bootseq);
+    if (text.substring(0, confirm.length) === confirm) return true;
+    if (bootseq === 'FASTBOOT' && text === 'READYTOO') return true;
+    if (bootseq === 'FASTBOOT' && text === 'READYREADYTOOBTSAF') return true;
+    return false;
   },
 
   grantedPort: function () {
@@ -42,7 +54,6 @@ var BOOTROM = {
   // One handshake attempt, mirroring try_port(). Returns 'ok', 'empty',
   // or { hard: replyText } for the exit-99 case.
   tryPort: async function (port, bootseq) {
-    var confirm = this._confirm(bootseq);
     try {
       await port.open({ baudRate: 115200 });
     } catch (e) {
@@ -55,7 +66,8 @@ var BOOTROM = {
       var reader = port.readable.getReader();
       var got = new Uint8Array(0);
       var deadline = Date.now() + 500;   // python timeout=0.5
-      while (got.length < 8 && Date.now() < deadline) {
+      // 18 bytes is the live FASTBOOT reply. Stopping at 8 sees only READYREA.
+      while (got.length < 18 && Date.now() < deadline) {
         var left = Math.max(deadline - Date.now(), 1);
         var timer = null;
         var res = await Promise.race([
@@ -76,7 +88,7 @@ var BOOTROM = {
       var text = '';
       for (var i = 0; i < got.length; i++) text += String.fromCharCode(got[i]);
       await port.close();
-      if (text.substring(0, confirm.length) === confirm) return 'ok';
+      if (this._accepted(text, bootseq)) return 'ok';
       if (text.length > 0) return { hard: text };
       return 'empty';
     } catch (e) {
@@ -106,8 +118,8 @@ var BOOTROM = {
       }
       if (r && r.hard) {
         throw new Error('HARD STOP: preloader answered "' + r.hard +
-          '" instead of ' + confirm + '. Nothing was flashed. Do not retry until' +
-          ' you know why the phone answered.');
+          '" instead of READYTOO, a ' + confirm + ' prefix, or READYREADYTOOBTSAF.' +
+          ' Nothing was flashed. Do not retry until you know why the phone answered.');
       }
       this.log('.');                        // missed window: keep polling
       await new Promise(function (res) { setTimeout(res, 100); });
