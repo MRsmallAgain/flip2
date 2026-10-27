@@ -16,7 +16,7 @@
   <span data-step="download">2 · files</span>
   <span data-step="udev">3 · udev</span>
   <span data-step="usb">4 · connect</span>
-  <span data-step="install">5 · install</span>
+  <span data-step="install">5 · install ⚠</span>
   <span data-step="verify">6 · verify</span>
 </nav>
 <main>
@@ -85,7 +85,8 @@
 
 <!-- 5: install -->
 <section class="step" id="step-install">
-  <h2>Install</h2>
+  <h2>Install <span class="badge-exp">experimental</span></h2>
+  <p class="warn"><b>Experimental.</b> This step pushes files and runs a root install script over adb. It has only been exercised on one device, so treat it as a test bed: a half-finished run may leave modules or settings half-applied (the installer is designed to be re-flashable, and the verify step shows what actually landed). If you need a first-time setup you can trust, use the Tier&nbsp;B installer zip from the release page instead — this page automates the same steps and inherits their risks.</p>
   <p>The page unpacks the installer zip, rebuilds the Tag Drawer module with the fresh F-Droid APK, pushes everything into <code>/data/local/flip2/incoming/</code>, and runs the install script as root. It stops at the first failed line and offers Retry instead of continuing through failures.</p>
   <p><button id="inst-btn">Push and install</button>
      <button id="inst-retry" class="ghost hidden">Retry</button>

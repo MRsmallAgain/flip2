@@ -46,7 +46,13 @@ For a public page, serve the `wizard/` directory from any static host
    The page generates its own RSA key once, stores it in localStorage, and
    offers the public key to adbd — the phone prompts once, "always allow"
    remembers it.
-5. **Install.** The page unpacks the installer zip, rebuilds the Tag Drawer
+5. **Install.** ⚠ **Experimental** — this step pushes files and runs a root
+   install script over adb and has only been exercised on one device. For a
+   first-time setup you can trust, flash the Tier B installer zip from the
+   release page instead; the page automates the same steps and inherits
+   their risks.
+
+   The page unpacks the installer zip, rebuilds the Tag Drawer
    module around the fresh F-Droid APK, pushes everything into
    `/data/local/flip2/incoming/`, and runs `install.sh` as root. It **stops
    at the first failed line**, shows it, and offers Retry — it does not

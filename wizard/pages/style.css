@@ -29,6 +29,7 @@ pre.rules{background:#f1efe9;border:1px solid var(--line);padding:12px;border-ra
 .status.bad{color:var(--bad)}
 .status.wait{color:#8a6d00}
 .warn{background:#fdf3e0;border:1px solid #e7c88a;padding:10px 12px;border-radius:6px}
+.badge-exp{display:inline-block;vertical-align:2px;margin-left:8px;padding:1px 8px;border:1px solid #e7c88a;border-radius:999px;background:#fdf3e0;color:#8a6d00;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .danger{background:#fbe9e7;border:1px solid #e39b93;padding:10px 12px;border-radius:6px}
 .note{color:#555;font-size:14px}
 .hidden{display:none!important}
