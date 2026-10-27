@@ -4,17 +4,6 @@
   "pinned": "2026-10-26",
   "files": [
     {
-      "id": "neutron",
-      "file": "neutron.img",
-      "purpose": "Custom boot image (root boot). Flashed to the boot partition ONLY, and only after the user unlocks the bootloader — a step that erases the phone. Never flash super, vbmeta, system, product, or the preloader; never write the EMMC_BOOT header. neutron-noavb.img is NOT used.",
-      "url": "https://github.com/neutronscott/flip2/releases/download/v2024.09.17.kefs/neutron.img",
-      "size": 25165824,
-      "sha256": "31237917ef51fa6e7ee588da1cfc84bb378859de2d49681fdd4f84290841d3c1",
-      "license": "Unlicense",
-      "author": "neutronscott (flip2 project)",
-      "upstream": "github.com/neutronscott/flip2 release v2024.09.17.kefs"
-    },
-    {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
       "purpose": "Flip2 single-shot Magisk installer (full tier): installs user APKs (launcher4, Null Keyboard), downloads external APKs (Forkgram, Material Files), unpacks the flip2 Magisk modules, applies baked settings and home-keys, then self-removes. Matches release v1.1.1-flip2.",

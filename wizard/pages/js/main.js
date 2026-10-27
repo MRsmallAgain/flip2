@@ -1,7 +1,7 @@
 // Page wiring: step navigation, credit gate, download verification,
-// udev text, USB connect, install/verify buttons, erase-gated rooting slice.
+// udev text, USB connect, install/verify buttons.
 // Every module below is loaded by index.html before this one:
-//   CATALOG/loadCatalog/sha256Hex, ADBKEY, ADB, PIPE, BOOTROM.
+//   CATALOG/loadCatalog/sha256Hex, ADBKEY, ADB, PIPE.
 
 var ORDER = ['credit', 'download', 'udev', 'usb', 'install', 'verify'];
 var REACHED = { credit: true };
@@ -24,13 +24,6 @@ function showStep(name) {
     var idx = ORDER.indexOf(step);
     spans[n].classList.toggle('on', step === name);
     spans[n].classList.toggle('done', idx >= 0 && idx < i);
-  }
-  var root = $('step-root');
-  if (name === 'root') {
-    root.hidden = false;
-    root.classList.add('on');
-  } else {
-    root.classList.remove('on');
   }
   window.scrollTo(0, 0);
 }
@@ -311,104 +304,6 @@ function initVerify() {
   $('ver-recheck').addEventListener('click', runVerify);
 }
 
-// --- rooting slice (erase-gated, not on the step bar) ----------------------------------
-
-function initRoot() {
-  $('root-link').addEventListener('click', function (ev) {
-    ev.preventDefault();
-    showStep('root');
-  });
-  $('erase-input').addEventListener('input', function () {
-    $('root-open').disabled = this.value.trim() !== 'erase';
-  });
-  $('root-open').addEventListener('click', function () {
-    $('root-body').classList.remove('hidden');
-  });
-  $('boot-btn').addEventListener('click', function () {
-    if (!navigator.serial) {
-      setStatus('boot-msg', 'This browser has no Web Serial. Use Chrome on Linux.', 'bad');
-      return;
-    }
-    this.disabled = true;
-    setStatus('boot-msg', 'watching for the preloader…', 'wait');
-    BOOTROM.log = makeLog('boot-log');
-    BOOTROM.boot('FASTBOOT').then(function () {
-      setStatus('boot-msg', 'Handshake complete — phone is in fastboot mode.', 'ok');
-      $('fb-h').classList.remove('hidden');
-      $('fb-p').classList.remove('hidden');
-      $('fb-controls').classList.remove('hidden');
-    }).catch(function (e) {
-      setStatus('boot-msg', e.message, 'bad');
-      $('boot-btn').disabled = false;
-    });
-  });
-}
-
-// --- fastboot (erase-gated slice, step 2 after the bootrom handshake) ---
-
-function initFastboot() {
-  var log = makeLog('fb-log');
-  FASTBOOT.log = log;
-  function stage(name) {
-    ['fb-pick', 'fb-unlock', 'fb-flash', 'fb-reboot'].forEach(function (id) {
-      $(id).disabled = true;
-    });
-    $(name).disabled = false;
-  }
-  $('fb-pick').addEventListener('click', function () {
-    if (!navigator.usb) {
-      setStatus('fb-msg', 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
-      return;
-    }
-    setStatus('fb-msg', 'picking…', 'wait');
-    FASTBOOT.pick().then(function () {
-      return FASTBOOT.connect();
-    }).then(function () {
-      setStatus('fb-msg', 'Fastboot connected.', 'ok');
-      stage('fb-unlock');
-    }).catch(function (e) {
-      setStatus('fb-msg', e.message, 'bad');
-      stage('fb-pick');
-    });
-  });
-  $('fb-unlock').addEventListener('click', function () {
-    setStatus('fb-msg', 'Confirm on the phone keypad…', 'wait');
-    FASTBOOT.unlock(function (line) { log('INFO: ' + line); }).then(function () {
-      setStatus('fb-msg', 'Unlocked. The phone was wiped.', 'ok');
-      stage('fb-flash');
-    }).catch(function (e) {
-      setStatus('fb-msg', e.message, 'bad');
-    });
-  });
-  $('fb-flash').addEventListener('click', function () {
-    var neutron = VERIFIED['neutron'];
-    if (!neutron) {
-      setStatus('fb-msg', 'neutron.img was not verified in the files step — go back and pick it first.', 'bad');
-      return;
-    }
-    setStatus('fb-msg', 'flashing boot…', 'wait');
-    FASTBOOT.flashBoot(new Uint8Array(neutron), function (line) { log('INFO: ' + line); },
-      function (sent, total) { setStatus('fb-msg', 'sending ' + Math.round(sent / 1024) + ' / ' + Math.round(total / 1024) + ' KiB…', 'wait'); })
-      .then(function () {
-        setStatus('fb-msg', 'boot flashed with neutron.img.', 'ok');
-        stage('fb-reboot');
-      }).catch(function (e) {
-        setStatus('fb-msg', e.message, 'bad');
-      });
-  });
-  $('fb-reboot').addEventListener('click', function () {
-    setStatus('fb-msg', 'rebooting…', 'wait');
-    FASTBOOT.reboot().then(function () {
-      setStatus('fb-msg', 'Rebooted. After the wipe: dial *#*#217703#*#*, let Magisk finish, reboot again, re-enable USB debugging, then start the wizard from Connect.', 'ok');
-    }).catch(function (e) {
-      setStatus('fb-msg', e.message, 'bad');
-    });
-  });
-  stage('fb-pick');
-}
-
-// --- boot -------------------------------------------------------------------------------
-
 function init() {
   loadCatalog().then(function () {
     buildCreditTable();
@@ -418,8 +313,6 @@ function init() {
     initUsb();
     initInstall();
     initVerify();
-    initRoot();
-    initFastboot();
     showStep('credit');
     return Promise.all([
       fetch('../device/install.sh').then(function (r) { return r.text(); }),

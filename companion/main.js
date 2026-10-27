@@ -1,7 +1,7 @@
 // Flip 2 Companion — Electron shell around the wizard pages.
-// Serves wizard/ over a custom protocol, auto-picks the phone (TCL adb and
-// the MediaTek preloader) on the WebUSB/Web Serial dialogs, and installs the
-// udev rules through pkexec so step 3 is one click instead of a sudo recipe.
+// Serves wizard/ over a custom protocol, auto-picks TCL adb on the WebUSB
+// dialog, and installs the udev rules through pkexec so step 3 is one click
+// instead of a sudo recipe.
 
 const { app, BrowserWindow, ipcMain, protocol, session, shell } = require('electron');
 const { execFile } = require('child_process');
@@ -13,11 +13,10 @@ const WIZARD = path.join(__dirname, '..', 'wizard');
 const RULES_NAME = '51-android-flip2-adb.rules';
 const RULES_DST = path.join('/etc/udev/rules.d', RULES_NAME);
 
-// TCL composite adb (1bbb:0167), adb-only (1bbb:0c01), MTK preloader (0e8d:2000).
+// TCL composite adb (1bbb:0167) and adb-only (1bbb:0c01).
 const DEVICES = [
   { vendorId: 0x1bbb, productId: 0x0167 },
   { vendorId: 0x1bbb, productId: 0x0c01 },
-  { vendorId: 0x0e8d, productId: 0x2000 },
 ];
 
 function isOurs(d) {

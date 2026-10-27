@@ -34,7 +34,7 @@ What survives: Launcher4, Null Keyboard, Forkgram, home-keys, default HOME/IME. 
 
 ## Image flash (do not improvise)
 
-Read `docs/IMAGE-BUILD.md` before any partition write. The 4058G is A-only. `adb reboot bootloader` does not stay in fastboot: USB shows `0e8d:0003` then `0e8d:2000` and Android comes back. Fastbootd entry is the bootrom sequence (`~/flip2-enter-fastboot.sh`), not an adb reboot.
+Read `docs/IMAGE-BUILD.md` before any partition write. The 4058G is A-only. `adb reboot bootloader` does not stay in fastboot: USB shows `0e8d:0003` then `0e8d:2000` and Android comes back. The bootrom entry sequence is not on this branch; it lives on `feature/rooting-slice`. Do not use it on an already-rooted Flip 2 — unlocking the bootloader erases the phone.
 
 Never overwrite the 2048-byte EMMC_BOOT preloader header. Back up `vbmeta`, `vbmeta_system`, and `vbmeta_vendor` before flashing. Do not put a debug-signed APK in `/system/priv-app/Launcher3` (bootloop). Launcher4, the null keyboard, and TagDrawer belong in `system/app`. FlipMouse is not baked into the image. Neutron firmware and Forkgram are not redistributed from this repo.
 

@@ -9,7 +9,7 @@
 <body>
 <header>
   <h1>Flip 2 Linux setup wizard</h1>
-  <p class="sub">Chrome on Linux · WebUSB/Web Serial · nothing downloads until you type <code>yes</code></p>
+  <p class="sub">Chrome on Linux · WebUSB · nothing downloads until you type <code>yes</code></p>
 </header>
 <nav id="steps">
   <span data-step="credit">1 · credits</span>
@@ -34,9 +34,7 @@
     <li>It verifies every download in this page with SHA-256 before pushing anything to the phone. A mismatch stops that file.</li>
     <li>It pushes files into <code>/data/local/flip2/</code> and runs an install script. It does not flash any partition on this step.</li>
     <li>It never touches <code>super</code>, <code>vbmeta</code>, system, product, or the preloader, and never writes the EMMC_BOOT header.</li>
-    <li>A separate, explicitly requested rooting step exists for a phone you are willing to wipe. This page will not take you there by accident.</li>
   </ul>
-  <p class="note">If you already rooted this phone (Magisk dial code works, <code>su</code> answers), you can go straight to the files step — the wizard detects that and skips the rooting slice entirely.</p>
   <label class="inline">Type <b>yes</b> to allow downloads: <input id="gate-input" autocomplete="off" size="6"></label>
   <p><button id="gate-btn" disabled>Continue</button>
      <span id="gate-msg" class="note"></span></p>
@@ -67,7 +65,7 @@
     <li><code>sudo udevadm control --reload-rules && sudo udevadm trigger</code></li>
     <li>Unplug the phone and plug it back in.</li>
   </ol>
-  <p class="note">This file covers both adb modes the phone presents (composite <code>1bbb:0167</code> and adb-only <code>1bbb:0c01</code>) and the MediaTek preloader <code>0e8d:2000</code> used by the optional rooting slice.</p>
+  <p class="note">This file covers both adb modes the phone presents (composite <code>1bbb:0167</code> and adb-only <code>1bbb:0c01</code>). It also lists the MediaTek preloader <code>0e8d:2000</code> so that device is permissioned if it appears. This wizard does not open the preloader.</p>
   <p><button id="udev-native" class="hidden">Install the rules for me</button>
      <span id="udev-native-msg" class="status"></span></p>
   <p><button id="udev-done">I did this — continue</button></p>
@@ -105,42 +103,15 @@
   <pre class="log hidden" id="ver-log"></pre>
 </section>
 
-<!-- rooting slice: not linked from the step bar -->
-<section class="step" id="step-root" hidden>
-  <h2>Rooting (erase-gated)</h2>
-  <p class="danger">This unlocks the bootloader, which <b>wipes the phone</b>. Do not continue unless this phone is the one you are willing to erase. It never flashes <code>super</code>, <code>vbmeta</code>, system, product, or the preloader, and never writes the EMMC_BOOT header — only <code>boot</code> gets <code>neutron.img</code>, after unlock.</p>
-  <p>Type <b>erase</b> to confirm you are pointing this at a phone you are willing to wipe:<br>
-  <label class="inline"><input id="erase-input" autocomplete="off" size="8"></label></p>
-  <p><button id="root-open" disabled>Open rooting slice</button></p>
-  <div id="root-body" class="hidden">
-    <h3>1 · Bootrom handshake</h3>
-    <p>Have USB attached. Remove and reinsert the battery, or tap power as the phone shuts down — you have about one second. The page writes <code>FASTBOOT</code> to the MediaTek preloader at 115200 baud and expects <code>READYTOOB</code>. A wrong answer stops everything; a missed window just means try again.</p>
-    <p><button id="boot-btn">Wait for preloader (0e8d:2000)</button> <span id="boot-msg" class="status"></span></p>
-    <pre class="log hidden" id="boot-log"></pre>
-    <h3 id="fb-h" class="hidden">2 · Unlock and flash boot</h3>
-    <p id="fb-p" class="hidden">In fastboot mode the page unlocks (another on-screen confirm on the phone), flashes <code>neutron.img</code> to <code>boot</code>, and reboots. After the wipe: dial <code>*#*#217703#*#*</code>, let Magisk finish, reboot again, and re-enable USB debugging — the wipe removed it.</p>
-    <p id="fb-controls" class="hidden">
-      <button id="fb-pick">Pick fastboot device</button>
-      <button id="fb-unlock" class="ghost" disabled>Unlock (wipes the phone)</button>
-      <button id="fb-flash" class="ghost" disabled>Flash boot</button>
-      <button id="fb-reboot" class="ghost" disabled>Reboot</button>
-      <span id="fb-msg" class="status"></span>
-    </p>
-    <pre class="log hidden" id="fb-log"></pre>
-  </div>
-</section>
-
 </main>
 <footer>
-  Flip 2 wizard · verify step runs <code>verify.sh</code> on the phone · <a href="#" id="root-link">rooting slice (erases phone — read first)</a>
+  Flip 2 wizard · verify step runs <code>verify.sh</code> on the phone
 </footer>
 <script src="../fflate.js"></script>
 <script src="js/catalog.js"></script>
 <script src="js/keys.js"></script>
 <script src="js/adb.js"></script>
 <script src="js/pipeline.js"></script>
-<script src="js/bootrom.js"></script>
-<script src="js/fastboot.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

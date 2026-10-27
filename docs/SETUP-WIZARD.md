@@ -2,8 +2,7 @@
 
 `wizard/` is a click-through web page that sets the Flip 2 up from **Chrome on
 Linux** — no `flip2` CLI, no adb on the host. The page talks to the phone
-directly over USB: ADB over WebUSB for the install, Web Serial for the
-optional rooting slice.
+directly over USB with ADB over WebUSB.
 
 Firefox does not work: it has no WebUSB. Windows and macOS get the same site
 later; Linux is proven first.
@@ -32,16 +31,18 @@ For a public page, serve the `wizard/` directory from any static host
 
 ## The six steps
 
-1. **Credits and gate.** Who made what, with links: neutronscott's boot
-   image, the Flip2 installer, Forkgram, whisper.cpp, Vosk, and the F-Droid
-   apps. Nothing downloads until the user types `yes`.
+1. **Credits and gate.** Who made what, with links: the Flip2 installer,
+   Forkgram, whisper.cpp, Vosk, and the F-Droid apps. Nothing downloads
+   until the user types `yes`.
 2. **Files.** The page links each pinned file; the user downloads it normally
    (GitHub releases, F-Droid and alphacephei.com send no cross-origin
    headers, so the page cannot fetch them itself) and picks the files in the
    page. Every file is hashed with WebCrypto SHA-256 against
    `catalog.json`; a mismatch stops that file.
 3. **udev.** One-time `sudo cp` of the rules file so the user's account can
-   reach the phone (both adb modes and the MediaTek preloader).
+   reach the phone in both adb modes. The rules file also lists the MediaTek
+   preloader so that device is permissioned if it appears; this wizard does
+   not open it.
 4. **Connect.** USB debugging on, pick the phone, ADB handshake in the page.
    The page generates its own RSA key once, stores it in localStorage, and
    offers the public key to adbd — the phone prompts once, "always allow"
@@ -66,32 +67,16 @@ The wizard never clears the home-key shortcuts, never downloads a browser
 (menu slot 7 stays `org.chromium.chrome` — Chrome is already on the phone),
 and the phone downloads nothing: `install.sh` has no `wget` and no `jq`.
 
-## Rooting slice (erase-gated, separate)
+## Rooting slice
 
-A footer link leads to a rooting slice for a **different phone** — one the
-user is willing to wipe. Unlocking the bootloader erases the device. The
-slice is gated behind typing `erase` (a different word from the author's
-`yes`, because unlock wipes the phone), and it only ever flashes `boot` with
-neutronscott's `neutron.img`, after unlock. It never touches `super`,
-`vbmeta`, system, product, or the preloader, and never writes the EMMC_BOOT
-header.
-
-The handshake is a Web Serial port of `autobooter-linux.py`: watch for the
-MTK preloader (`0e8d:2000`) at 115200 baud, write `FASTBOOT`, expect
-`READYTOOB`. A wrong answer stops everything (nothing flashes); a missed
-one-second window just means remove/reinsert the battery again. The fastboot
-steps follow in the page (`pages/js/fastboot.js`): unlock with the on-screen
-keypad confirm, `download` + `flash:boot` of the hash-verified `neutron.img`,
-reboot. By construction those are the only destructive commands the module
-can send — there is no path to `flash:` any other partition, and no DATA
-phase runs unless the device's declared size matches the image exactly.
-
-Do not run the rooting slice against your current Flip 2 if it is already
-rooted — unlocking it would erase it.
+The erase-gated unlock and boot-flash path is not on this branch. It lives
+on `feature/rooting-slice`. Do not run it against this Flip 2 if the phone
+is already rooted — unlocking it would erase it. This branch's wizard stops
+at install and verify.
 
 ## What is not committed here
 
-The third-party binaries and models (neutron.img, Forkgram APK, whisper and
+The third-party binaries and models (Forkgram APK, whisper and
 Vosk models, F-Droid APKs) are **not** in this repo and are not attached to
 the flip2 release. `catalog.json` only pins their upstream URLs and hashes;
 the browser fetches them from upstream and verifies them. Chrome is not
@@ -100,7 +85,7 @@ downloaded either.
 ## Companion app (Electron)
 
 `companion/` wraps the same wizard pages in a desktop app, so step 3 is one
-click and steps 4 and 6 skip Chrome's device chooser:
+click and the connect step skips Chrome's device chooser:
 
 ```bash
 cd ~/.local/share/flip2
@@ -114,10 +99,9 @@ flip2 companion        # or: cd companion && npm install && npm start
   the rules file is staged in a temp dir and copied to `/etc/udev/rules.d/`
   via `pkexec` (the system password prompt), then the rules are reloaded and
   triggered. Dismissing the prompt installs nothing.
-- **Auto-picked devices.** When the page asks for a USB or serial device,
-  the app selects the matching one automatically (TCL adb `1bbb:0167` and
-  `1bbb:0c01`, MediaTek preloader `0e8d:2000`) instead of showing the
-  chooser.
+- **Auto-picked devices.** When the page asks for a USB device, the app
+  selects the matching one automatically (TCL adb `1bbb:0167` and
+  `1bbb:0c01`) instead of showing the chooser.
 
 No packaging step is provided; the app runs from the repo tree like
 `flip2 editor` does.

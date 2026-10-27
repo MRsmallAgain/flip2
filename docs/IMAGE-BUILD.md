@@ -1,4 +1,4 @@
-# Building and flashing a flip2 base image (Tier A)
+# Building a flip2 system tree (Tier A)
 
 This is the **Tier A** path: bake the flip2 OSS set into *your own* stock
 firmware as system/product files, so the components survive even with no
@@ -6,21 +6,18 @@ Magisk module. Everything else (FlipMouse, Forkgram, IME settings, Vosk
 models) still comes from the Tier B installer zip after first boot.
 
 **We do not distribute TCL firmware or boot images.** You dump your own
-firmware; the root vector is [neutronscott's flip2
-releases](https://github.com/neutronscott/flip2/releases) (`neutron.img` /
-`neutron-noavb.img` — patched boot with Magisk baked in). See the
-[flip2 wiki](https://github.com/neutronscott/flip2/wiki) for the fastboot
-entry sequence (`autobooter-linux.py`, `mtk-bootseq.py`,
-`~/flip2-enter-fastboot.sh`).
+firmware. Unlock and boot flash are not on this branch; they live on
+`feature/rooting-slice`. Do not use that path on an already-rooted Flip 2 —
+unlocking the bootloader erases the phone. Upstream notes:
+[flip2 wiki](https://github.com/neutronscott/flip2/wiki).
 
 ## 0. Warnings — read first
 
 - **Never overwrite the 2048-byte EMMC_BOOT preloader header.** If the
   preloader is corrupted, the device will not enter boot ROM download mode
   and cannot be recovered by SP Flash Tool.
-- **Back up `vbmeta`, `vbmeta_system`, `vbmeta_vendor` before flashing**
-  anything (`fastboot fetch` under fastbootd, or the SP Flash Tool readback).
-  If a flash goes wrong, restore vbmeta first.
+- **Back up `vbmeta`, `vbmeta_system`, and `vbmeta_vendor` before any
+  partition write.** If a write goes wrong, restore vbmeta first.
 - Have the [flip2 wiki](https://github.com/neutronscott/flip2/wiki) recovery
   notes at hand (`launcher-patch/EMERGENCY-unresponsive.md` in this repo).
 - Do this on A/C power, with a good USB cable, and never interrupt a
@@ -79,31 +76,23 @@ Rebuild `super.img` (`lpmake`), keeping the original partition sizes and
 group layout. Check the rebuilt image against the `SHA256SUMS` of the files
 you added.
 
-## 4. Flash via fastbootd
+## 4. Partition writes
 
-fastbootd (userspace fastboot running in recovery) is what handles dynamic
-partitions — the 1.5G `super` image included. Enter fastbootd per the wiki
-(`~/flip2-enter-fastboot.sh`), then:
+fastbootd (userspace fastboot in recovery) is what handles dynamic
+partitions, including `super`. The commands that enter fastbootd and write
+partitions are not on this branch; they live on `feature/rooting-slice`.
+Do not flash this already-rooted phone — unlocking it would erase the phone.
+Never interrupt a fastbootd write. If a write on another device goes wrong,
+restore from your stock backup and follow the emergency notes — do **not**
+reflash the EMMC_BOOT preloader header.
 
-```bash
-fastbootd boot sequence per flip2 wiki
-fastboot flash boot neutron.img          # or neutron-noavb.img — root vector
-fastboot flash super  super-rebuilt.img  # our merged system/product
-fastboot reboot
-```
+## 5. Tier B installer, once Magisk is already installed
 
-First boot takes longer than usual (odex/dexopt of the preloaded apps).
-If boot loops: reflash the stock `super` from your backup and debug via the
-emergency notes — do **not** reflash EMMC_BOOT.
+Finishing a custom boot image belongs to the rooting path on
+`feature/rooting-slice`. Do not do that on this already-rooted phone.
 
-## 5. Complete Magisk, then run the Tier B installer
-
-The neutronscott boot image leaves Magisk partially installed. On the
-device, dial `*#*#217703#*#*` to trigger the full Magisk download/setup,
-reboot, and confirm the Magisk app shows installed.
-
-Then push the installer zip and flash it in the Magisk app
-(Install from storage), or sideload:
+Push the installer zip and install it from storage in the Magisk app,
+or sideload:
 
 ```bash
 flip2 installer pack --flavor full
@@ -136,27 +125,27 @@ Results from the reference device — expect the same on any 4058G:
 
 - **`adb shell getprop ro.build.ab_update`** → *empty*. The 4058G is
   **A-only** (single boot slot, no A/B). There is no `current-slot` to
-  switch; flashing boot replaces the one slot.
+  switch; a boot-partition write would replace the only slot, and that write is not on this branch.
 - **`ls /dev/block/by-name/`** → MediaTek layout, no `_a`/`_b` suffixes:
   `boot`, `super` (dynamic partitions), `dtbo`, `recovery`,
   `vbmeta`, `vbmeta_system`, `vbmeta_vendor`, `vendor_boot`, plus
   `protect1/2`, `nvdata`, `metadata`, `userdata` and the MTK firmware
   partitions (`lk`, `tee1/2`, `spmfw`, `mcupmfw`, `md1img`, …).
-  **`super` is present → fastbootd (userspace fastboot) is required for
-  flashing our system/product tree; the bootloader's fastboot cannot
-  resize dynamic partitions.** Back up the three `vbmeta*` partitions
-  before anything else.
+  **`super` is present, so any dynamic-partition write would need
+  fastbootd (userspace fastboot); the bootloader fastboot cannot resize
+  dynamic partitions.** That write is not on this branch. Back up the
+  three `vbmeta*` partitions before any partition write.
 - **`fastboot getvar current-slot` / `fastboot reboot fastboot`:** NOT
   reachable via plain `adb reboot bootloader`. Watched on the USB bus:
   the device passes through transient MediaTek IDs (`0e8d:0003` bootrom
   serial, then `0e8d:2000` MT65xx Preloader for ~2 s) and **boots
   straight back to Android** — it never sits in stock fastboot.
-  Entering fastboot/fastbootd on this device requires the bootrom
-  vector from the flip2 wiki (`autobooter-linux.py` + `mtk-bootseq.py`,
-  wrapped by `~/flip2-enter-fastboot.sh`), not an adb reboot. The
-  `0e8d:*` udev rule in
-  `launcher-patch/scripts/51-android-flip2-adb.rules` makes those
-  transient preloader nodes accessible to plugdev on Linux.
+  `adb reboot bootloader` does not stay in fastboot. The bootrom entry
+  sequence is not on this branch; it lives on `feature/rooting-slice`.
+  Do not use it on an already-rooted Flip 2 — unlocking erases the phone.
+  The `0e8d:*` udev rule in
+  `launcher-patch/scripts/51-android-flip2-adb.rules` only grants
+  permission on those transient nodes. It does not send a command.
 
 Note for Linux hosts: `adb reboot bootloader`-style reboots re-enumerate
 the USB device with a fresh node. If `/etc/udev/rules.d/` is empty (no

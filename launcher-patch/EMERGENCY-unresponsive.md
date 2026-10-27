@@ -55,7 +55,7 @@ reboot
 
 ## 5. Fastboot
 
-`~/flip2-enter-fastboot.sh` — fastboot alone **does not** remove `/data/adb/modules`. Only use flashing paths from the wiki if you intend to restore firmware.
+Fastboot alone **does not** remove `/data/adb/modules`. Partition flashing is not on this branch; it lives on `feature/rooting-slice` and upstream, and only applies when you intend to restore firmware. Do not unlock an already-rooted Flip 2 — that erases the phone.
 
 ---
 

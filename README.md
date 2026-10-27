@@ -13,7 +13,7 @@ Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voi
 
 Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Launcher3 RRO overlay**, and **recovery** after bad Magisk launcher experiments.
 
-No CLI? A **[browser setup wizard](docs/SETUP-WIZARD.md)** (`wizard/`) does the full install from Chrome on Linux over WebUSB — verified downloads, push, install, verify — plus an erase-gated rooting slice. Prefer a desktop app? `flip2 companion` runs the same wizard in Electron with one-click udev rules and no device chooser.
+No CLI? A **[browser setup wizard](docs/SETUP-WIZARD.md)** (`wizard/`) does the full install from Chrome on Linux over WebUSB — verified downloads, push, install, verify. Prefer a desktop app? `flip2 companion` runs the same wizard in Electron with one-click udev rules and no device chooser.
 
 **Quick start**
 
@@ -48,7 +48,7 @@ All tiers are driven by **`pipeline/deploy/manifest.json`** — the single sourc
 
 | Tier | Command | Output | Use |
 |------|---------|--------|-----|
-| **A** base image | `flip2 image build-tree` | `pipeline/deploy/dist/flip2-system-tree/` merged into *your own* stock firmware → fastbootd flash ([docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md)) | baked into the image, survives de-root |
+| **A** base image | `flip2 image build-tree` | `pipeline/deploy/dist/flip2-system-tree/` merged into *your own* stock firmware ([docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md)); partition writes are on `feature/rooting-slice` | baked into the image, survives de-root |
 | **B** installer zip | `flip2 installer pack [--flavor clean\|full]` | `flip2-installer-<flavor>-magisk.zip` — flash once via the Magisk app; self-removes after first boot | one-shot provisioning; `clean` installs only the root-independent set (de-root friendly) |
 | **C** live setup | `flip2 setup full` | runs the existing per-component installs over adb, PASS/FAIL summary | the already-rooted device |
 | **D** bundle | `flip2 pack-all` | `pipeline/deploy/dist/flip2-packages-<version>/` + `SHA256SUMS` | manual installs / release uploads |
@@ -77,7 +77,7 @@ flip2 slot 7 org.chromium.chrome
 
 ## Boot / fastboot (Linux)
 
-- `autobooter-linux.py`, `mtk-bootseq.py`, `~/flip2-enter-fastboot.sh` — see [flip2 wiki](https://github.com/neutronscott/flip2/wiki).
+Unlock and boot flash are not on this branch. They live on `feature/rooting-slice` and must not be used on an already-rooted Flip 2 — unlocking erases the phone. Upstream notes: [flip2 wiki](https://github.com/neutronscott/flip2/wiki).
 
 ## Legacy scripts
 
@@ -146,7 +146,7 @@ The original APK is backed up to `~/forkgram-original-13.0.2.0.apk`. The patched
 
 This toolkit stands on the work of:
 
-- **[neutronscott/flip2](https://github.com/neutronscott/flip2)** — the foundation for everything here: device research, root method, fastboot/boot tools (`autobooter-linux.py`, `mtk-bootseq.py`), the original vMouse module our `vmouse` pipeline targets, and the wiki this whole modding approach depends on. Unlicense.
+- **[neutronscott/flip2](https://github.com/neutronscott/flip2)** — the foundation for everything here: device research, the original vMouse module our `vmouse` pipeline targets, and the wiki this whole modding approach depends on. Unlicense.
 - **[TylerBoni/FlipMouse](https://github.com/TylerBoni/FlipMouse)** — the virtual mouse vendored into `pipeline/flipmouse/` (keypad→mouse via libevdev/uinput, Magisk module). Read Tyler's [dumbphone-journey write-up](https://dev.to/tylerboni/escaping-the-digital-treadmill-how-to-daily-drive-a-flip-phone-in-2025-tcl-flip-2-17el). README declares MIT (upstream repo has no standalone LICENSE file yet; credited and linked here rather than silently forked — local patches are ours).
 - **[whisper.cpp](https://github.com/ggml-org/whisper.cpp)** — on-device dictation preferred by the null keyboard when a ggml model is present (`flip2 ime whisper`).
 - **[Vosk / alphacep](https://github.com/alphacep)** — offline speech recognition (Apache-2.0) used as the fallback engine; models from `flip2 ime models`.
