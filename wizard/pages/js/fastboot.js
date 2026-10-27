@@ -31,7 +31,7 @@ var FASTBOOT = {
       var ifaces = cfgs[c].interfaces;
       for (var i = 0; i < ifaces.length; i++) {
         var alt = ifaces[i].alternates[0];
-        if (alt.classCode === 255 && alt.subclassCode === 66 && alt.protocolCode === 1) {
+        if (alt.interfaceClass === 255 && alt.interfaceSubclass === 66 && alt.interfaceProtocol === 1) {
           return ifaces[i].interfaceNumber;
         }
       }

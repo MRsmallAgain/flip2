@@ -238,6 +238,7 @@ function initUsb() {
     ADBKEY.load().then(function () {
       return ADB.pick();
     }).then(function () {
+      $('usb-log').classList.remove('hidden');
       ADB.log = adbLog;
       return ADB.connect();
     }).then(function () {

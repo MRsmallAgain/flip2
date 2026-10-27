@@ -74,7 +74,7 @@ function wireSession(ses) {
   ses.on('select-usb-device', function (event, details, callback) {
     event.preventDefault();
     const ours = (details.deviceList || []).filter(isOurs);
-    callback(ours[0]);
+    callback(ours[0] && ours[0].deviceId);
   });
   ses.on('select-serial-port', function (event, portList, _wc, callback) {
     event.preventDefault();

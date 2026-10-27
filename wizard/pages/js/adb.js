@@ -6,8 +6,9 @@
 //   cmd | arg0 | arg1 | data_length | data_checksum (byte sum) | magic (cmd^0xFFFFFFFF)
 // Streams are flow-controlled: one OKAY from the peer grants one WRTE.
 
-var A_CNXN = 0x434e584e, A_AUTH = 0x41555448, A_OPEN = 0x4f50454e,
-    A_OKAY = 0x4f4b4159, A_CLSE = 0x434c5345, A_WRTE = 0x57525445;
+// wire tags are little-endian uint32s: 'CNXN' = bytes 43 4E 58 4E = 0x4e584e43
+var A_CNXN = 0x4e584e43, A_AUTH = 0x48545541, A_OPEN = 0x4e45504f,
+    A_OKAY = 0x59414b4f, A_CLSE = 0x45534c43, A_WRTE = 0x45545257;
 
 function str2ab(s) {
   var out = new Uint8Array(s.length);
@@ -44,7 +45,7 @@ var ADB = {
       var ifaces = cfgs[c].interfaces;
       for (var i = 0; i < ifaces.length; i++) {
         var alt = ifaces[i].alternates[0];
-        if (alt.classCode === 255 && alt.subclassCode === 66 && alt.protocolCode === 1) {
+        if (alt.interfaceClass === 255 && alt.interfaceSubclass === 66 && alt.interfaceProtocol === 1) {
           return ifaces[i].interfaceNumber;
         }
       }
@@ -55,7 +56,7 @@ var ADB = {
   connect: function () {
     var self = this;
     this.tokensSeen = 0; this.pubSent = false;
-    this.streams = {}; this.nextId = 1;
+    this.streams = {}; this.nextId = 1; this._acc = [];
     return this.device.open().then(function () {
       if (self.device.configuration === null) return self.device.selectConfiguration(1);
     }).then(function () {
@@ -191,7 +192,7 @@ var ADB = {
     if (cmd === A_OKAY) {
       st.remoteId = arg0;
       st.credits = (st.credits || 0) + 1;
-      if (st._writeWaiter) st._writeWaiter();
+      if (st._writeWaiter) { var ww = st._writeWaiter; st._writeWaiter = null; ww(); }
       if (st.openWait) { st.openWait(); st.openWait = null; }
     } else if (cmd === A_WRTE) {
       st._buf.push(data);
@@ -210,7 +211,7 @@ var ADB = {
     var id = this.nextId++;
     var st = {
       id: id, remoteId: 0, closed: false,
-      credits: 1,                      // the open OKAY grants the first write
+      credits: 0,                      // only the open OKAY grants a credit
       _buf: [], _waiter: null, _writeWaiter: null,
       ondata: null, onclose: null,
       read: function (n) {
@@ -295,13 +296,28 @@ var ADB = {
   pushFile: function (remotePath, mode, data, onProgress) {
     var self = this;
     var mtime = Math.floor(Date.now() / 1000);
-    return this.open('sync:').then(function (st) {
+    // Stall watchdog: every completed write re-arms a 45 s timer; if a
+    // transfer wedges or a write credit never arrives, reject with a clear
+    // error instead of hanging the install step forever.
+    var wTimer = null, wReject = null;
+    var wFail = new Promise(function (resolve, reject) { wReject = reject; });
+    var arm = function () {
+      if (wTimer) clearTimeout(wTimer);
+      wTimer = setTimeout(function () {
+        wReject(new Error('sync stalled: no USB progress for 45 s'));
+      }, 45000);
+    };
+    var disarm = function () { if (wTimer) clearTimeout(wTimer); wTimer = null; };
+    arm();
+    return Promise.race([this.open('sync:'), wFail]).then(function (st) {
+      arm();
       var name = str2ab(remotePath + ',' + mode);
       var seq = st.write(self._syncFrame('SEND', name));
       var chunk = Math.min(64 * 1024, self.maxData), off = 0;
       while (off < data.length) {
         (function (start) {
           seq = seq.then(function () {
+            arm();
             if (onProgress) onProgress(start, data.length);
             return st.write(self._syncFrame('DATA', data.subarray(start, start + chunk)));
           });
@@ -309,14 +325,19 @@ var ADB = {
         off += chunk;
       }
       seq = seq.then(function () {
+        arm();
         var out = new Uint8Array(8);
         out[0] = 0x44; out[1] = 0x4f; out[2] = 0x4e; out[3] = 0x45; // DONE
         new DataView(out.buffer).setUint32(4, mtime, true);
         return st.write(out);
       });
-      return seq.then(function () { return self._syncStatus(st); })
+      var work = seq.then(function () { return self._syncStatus(st); })
         .then(function (res) { return st.close().then(function () { return res; }); });
-    });
+      // The watchdog must cover the whole write chain, not just open(): a
+      // stalled write credit otherwise hangs the push forever with no error.
+      return Promise.race([work, wFail]);
+    }).then(function (res) { disarm(); return res; },
+            function (e) { disarm(); throw e; });
   },
 
   _syncStatus: function (st) {
