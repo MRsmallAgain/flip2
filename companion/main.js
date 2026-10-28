@@ -527,7 +527,31 @@ function createWindow() {
         // Everything runs in the renderer — the main process has no DOM and
         // no FLIP2_NATIVE, so the promise chain must finish there.
         win.webContents.executeJavaScript(
-          'Promise.resolve(window.FLIP2_NATIVE.udevStatus()).then(function (u) {' +
+          // Exercise the two factory IPCs the way the page does, including a
+          // path outside the backup folder that must be refused.
+          'var facProbe = window.FLIP2_NATIVE.factoryListBackups().then(function (list) {' +
+          '  var p = { count: list ? list.length : -1 };' +
+          '  if (list && list.length) {' +
+          '    var first = list[0];' +
+          '    p.firstName = first.name;' +
+          '    return window.FLIP2_NATIVE.factoryReadBackup(first.path).then(function (got) {' +
+          '      p.readSize = got.size;' +
+          '      p.readMagic = got.magic;' +
+          '      p.shaMatchesSidecar = got.sha256 === first.sha256;' +
+          '      return p;' +
+          '    });' +
+          '  }' +
+          '  return p;' +
+          '}).then(function (p) {' +
+          // The refusal is the security property, so it is checked whether or
+          // not any copy happens to exist on this machine.
+          '  return window.FLIP2_NATIVE.factoryReadBackup("/etc/passwd")' +
+          '    .then(function () { p.escapeRefused = false; },' +
+          '          function (e) { p.escapeRefused = true; p.escapeMsg = String(e.message || e); })' +
+          '    .then(function () { return p; });' +
+          '});' +
+          'Promise.all([window.FLIP2_NATIVE.udevStatus(), facProbe]).then(function (r) {' +
+          'var u = r[0], fac = r[1];' +
           'return {' +
           'title: document.title,' +
           'steps: document.querySelectorAll("#steps span[data-step]").length,' +
@@ -557,6 +581,7 @@ function createWindow() {
           '  var b = document.getElementById("factory-open");' +
           '  return !!b && b.disabled;' +
           '})(),' +
+          'factory: fac,' +
           'udev: u };})'
         ).then(function (state) {
           console.log('SMOKE ' + JSON.stringify(state));
