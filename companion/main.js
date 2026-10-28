@@ -449,13 +449,16 @@ async function listBootBackups() {
 // moment. Only files inside the wizard's own backup folder are reachable, so a
 // path from the page cannot reach out to something else on this computer.
 async function readBootBackup(dest) {
-  let realDir;
-  try { realDir = await fsp.realpath(BACKUP_DIR()); }
-  catch (e) { throw new Error('the backup folder is not on this computer — save a copy first'); }
+  let realDir = null;
+  try { realDir = await fsp.realpath(BACKUP_DIR()); } catch (e) { realDir = null; }
   let real;
   try { real = await fsp.realpath(String(dest || '')); }
   catch (e) { throw new Error('that backup file is not on this computer any more'); }
-  if (real !== realDir && !real.startsWith(realDir + path.sep)) {
+  // No folder means nothing can be inside it, so that is the same refusal as a
+  // path outside it. Keeping one message for both is what lets the smoke check
+  // exercise the containment rule on a machine that has never saved a copy,
+  // instead of passing because a different check happened to fail first.
+  if (!realDir || (real !== realDir && !real.startsWith(realDir + path.sep))) {
     throw new Error('that file is not one of the wizard’s own boot copies');
   }
   const buf = await fsp.readFile(real);

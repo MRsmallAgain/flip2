@@ -1126,8 +1126,21 @@ function initFactory() {
       return;
     }
 
+    // A copy chosen from the list arrives with no live reading of the phone, so
+    // ask it now. A phone that will not start is expected here; that failure is
+    // reported and the build comparison is skipped rather than treated as an error.
+    var current = FACTORY_CURRENT
+      ? Promise.resolve(FACTORY_CURRENT)
+      : (window.FLIP2_NATIVE.factoryIdentity
+        ? window.FLIP2_NATIVE.factoryIdentity().catch(function () { return null; })
+        : Promise.resolve(null));
+
     setStatus('fac-verify-msg', 'reading the copy off this computer…', 'wait');
-    window.FLIP2_NATIVE.factoryReadBackup(FACTORY_PICKED.path).then(function (got) {
+    Promise.all([window.FLIP2_NATIVE.factoryReadBackup(FACTORY_PICKED.path), current])
+      .then(function (r) {
+      var got = r[0];
+      var now = r[1];
+      if (now) FACTORY_CURRENT = now;
       var bytes = new Uint8Array(got.bytes);
       var magic = '';
       for (var i = 0; i < 8 && i < bytes.length; i++) magic += String.fromCharCode(bytes[i]);
@@ -1144,16 +1157,17 @@ function initFactory() {
       if (got.sha256 !== FACTORY_PICKED.sha256) {
         throw new Error('The file has changed since it was saved, so it is not the copy that was checked. Nothing was written.');
       }
-      // When the phone can be read, its build must match the copy's. Skipped
-      // when the phone will not boot — that is exactly when this is used.
       var expect = FACTORY_PICKED.fingerprint;
-      var here = (FACTORY_CURRENT && FACTORY_CURRENT['ro.build.fingerprint']) || '';
+      var here = (now && now['ro.build.fingerprint']) || '';
       if (expect && here && expect !== here) {
         log('this phone: ' + here);
         log('copy came from: ' + expect);
         throw new Error('That copy came from a different build, so it is refused. Nothing was written.');
       }
       if (expect && here) log('build: matches this phone');
+      else log('build: not compared — ' + (here
+        ? 'the copy does not record one'
+        : 'the phone cannot be read right now, which is what this is for'));
       FACTORY_VERIFIED = { bytes: bytes, sha256: got.sha256, path: got.path };
       setStatus('fac-verify-msg', 'Checked. This is the copy that was saved, unchanged.', 'ok');
       $('fac-verify-next').disabled = false;
