@@ -123,9 +123,39 @@ sha256 for a backup that was actually read.
 Survey the donor first — reachable over adb? rooted? what build?
 
 - **Rooted donor:** `su -c dd if=/dev/block/by-name/boot of=/sdcard/boot-stock.img`
-  then `adb pull`. Cleanest.
+  then `adb pull`. Cleanest — **but only if that donor was rooted by patching its
+  own stock boot.** A donor that was rooted by *flashing a modified boot image*
+  (this is how both phones here were rooted) has no stock image on its boot
+  partition at all; `dd` returns the modified one.
 - **Unrooted donor:** SP Flash Tool readback. Heavier, and the driver/download
-  mode requirements are its own project.
+  mode requirements are its own project — but it is the only route that cannot
+  be contaminated by a previous patch.
+
+### Why the rooted-donor route failed on the donor we tried (2026-10-28)
+
+The donor `MRV8IJJVPRYTS4UG` was surveyed with root. Its `/boot` is an older
+neutron+Magisk build, not stock, so it cannot supply a factory image:
+
+- `overlay.d/init.custom.rc` contains `setprop neutron.build 2022-09-01T03:50`
+  — a *different, older* neutron build than the pinned `neutron.img`
+  (`2024-09-18T00:02`).
+- Kernel sections differ: donor 8,082,472 bytes vs pinned 8,108,496 bytes.
+- Whole-image sha256 `40ef8d56…7cedd6a5` vs the pinned `31237917…841d3c1`.
+- No Magisk pre-patch backup exists anywhere on the device
+  (`find / -xdev -name 'magisk_backup*'` → nothing), and `/otapkg` holds only
+  `cache`, `omadm`, `system` with no image.
+- `magiskboot cpio restore` + `repack` does **not** recover stock: `restore`
+  only undoes what Magisk listed in `.rmlist`, and that list never named
+  `overlay.d/init.custom.rc`, so the neutron marker survives the round trip.
+
+Salvageable from that donor: `.backup/init` (the genuine TCL init) is
+byte-identical to the pinned image's, sha256 `64bb641b…645f535a`. The original
+**kernel** is not recoverable this way — only a clean source or a readback of a
+never-rooted phone will do.
+
+So the acceptable sources for a stock image are: TCL/carrier firmware for this
+exact build (`UPEN`), an SP Flash readback of a phone that has never been
+rooted, or a donor rooted by Magisk patching its own stock boot.
 
 Then compare builds before treating the image as usable:
 
