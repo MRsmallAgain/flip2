@@ -7,3 +7,9 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="1bbb", ATTR{idProduct}=="0167", MODE="0666", 
 SUBSYSTEM=="usb", ATTR{idVendor}=="1bbb", ATTR{idProduct}=="0c01", MODE="0666", GROUP="plugdev"
 # MediaTek preloader (0e8d:2000) / fastboot (when in download mode)
 SUBSYSTEM=="usb", ATTR{idVendor}=="0e8d", ATTR{idProduct}=="2000", MODE="0666", GROUP="plugdev"
+# Fastboot gadget (0e8d:201c) is a plain USB device, opened over WebUSB.
+SUBSYSTEM=="usb", ATTR{idVendor}=="0e8d", ATTR{idProduct}=="201c", MODE="0666", GROUP="plugdev"
+# The preloader's serial port is a tty, not the usb node. The usb rule above
+# does not touch /dev/ttyACM*, which udev otherwise leaves root:dialout 0660 —
+# that is what made Chrome fail with FILE_ERROR_ACCESS_DENIED.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0e8d", ATTRS{idProduct}=="2000", MODE="0666", GROUP="plugdev"
