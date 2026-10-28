@@ -102,13 +102,12 @@ var BOOTROM = {
   // the phone over WebUSB after it re-enumerates).
   boot: async function (bootseq) {
     var confirm = this._confirm(bootseq);
-    this.log('Have USB attached, then remove/reinsert battery or tap power.');
-    this.log('Waiting for MTK preloader (0e8d:2000)…');
+    this.log('Listening for the phone. Leave the USB cable plugged in.');
     var port = await this.grantedPort();
     var deadline = Date.now() + 120000;
     while (Date.now() < deadline) {
       if (!port) {
-        this.log('When the phone appears in the chooser, click "MediaTek USB Port (0e8d:2000)".');
+        this.log('Take the battery out and put it back in.');
         port = await this.requestPort();   // chooser stays open and updates live
       }
       var r = await this.tryPort(port, bootseq);

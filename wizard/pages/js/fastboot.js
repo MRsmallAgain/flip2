@@ -14,15 +14,32 @@
 // partition name 'boot' never appears as a parameter. super, vbmeta,
 // system, product and the preloader are unreachable from this module.
 
+// The fastboot gadget advertises class ff / subclass 42. The protocol byte is
+// not stable across builds: this phone reports 03, while other gadgets use 01.
+// Match the class and subclass only — the PID already tells us it is fastboot.
 var FASTBOOT = {
   device: null, out: null, inp: null,
   log: function () {},          // main.js replaces this
 
+  // Reuse a phone the user already granted this session. WebUSB does not
+  // expose a device's interfaces until it is opened, so an interface check
+  // here can never match a granted-but-closed phone; the page then falls back
+  // to a chooser dialog that blocks the retry. Match on the vendor instead,
+  // which is readable before opening, and only ask when nothing is granted.
+  // The preloader is the one MediaTek device that must never be used here, so
+  // exclude it when both it and the fastboot device are already granted.
   pick: function () {
     var self = this;
-    return navigator.usb.requestDevice({ filters: [
-      { classCode: 255, subclassCode: 66, protocolCode: 1 }
-    ]}).then(function (d) { self.device = d; return d; });
+    return navigator.usb.getDevices().then(function (list) {
+      var granted = (list || []).filter(function (d) { return d.vendorId === 0x0e8d; });
+      if (granted.length > 1) {
+        granted = granted.filter(function (d) { return d.productId !== 0x2000; });
+      }
+      if (granted.length === 1) { self.device = granted[0]; return granted[0]; }
+      return navigator.usb.requestDevice({ filters: [
+        { classCode: 255, subclassCode: 66 }
+      ]}).then(function (d) { self.device = d; return d; });
+    });
   },
 
   findIface: function () {
@@ -31,7 +48,7 @@ var FASTBOOT = {
       var ifaces = cfgs[c].interfaces;
       for (var i = 0; i < ifaces.length; i++) {
         var alt = ifaces[i].alternates[0];
-        if (alt.interfaceClass === 255 && alt.interfaceSubclass === 66 && alt.interfaceProtocol === 1) {
+        if (alt.interfaceClass === 255 && alt.interfaceSubclass === 66) {
           return ifaces[i].interfaceNumber;
         }
       }
@@ -39,9 +56,31 @@ var FASTBOOT = {
     throw new Error('no fastboot interface on this device');
   },
 
+  // One error for the state that needs a power cycle, so the page can
+  // recognise it wherever it comes out of this module.
+  _stopped: function () {
+    var e = new Error('the phone stopped answering. Nothing was written to it. ' +
+      'Unplug it, pull the battery, put it back, and start again from the power-cycle step.');
+    e.stopped = true;
+    return e;
+  },
+
+  // USB calls against a bootloader that stopped reading never settle: a close
+  // waits on its pending transfer, an open waits on a device that is not
+  // listening, and a bulk write waits for a receiver that never drains. Any one
+  // of those leaves the page sitting on "connecting…" with no message. Race the
+  // whole handshake against one timer so that state reports itself instead.
+  CONNECT_TIMEOUT_MS: 30000,
+
   connect: function () {
     var self = this;
-    return this.device.open().then(function () {
+    var timer = null;
+    // A failed attempt can leave this handle open with a transfer still
+    // pending. Closing first cancels that transfer and lets a retry start
+    // from a known state instead of failing with "already open".
+    var handshake = this.device.close().catch(function () {}).then(function () {
+      return self.device.open();
+    }).then(function () {
       if (self.device.configuration === null) return self.device.selectConfiguration(1);
     }).then(function () {
       self._ifNum = self.findIface();
@@ -62,17 +101,56 @@ var FASTBOOT = {
       self.log('Claimed fastboot interface.');
       return self.command('getvar:version', null, null);
     });
-  },
 
-  _read: function () {
-    var self = this;
-    return this.device.transferIn(this.inp, 512).then(function (res) {
-      if (res.status !== 'ok') throw new Error('USB read status ' + res.status);
-      return new Uint8Array(res.data.buffer, res.data.byteOffset, res.data.byteLength);
+    // After a timeout the page has already moved on, but this promise can still
+    // reject when the stale transfer is torn down. Swallow that here so it does
+    // not surface as an uncaught rejection; the race below still reports the
+    // original failure.
+    handshake.catch(function () {});
+
+    var timeout = new Promise(function (_, reject) {
+      timer = setTimeout(function () { reject(self._stopped()); }, self.CONNECT_TIMEOUT_MS);
+    });
+
+    return Promise.race([handshake, timeout]).then(function (v) {
+      clearTimeout(timer);
+      return v;
+    }, function (e) {
+      clearTimeout(timer);
+      throw e;
     });
   },
 
-  // One response packet. DATA size is an 8-byte big-endian integer.
+  // A bootloader left waiting for a payload it never received stops answering
+  // commands entirely, and a plain read then blocks forever with no message.
+  // This timeout turns that silent hang into an error the page can explain.
+  READ_TIMEOUT_MS: 30000,
+
+  _read: function () {
+    var self = this;
+    var timer = null;
+    var pending = this.device.transferIn(this.inp, 512).then(function (res) {
+      if (res.status !== 'ok') throw new Error('USB read status ' + res.status);
+      return new Uint8Array(res.data.buffer, res.data.byteOffset, res.data.byteLength);
+    });
+    var timeout = new Promise(function (_, reject) {
+      timer = setTimeout(function () { reject(self._stopped()); }, self.READ_TIMEOUT_MS);
+    });
+    return Promise.race([pending, timeout]).then(function (v) {
+      clearTimeout(timer);
+      return v;
+    }, function (e) {
+      clearTimeout(timer);
+      throw e;
+    });
+  },
+
+  // One response packet. The DATA size is normally an 8-byte big-endian
+  // integer, but this phone's bootloader speaks the older protocol and sends
+  // the size as 8 ASCII hex digits instead ("DATA01800000"). Both forms are 8
+  // bytes long, so tell them apart by content: eight printable hex characters
+  // can only be the ASCII form. Reading that form as an integer yields a
+  // nonsense size, and the transfer is refused before a byte is written.
   _resp: function () {
     return this._read().then(function (b) {
       if (b.length < 4) throw new Error('short fastboot response');
@@ -82,7 +160,15 @@ var FASTBOOT = {
       for (var i = 4; i < b.length; i++) text += String.fromCharCode(b[i]);
       var size = 0;
       if (id === 'DATA' && b.length >= 12) {
-        size = dv.getUint32(4, false) * 4294967296 + dv.getUint32(8, false);
+        var allHex = true;
+        for (var h = 4; h < 12; h++) {
+          var c = b[h];
+          var hex = (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x46) || (c >= 0x61 && c <= 0x66);
+          if (!hex) { allHex = false; break; }
+        }
+        size = allHex
+          ? parseInt(text.slice(0, 8), 16)
+          : dv.getUint32(4, false) * 4294967296 + dv.getUint32(8, false);
       }
       return { id: id, text: text, size: size };
     });
@@ -110,14 +196,31 @@ var FASTBOOT = {
       if (r.id === 'FAIL') throw new Error('fastboot FAIL: ' + r.text);
       if (r.id === 'DATA') {
         if (!data) throw new Error('unexpected DATA response of ' + r.size + ' bytes');
-        if (r.size !== data.length) throw new Error('DATA size mismatch: device wants ' +
-          r.size + ' bytes, image is ' + data.length);
+        if (r.size !== data.length) throw new Error('DATA size mismatch: the phone wants ' +
+          r.size + ' bytes but the image is ' + data.length + '. Nothing was written, but the ' +
+          'phone is now waiting for that payload and will ignore commands until it is ' +
+          'power-cycled.');
         return self._sendData(data, onProgress).then(function () {
           return self._loop(null, onInfo, onProgress);
         });
       }
       throw new Error('unexpected fastboot response ' + r.id);
     });
+  },
+
+  // getvar replies are not consistent across boots: some builds put the value
+  // in an INFO line and send a bare OKAY, others put it straight in the OKAY
+  // payload. Collect INFO lines, fall back to the OKAY text, and strip the
+  // leading "name: " either way. A bare OKAY means the value was empty.
+  getvar: function (name) {
+    var parts = [];
+    return this.command('getvar:' + name, null, function (line) { parts.push(String(line)); })
+      .then(function (okay) {
+        var text = parts.length ? parts.join('') : String(okay || '');
+        if (/^OKAY$/i.test(text.trim())) text = '';
+        var cut = text.indexOf(':');
+        return (cut >= 0 ? text.slice(cut + 1) : text).trim();
+      });
   },
 
   _sendData: function (data, onProgress) {

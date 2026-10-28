@@ -114,14 +114,173 @@ function buildDownloadTable() {
     var td1 = document.createElement('td'); td1.textContent = fmtSize(f.size);
     var td2 = document.createElement('td'); td2.textContent = f.author;
     var td3 = document.createElement('td');
-    var a = document.createElement('a');
-    a.href = f.url; a.textContent = 'download'; a.target = '_blank'; a.rel = 'noreferrer';
-    td3.appendChild(a);
+    if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.downloadFile) {
+      // In the app, fetch it here: the old external link did nothing useful.
+      var b = document.createElement('button');
+      b.className = 'small ghost';
+      b.textContent = 'get here';
+      b.addEventListener('click', function () { fetchOne(f.id, b); });
+      td3.appendChild(b);
+    } else {
+      var a = document.createElement('a');
+      a.href = f.url; a.textContent = 'download'; a.target = '_blank'; a.rel = 'noreferrer';
+      td3.appendChild(a);
+    }
     var td4 = document.createElement('td'); td4.textContent = '—';
     td4.setAttribute('data-status', f.id);
     tr.appendChild(td0); tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
     tbody.appendChild(tr);
   });
+}
+
+function setRow(id, text, cls) {
+  var td = document.querySelector('[data-status="' + id + '"]');
+  if (!td) return;
+  td.textContent = text;
+  td.className = cls || '';
+}
+
+function badLine(msg) {
+  var div = document.createElement('div');
+  div.textContent = 'BAD: ' + msg;
+  div.className = 'bad';
+  $('dl-results').appendChild(div);
+}
+
+function refreshDownloadGate() {
+  var missing = CATALOG.list.filter(function (f) { return !VERIFIED[f.id]; });
+  if (missing.length === 0) {
+    setStatus('dl-msg', 'All ' + CATALOG.list.length + ' files verified.', 'ok');
+    $('dl-next').disabled = false;
+  } else {
+    setStatus('dl-msg', missing.length + ' of ' + CATALOG.list.length +
+      ' still needed: ' + missing.map(function (f) { return f.file; }).join(', '), 'wait');
+    $('dl-next').disabled = true;
+  }
+  return missing;
+}
+
+// A candidate the companion handed over — already on disk, or fetched here.
+// It is kept only if its bytes hash to the pinned value for that catalog id.
+function acceptBytes(id, bytes) {
+  var f = CATALOG.byId[id];
+  if (!f) return Promise.resolve({ ok: false, msg: id + ' is not in the catalog' });
+  var view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  return sha256Hex(view).then(function (hex) {
+    if (hex !== f.sha256) {
+      return { ok: false, msg: f.file + ': SHA-256 does not match the pinned value' };
+    }
+    if (view.byteLength !== f.size) {
+      return { ok: false, msg: f.file + ': ' + view.byteLength + ' bytes, expected ' + f.size };
+    }
+    VERIFIED[id] = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+    return { ok: true, msg: f.file };
+  });
+}
+
+function cleanErr(e) {
+  var m = (e && e.message) || String(e);
+  return m.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+}
+
+function fetchOne(id, btn) {
+  if (btn) btn.disabled = true;
+  if (!VERIFIED[id]) setRow(id, 'fetching…', '');
+  return window.FLIP2_NATIVE.downloadFile(id).then(function (r) {
+    return acceptBytes(id, r.bytes);
+  }).then(function (res) {
+    setRow(id, res.ok ? 'verified' : 'FAILED', res.ok ? 'ok' : 'bad');
+    if (!res.ok) badLine(res.msg);
+    refreshDownloadGate();
+    return res;
+  }).catch(function (e) {
+    setRow(id, 'FAILED', 'bad');
+    badLine(id + ': ' + cleanErr(e));
+    refreshDownloadGate();
+    return { ok: false, msg: cleanErr(e) };
+  }).then(function (res) {
+    if (btn) btn.disabled = false;
+    return res;
+  });
+}
+
+// Two folders can hold the same file name and only one be the right build, so
+// every candidate is hashed in turn; a stale copy must not hide a good one.
+// Report failure only when none of the copies matches the pin.
+function tryCandidates(id, list) {
+  var i = 0;
+  function next() {
+    if (VERIFIED[id]) return Promise.resolve({ ok: true });
+    if (i >= list.length) {
+      return Promise.resolve({
+        ok: false,
+        msg: id + ': ' + list.length + ' local cop' + (list.length === 1 ? 'y' : 'ies') +
+          ' found, none matched the pinned SHA-256',
+      });
+    }
+    var n = i++;
+    return window.FLIP2_NATIVE.readLocal(id, n).then(function (r) {
+      return acceptBytes(id, r.bytes);
+    }).catch(function (e) {
+      return { ok: false, msg: cleanErr(e) };
+    }).then(function (res) {
+      return res.ok ? res : next();
+    });
+  }
+  return next();
+}
+
+function useLocalFiles() {
+  var btn = $('dl-local-btn');
+  btn.disabled = true;
+  setStatus('dl-msg', 'looking for copies already on this PC…', 'wait');
+  return window.FLIP2_NATIVE.localFiles().then(function (found) {
+    var ids = CATALOG.list.map(function (f) { return f.id; })
+      .filter(function (id) { return found[id] && found[id].length && !VERIFIED[id]; });
+    if (!ids.length) {
+      setStatus('dl-msg', 'No new copies found on this PC. Use Download all here, or choose files you downloaded.', 'wait');
+      return;
+    }
+    setStatus('dl-msg', 'checking ' + ids.length + ' file(s) already here…', 'wait');
+    var seq = Promise.resolve();
+    ids.forEach(function (id) {
+      seq = seq.then(function () {
+        return tryCandidates(id, found[id]).then(function (res) {
+          setRow(id, res.ok ? 'verified' : 'FAILED', res.ok ? 'ok' : 'bad');
+          if (!res.ok) badLine(res.msg);
+        });
+      });
+    });
+    return seq.then(refreshDownloadGate);
+  }).catch(function (e) {
+    setStatus('dl-msg', 'could not read the local copies: ' + cleanErr(e), 'bad');
+  }).then(function () { btn.disabled = false; });
+}
+
+function downloadAll() {
+  var btn = $('dl-fetch-btn');
+  btn.disabled = true;
+  var todo = CATALOG.list.filter(function (f) { return !VERIFIED[f.id]; })
+    .map(function (f) { return f.id; });
+  if (!todo.length) {
+    refreshDownloadGate();
+    btn.disabled = false;
+    return;
+  }
+  var done = 0;
+  var seq = Promise.resolve();
+  todo.forEach(function (id) {
+    seq = seq.then(function () {
+      setStatus('dl-msg', 'downloading ' + (done + 1) + ' of ' + todo.length + '…', 'wait');
+      return fetchOne(id, null);
+    }).then(function () { done += 1; });
+  });
+  seq.then(function () {
+    var missing = refreshDownloadGate();
+    if (missing.length) {
+      setStatus('dl-msg', missing.length + ' could not be downloaded. A server may be down — try again, or choose files you got another way.', 'bad');
+    }
+  }).then(function () { btn.disabled = false; });
 }
 
 function checkDownloads(picked) {
@@ -152,27 +311,10 @@ function checkDownloads(picked) {
   });
   return seq.then(function () {
     results.forEach(function (r) {
-      var td = r.id ? document.querySelector('[data-status="' + r.id + '"]') : null;
-      if (td) {
-        td.textContent = r.ok ? 'verified' : 'FAILED';
-        td.className = r.ok ? 'ok' : 'bad';
-      }
-      if (!r.ok) {
-        var div = document.createElement('div');
-        div.textContent = 'BAD: ' + r.msg;
-        div.className = 'bad';
-        $('dl-results').appendChild(div);
-      }
+      if (r.id) setRow(r.id, r.ok ? 'verified' : 'FAILED', r.ok ? 'ok' : 'bad');
+      if (!r.ok) badLine(r.msg);
     });
-    var missing = CATALOG.list.filter(function (f) { return !VERIFIED[f.id]; });
-    if (missing.length === 0) {
-      setStatus('dl-msg', 'All ' + CATALOG.list.length + ' files verified.', 'ok');
-      $('dl-next').disabled = false;
-    } else {
-      setStatus('dl-msg', missing.length + ' file(s) still missing or failed: ' +
-        missing.map(function (f) { return f.file; }).join(', '), 'wait');
-      $('dl-next').disabled = true;
-    }
+    refreshDownloadGate();
   }).catch(function (e) {
     setStatus('dl-msg', 'could not read a picked file: ' + e.message, 'bad');
   });
@@ -180,6 +322,22 @@ function checkDownloads(picked) {
 
 function initDownloads() {
   buildDownloadTable();
+  // Companion only: these bypass the browser download detour entirely.
+  if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.localFiles) {
+    $('dl-local-btn').classList.remove('hidden');
+    $('dl-fetch-btn').classList.remove('hidden');
+    $('dl-local-btn').addEventListener('click', useLocalFiles);
+    $('dl-fetch-btn').addEventListener('click', downloadAll);
+    // Probe quietly so the user sees what is already here instead of
+    // wondering whether the button will find anything.
+    window.FLIP2_NATIVE.localFiles().then(function (found) {
+      var n = CATALOG.list.filter(function (f) { return found[f.id]; }).length;
+      if (n > 0 && !Object.keys(VERIFIED).length) {
+        setStatus('dl-msg', n + ' of ' + CATALOG.list.length +
+          ' files are already on this PC. Press "Use files already on this PC".', 'wait');
+      }
+    }).catch(function () {});
+  }
   $('dl-pick-btn').addEventListener('click', function () { $('dl-pick').click(); });
   $('dl-pick').addEventListener('change', function () {
     var files = Array.prototype.slice.call(this.files);
@@ -228,6 +386,18 @@ function initUdev() {
 
 // --- 4 · connect ----------------------------------------------------------------
 
+// The phone's USB interface is exclusive: when another adb server already holds
+// it, claiming fails with a bare DOMException that names a browser API and says
+// nothing a person can act on. Say which process to stop instead.
+function usbError(e) {
+  var m = (e && e.message) || String(e);
+  if (/claimInterface/i.test(m) || /Unable to claim/i.test(m)) {
+    return 'Another program is using the phone: the adb server on this computer. ' +
+      'Run "adb kill-server" in a terminal, replug the phone, and press Pick phone again.';
+  }
+  return m;
+}
+
 function initUsb() {
   $('usb-btn').addEventListener('click', function () {
     if (!navigator.usb) {
@@ -245,7 +415,7 @@ function initUsb() {
       setStatus('usb-msg', 'Connected over ADB.', 'ok');
       $('usb-next').disabled = false;
     }).catch(function (e) {
-      setStatus('usb-msg', e.message, 'bad');
+      setStatus('usb-msg', usbError(e), 'bad');
     });
   });
   $('usb-next').addEventListener('click', function () { showStep('install'); });
@@ -313,32 +483,307 @@ function initVerify() {
 
 // --- rooting slice (erase-gated, not on the step bar) ----------------------------------
 
+// Plain-language view of the mode the phone is in, from the companion's
+// read-only USB scan. The same 120 s window BOOTROM.boot waits for.
+var WATCH_MS = 120000;
+
+// A transfer that stopped halfway leaves the bootloader waiting for a payload
+// that will never arrive. It still shows up on USB exactly like a healthy one,
+// so the only way to tell is that it stops answering. Nothing was written, and
+// only a power cycle clears it.
+var silentWake = false;
+
+var PHONE_VIEW = {
+  android:  { box: 'live',   cls: 'ok',   label: 'Android is running',
+              hint: 'Nothing to do yet. Take the battery out and put it back in.' },
+  absent:   { box: 'live',   cls: 'wait', label: 'phone is off USB',
+              hint: 'Expected for a moment right after the battery comes out. This is the good sign.' },
+  preloader:{ box: 'caught', cls: 'ok',   label: 'startup mode caught',
+              hint: 'Keep the cable in — the wizard is taking over now.' },
+  fastboot: { box: 'caught', cls: 'ok',   label: 'flashing mode',
+              hint: 'The hard part is done. Continue below.' },
+  bootrom:  { box: 'bad',    cls: 'bad',  label: 'wrong startup mode',
+              hint: 'Do not continue. Unplug the cable, put the battery back, and start over.' },
+  stuck:    { box: 'bad',    cls: 'bad',  label: 'not responding normally',
+              hint: 'Hold the power button for about 10 seconds until it restarts, then let Android come up.' },
+  conflict: { box: 'bad',    cls: 'bad',  label: 'two phone modes at once',
+              hint: 'Unplug any other phone, then wait for this panel to settle.' },
+  unknown:  { box: 'bad',    cls: 'bad',  label: 'cannot read USB',
+              hint: 'The companion could not list USB devices.' }
+};
+
+// What to tell someone when the phone is not in a state the wizard can use.
+// Each entry is a numbered list of physical actions; the panel replaces itself
+// the moment the phone answers, so nobody has to know what to look for.
+var WAKE = {
+  stuck: {
+    title: 'Wake the phone first',
+    hint: 'The phone is in a mode nothing can use. This takes about a minute.',
+    steps: [
+      'Hold the phone\u2019s power button down for about 10 seconds, until the screen goes dark.',
+      'Let go, then wait for the home screen to come back.',
+      'Leave the USB cable plugged in. This panel changes on its own when the phone is ready.'
+    ]
+  },
+  bootrom: {
+    title: 'Phone is in the wrong mode',
+    hint: 'Nothing was written to the phone. Get it back to Android before continuing.',
+    steps: [
+      'Unplug the USB cable.',
+      'Hold the power button for about 10 seconds, until the screen goes dark.',
+      'Plug the cable back in and wait for the home screen. This panel changes on its own.'
+    ]
+  },
+  silent: {
+    title: 'The phone stopped answering',
+    hint: 'Nothing was written to the phone. A power cycle gets it back — then start the catch step again.',
+    steps: [
+      'Unplug the USB cable.',
+      'Take the battery out, wait a moment, and put it back in.',
+      'Leave the cable out until the phone has finished starting normally.',
+      'Plug the cable back in and wait for this panel to say the phone is running Android.',
+      'Then press Start watching again and repeat the catch step.'
+    ]
+  },
+  conflict: {
+    title: 'Two phones on USB',
+    hint: 'The wizard cannot tell which device to use.',
+    steps: [
+      'Unplug every other phone or USB device.',
+      'Leave this Flip 2\u2019s cable plugged in. This panel changes on its own.'
+    ]
+  },
+  unknown: {
+    title: 'Cannot see the phone',
+    hint: 'The companion could not read the USB device list.',
+    steps: [
+      'Unplug the phone and plug it back in.',
+      'If this does not clear, restart the Companion app.'
+    ]
+  }
+};
+
+var watching = false;
+// Which wake card is on screen. The state poller runs once a second, and
+// rebuilding the list every tick would fight the user's scroll and flash the
+// panel; only rewrite it when the card actually changes.
+var wakeShown = null;
+
+// Only one stage of the rooting step is ever on screen. Showing catch, flash
+// and finish together was the reason it was hard to know what to read.
+var stageName = null;
+
+// One place decides which part of the rooting step is on screen: the current
+// stage, unless a wake card is up. Splitting this out means a wake card can
+// take over from any stage and hand control straight back when it clears,
+// instead of leaving two panels side by side to compete for attention.
+function renderStage() {
+  var woken = !$('wake-box').classList.contains('hidden');
+  var name = stageName || 'catch';
+  $('stage-catch').classList.toggle('hidden', woken || name !== 'catch');
+  $('stage-flash').classList.toggle('hidden', woken || name !== 'flash');
+  $('after-box').classList.toggle('hidden', woken || name !== 'done');
+  // Reloading the page clears VERIFIED, so someone can arrive at the install
+  // stage with nothing checked and only find out when the button refuses. Say
+  // it up front instead, pointing back at the file step that sets it.
+  $('fb-need').classList.toggle('hidden', name !== 'flash' || !!VERIFIED['neutron']);
+}
+
+function setStage(name) {
+  stageName = name;
+  renderStage();
+}
+
+function showWake(mode) {
+  var w = WAKE[mode];
+  $('wake-box').classList.remove('hidden');
+  renderStage();
+  // Listening cannot succeed from here, so do not offer the button.
+  $('boot-btn').disabled = true;
+  if (wakeShown === mode) return;
+  wakeShown = mode;
+  $('wake-title').textContent = w.title;
+  $('wake-title').className = 'status bad';
+  $('wake-hint').textContent = w.hint;
+  var ol = $('wake-steps');
+  ol.textContent = '';
+  w.steps.forEach(function (text) {
+    var li = document.createElement('li');
+    li.textContent = text;
+    ol.appendChild(li);
+  });
+}
+
+function hideWake() {
+  $('wake-box').classList.add('hidden');
+  wakeShown = null;
+  renderStage();
+  $('boot-btn').disabled = watching;
+}
+
+// The phone passes through Android, off-USB, preloader and fastboot in about a
+// second during the handover, and each of those used to repaint the status line
+// on its own tick. Hold a mode for a moment before publishing it so the label
+// on screen is still true when someone reads it.
+var MODE_SETTLE_MS = 900;
+var shownMode = null, pendingMode = null, pendingSince = 0;
+
+function showPhoneState(state) {
+  var mode = (state && state.mode) || 'unknown';
+  var now = Date.now();
+  if (mode !== pendingMode) { pendingMode = mode; pendingSince = now; }
+  if (mode !== shownMode && now - pendingSince < MODE_SETTLE_MS) return;
+  if (mode === shownMode) return;
+  shownMode = mode;
+
+  // Leaving fastboot means the power cycle happened, so the next fastboot is a
+  // fresh one. Clear the flag rather than keeping it for the rest of the session.
+  if (mode !== 'fastboot') silentWake = false;
+
+  // Once the phone has been caught, stage 2 has its own status line and this
+  // panel is off screen. Do not narrate USB modes for a stage nobody can see.
+  if (stageName === 'flash' || stageName === 'done') return;
+
+  var view = PHONE_VIEW[mode] || PHONE_VIEW.unknown;
+  var box = $('now-box');
+  box.className = 'now' + (view.box ? ' ' + view.box : '');
+  setStatus('phone-now', view.label, view.cls);
+  $('phone-hint').textContent = view.hint;
+  // A wedged bootloader is still on USB looking exactly like a healthy one; the
+  // only difference is that it stopped answering. Once a command has timed out,
+  // show the power-cycle card instead of telling anyone it is ready to flash.
+  if (silentWake && mode === 'fastboot') {
+    showWake('silent');
+    return;
+  }
+  if (WAKE[mode]) showWake(mode); else hideWake();
+  if (mode === 'fastboot') showFastbootSection();
+}
+
+// The preloader repeats READY while it hands over, so the confirm read can
+// finish on a reply the page rejects even though the phone has already jumped
+// to flashing mode. USB is the authority: if the phone is in fastboot, open
+// the next stage and retire any stale listening error instead of stranding the
+// user on it.
+function showFastbootSection() {
+  if (stageName === 'flash' || stageName === 'done') return;
+  watching = false;
+  stopWatchClock(true);
+  setStage('flash');
+  setStatus('boot-msg', 'The phone is in flashing mode.', 'ok');
+  // Whatever went wrong before the power cycle no longer describes this phone.
+  setStatus('fb-msg', '', '');
+  $('boot-btn').disabled = true;
+}
+
+function pollPhoneState() {
+  if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.phoneState) {
+    setStatus('phone-now', 'not visible in a plain browser', 'wait');
+    $('phone-hint').textContent = 'Open this page in the Flip 2 Companion app to see the live phone state.';
+    hideWake();
+    return;
+  }
+  window.FLIP2_NATIVE.phoneState().then(showPhoneState).catch(function () {
+    setStatus('phone-now', 'cannot read USB', 'bad');
+    hideWake();
+  });
+}
+
+var watchTimer = null;
+var phonePoller = null;
+
+function startWatchClock() {
+  var started = Date.now();
+  stopWatchClock();
+  var bar = $('boot-bar'), count = $('boot-count');
+  bar.classList.remove('run');
+  bar.style.width = '0%';
+  count.classList.remove('hidden');
+  watchTimer = setInterval(function () {
+    var left = Math.max(WATCH_MS - (Date.now() - started), 0);
+    bar.style.width = Math.round((WATCH_MS - left) / WATCH_MS * 100) + '%';
+    count.textContent = 'Listening for the phone — ' + Math.ceil(left / 1000) +
+      ' s left. ' + (left > 0 ? 'Take the battery out and put it back in now.' : '');
+  }, 200);
+}
+
+function stopWatchClock(caught) {
+  if (watchTimer) { clearInterval(watchTimer); watchTimer = null; }
+  var bar = $('boot-bar'), count = $('boot-count');
+  if (caught) {
+    bar.classList.add('run');
+    bar.style.width = '100%';
+    count.textContent = 'Caught it.';
+  } else {
+    count.textContent = '';
+    count.classList.add('hidden');
+    bar.style.width = '0%';
+  }
+}
+
 function initRoot() {
   $('root-link').addEventListener('click', function (ev) {
     ev.preventDefault();
     showStep('root');
+    pollPhoneState();
   });
   $('erase-input').addEventListener('input', function () {
     $('root-open').disabled = this.value.trim() !== 'erase';
   });
   $('root-open').addEventListener('click', function () {
     $('root-body').classList.remove('hidden');
+    $('wake-box').classList.add('hidden');
+    $('boot-btn').disabled = false;
+    // A fresh run starts at stage 1 with clean status lines. Anything left over
+    // from an earlier attempt — a red failure, a "Caught it" from last time —
+    // describes a phone that is no longer where it was.
+    stageName = null;
+    wakeShown = null;
+    shownMode = null;
+    pendingMode = null;
+    silentWake = false;
+    watching = false;
+    setStatus('boot-msg', '', '');
+    setStatus('fb-msg', '', '');
+    setStatus('phone-now', 'checking…', '');
+    $('phone-hint').textContent = '';
+    $('boot-count').textContent = '';
+    $('boot-count').classList.add('hidden');
+    $('boot-bar').classList.remove('run');
+    $('boot-bar').style.width = '0%';
+    $('boot-log').textContent = '';
+    $('boot-log').classList.add('hidden');
+    $('fb-log').textContent = '';
+    $('fb-log').classList.add('hidden');
+    setStage('catch');
+    pollPhoneState();
+    if (!phonePoller) phonePoller = setInterval(pollPhoneState, 1000);
   });
   $('boot-btn').addEventListener('click', function () {
     if (!navigator.serial) {
-      setStatus('boot-msg', 'This browser has no Web Serial. Use Chrome on Linux.', 'bad');
+      setStatus('boot-msg', 'This browser cannot talk to USB serial. Use the Companion app.', 'bad');
       return;
     }
+    watching = true;
     this.disabled = true;
-    setStatus('boot-msg', 'watching for the preloader…', 'wait');
+    setStatus('boot-msg', 'listening…', 'wait');
+    startWatchClock();
     BOOTROM.log = makeLog('boot-log');
     BOOTROM.boot('FASTBOOT').then(function () {
-      setStatus('boot-msg', 'Handshake complete — phone is in fastboot mode.', 'ok');
-      $('fb-h').classList.remove('hidden');
-      $('fb-p').classList.remove('hidden');
-      $('fb-controls').classList.remove('hidden');
+      watching = false;
+      stopWatchClock(true);
+      setStatus('boot-msg', 'Caught the phone. It is in flashing mode.', 'ok');
+      setStage('flash');
     }).catch(function (e) {
-      setStatus('boot-msg', e.message, 'bad');
+      watching = false;
+      stopWatchClock(false);
+      $('boot-log').classList.remove('hidden');
+      $('boot-log').textContent += e.message + '\n';
+      if (e.message.indexOf('HARD STOP') === 0) {
+        setStatus('boot-msg', 'Stopped: the phone answered unexpectedly. Nothing was written. Do not retry.', 'bad');
+        return;
+      }
+      setStatus('boot-msg', 'Did not catch it. Try again — take the battery out and put it back in.', 'bad');
       $('boot-btn').disabled = false;
     });
   });
@@ -360,21 +805,44 @@ function initFastboot() {
       setStatus('fb-msg', 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
       return;
     }
-    setStatus('fb-msg', 'picking…', 'wait');
+    setStatus('fb-msg', 'connecting…', 'wait');
     FASTBOOT.pick().then(function () {
       return FASTBOOT.connect();
     }).then(function () {
-      setStatus('fb-msg', 'Fastboot connected.', 'ok');
-      stage('fb-unlock');
+      // Read the phone's identity and lock state before offering any write.
+      // The serial is shown, never assumed, so a second phone on the bus cannot
+      // be flashed by mistake.
+      return FASTBOOT.getvar('serialno').then(function (serial) {
+        var s = String(serial || '').trim();
+        log('serialno: ' + (s || '(none reported)'));
+        return FASTBOOT.getvar('unlocked').then(function (u) {
+          var unlocked = /yes/i.test(String(u || ''));
+          log('unlocked: ' + (unlocked ? 'yes' : 'no'));
+          if (unlocked) {
+            setStatus('fb-msg', 'Connected. This phone is already unlocked, so it does not need to be erased again — go straight to installing the boot image.', 'ok');
+            stage('fb-flash');
+            return;
+          }
+          setStatus('fb-msg', 'Connected. Unlock next: the phone will ask you to confirm on its keypad.', 'ok');
+          stage('fb-unlock');
+        });
+      });
     }).catch(function (e) {
       setStatus('fb-msg', e.message, 'bad');
       stage('fb-pick');
+      // A timed-out command means the bootloader is still there but no longer
+      // reading. Only a power cycle clears that, so show the card that says so
+      // instead of leaving a bare error on the line.
+      if (e && e.stopped) {
+        silentWake = true;
+        showWake('silent');
+      }
     });
   });
   $('fb-unlock').addEventListener('click', function () {
     setStatus('fb-msg', 'Confirm on the phone keypad…', 'wait');
     FASTBOOT.unlock(function (line) { log('INFO: ' + line); }).then(function () {
-      setStatus('fb-msg', 'Unlocked. The phone was wiped.', 'ok');
+      setStatus('fb-msg', 'Unlocked. The phone has been erased.', 'ok');
       stage('fb-flash');
     }).catch(function (e) {
       setStatus('fb-msg', e.message, 'bad');
@@ -383,28 +851,43 @@ function initFastboot() {
   $('fb-flash').addEventListener('click', function () {
     var neutron = VERIFIED['neutron'];
     if (!neutron) {
-      setStatus('fb-msg', 'neutron.img was not verified in the files step — go back and pick it first.', 'bad');
+      setStatus('fb-msg', 'The boot image was not checked in the files step — go back and pick it first.', 'bad');
       return;
     }
-    setStatus('fb-msg', 'flashing boot…', 'wait');
+    setStatus('fb-msg', 'installing the boot image…', 'wait');
     FASTBOOT.flashBoot(new Uint8Array(neutron), function (line) { log('INFO: ' + line); },
       function (sent, total) { setStatus('fb-msg', 'sending ' + Math.round(sent / 1024) + ' / ' + Math.round(total / 1024) + ' KiB…', 'wait'); })
       .then(function () {
-        setStatus('fb-msg', 'boot flashed with neutron.img.', 'ok');
+        setStatus('fb-msg', 'Boot image installed.', 'ok');
         stage('fb-reboot');
       }).catch(function (e) {
         setStatus('fb-msg', e.message, 'bad');
       });
   });
   $('fb-reboot').addEventListener('click', function () {
-    setStatus('fb-msg', 'rebooting…', 'wait');
+    setStatus('fb-msg', 'restarting…', 'wait');
     FASTBOOT.reboot().then(function () {
-      setStatus('fb-msg', 'Rebooted. After the wipe: dial *#*#217703#*#*, let Magisk finish, reboot again, re-enable USB debugging, then start the wizard from Connect.', 'ok');
+      setStatus('fb-msg', 'Restarted.', 'ok');
+      // The phone is wiped and will not answer adb for a few minutes, so the
+      // remaining work happens on the phone itself. Show it instead of prose.
+      setStage('done');
     }).catch(function (e) {
       setStatus('fb-msg', e.message, 'bad');
     });
   });
   stage('fb-pick');
+}
+
+// --- back navigation --------------------------------------------------------
+// Every step's Back button carries data-back="<previous step>". One delegated
+// handler means a step cannot be added without a way out of it.
+function initBackNav() {
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest ? ev.target.closest('[data-back]') : null;
+    if (!btn) return;
+    ev.preventDefault();
+    showStep(btn.getAttribute('data-back'));
+  });
 }
 
 // --- boot -------------------------------------------------------------------------------
@@ -413,6 +896,7 @@ function init() {
   loadCatalog().then(function () {
     buildCreditTable();
     initGate();
+    initBackNav();
     initDownloads();
     initUdev();
     initUsb();
