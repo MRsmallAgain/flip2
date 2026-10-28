@@ -5,6 +5,7 @@
 
 const { app, BrowserWindow, ipcMain, protocol, session, shell, net } = require('electron');
 const { execFile } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const fsp = require('fs').promises;
 const os = require('os');
@@ -291,6 +292,107 @@ async function downloadFile(id) {
   return { id: id, bytes: buf, cached: false };
 }
 
+// --- return to factory: the jobs that need the host adb server --------------
+// The page drives fastboot over WebUSB, but it has no ADB SYNC RECV, so it can
+// neither pull a 24 MB boot image off the phone nor read build properties
+// without a handshake the host adb server already owns. Both happen here.
+
+function adbRun(args, timeoutMs) {
+  return new Promise(function (resolve, reject) {
+    execFile('adb', args, { timeout: timeoutMs || 120000, maxBuffer: 4 * 1024 * 1024 },
+      function (err, stdout, stderr) {
+        if (err) {
+          const why = String(stderr || err.message || '').trim();
+          return reject(new Error(why || 'adb failed'));
+        }
+        resolve(String(stdout || ''));
+      });
+  });
+}
+
+// One phone, ready, or this fails. The serial is read, never assumed, so a
+// second phone on the bus cannot be backed up or checked by mistake.
+async function adbSerial() {
+  const out = await adbRun(['devices', '-l']);
+  const ready = out.split('\n').map(function (s) { return s.trim(); })
+    .filter(function (line) { return /\sdevice(\s|$)/.test(line); });
+  if (ready.length !== 1) {
+    throw new Error(ready.length
+      ? 'more than one phone is connected over adb — unplug the others'
+      : 'no phone is ready over adb — plug it in and accept the debugging prompt');
+  }
+  return ready[0].split(/\s+/)[0];
+}
+
+const IDENTITY_PROPS = [
+  'ro.product.model', 'ro.product.device', 'ro.build.fingerprint',
+  'ro.build.description', 'ro.build.version.release',
+  'ro.build.version.security_patch', 'ro.boot.verifiedbootstate',
+  'ro.boot.flash.locked', 'ro.boot.serialno',
+];
+
+async function phoneIdentity() {
+  const serial = await adbSerial();
+  const props = {};
+  for (const name of IDENTITY_PROPS) {
+    props[name] = (await adbRun(['-s', serial, 'shell', 'getprop', name])).trim();
+  }
+  props.serial = serial;
+  return props;
+}
+
+// Read the boot partition into sdcard, pull it to this PC, hash it here. Read
+// only: no partition is written, and the copy on sdcard is removed afterwards.
+async function backupBoot() {
+  const serial = await adbSerial();
+  const dir = path.join(downloadDir(), 'backups');
+  await fsp.mkdir(dir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const dest = path.join(dir, 'boot-' + stamp + '.img');
+  const remote = '/sdcard/flip2-boot-backup.img';
+  await adbRun(['-s', serial, 'shell',
+    'su -c "dd if=/dev/block/by-name/boot of=' + remote + '"'], 180000);
+  await adbRun(['-s', serial, 'pull', remote, dest], 300000);
+  await adbRun(['-s', serial, 'shell', 'rm -f ' + remote]).catch(function () {});
+  const buf = await fsp.readFile(dest);
+  return {
+    serial: serial,
+    path: dest,
+    size: buf.length,
+    sha256: crypto.createHash('sha256').update(buf).digest('hex'),
+    magic: buf.slice(0, 8).toString('latin1'),
+  };
+}
+
+// What the phone says about itself now, framed against the build the stock
+// image came from. The page decides what to show; this only reports facts.
+async function factoryState(expectedFingerprint) {
+  const props = await phoneIdentity();
+  let rooted = false;
+  try {
+    rooted = /uid=0/.test(await adbRun(['-s', props.serial, 'shell', 'su -c id'], 30000));
+  } catch (e) { rooted = false; }
+  let packages = -1;
+  try {
+    const list = await adbRun(['-s', props.serial, 'shell', 'pm list packages'], 60000);
+    packages = list.split('\n').filter(function (l) { return /^package:/.test(l.trim()); }).length;
+  } catch (e) { packages = -1; }
+  return {
+    serial: props.serial,
+    model: props['ro.product.model'],
+    fingerprint: props['ro.build.fingerprint'],
+    description: props['ro.build.description'],
+    patch: props['ro.build.version.security_patch'],
+    release: props['ro.build.version.release'],
+    verifiedBootState: props['ro.boot.verifiedbootstate'],
+    flashLocked: props['ro.boot.flash.locked'],
+    rooted: rooted,
+    packages: packages,
+    expected: String(expectedFingerprint || ''),
+    buildMatches: !!expectedFingerprint && props['ro.build.fingerprint'] === expectedFingerprint,
+  };
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1020,
@@ -352,6 +454,10 @@ app.whenReady().then(function () {
   ipcMain.handle('local-files', function () { return localFiles(); });
   ipcMain.handle('read-local', function (_e, id, index) { return readLocal(id, index); });
   ipcMain.handle('download-file', function (_e, id) { return downloadFile(id); });
+  // Return-to-factory: the host adb server does the work the page cannot.
+  ipcMain.handle('factory-identity', function () { return phoneIdentity(); });
+  ipcMain.handle('factory-backup-boot', function () { return backupBoot(); });
+  ipcMain.handle('factory-state', function (_e, fp) { return factoryState(fp); });
   createWindow();
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

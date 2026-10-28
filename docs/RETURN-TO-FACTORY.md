@@ -5,9 +5,10 @@ and wipes userdata, with the same "nothing happens until you type the word"
 gate the other destructive slices use. Written 2026-10-28 for the run on
 `ONTKKB9L7PEUX4Z5`.
 
-**Status: design only.** No code for this slice exists yet, and nothing has
-been flashed, wiped or relocked. The plan is to build it, then prove it on
-this phone as the guinea pig.
+**Status: built, not yet run.** The slice exists in `wizard/pages/` and the
+companion, and it has never been used to write a partition. Nothing has been
+flashed, wiped or relocked. The next step is to prove it on this phone as the
+guinea pig, then record the run in `docs/FACTORY-TEST.md`.
 
 ## Why it is not just another catalog entry
 
@@ -66,46 +67,56 @@ Enforced in code, not in prose:
   value is printed into the run log so the record says what was trusted.
 - **Backup already taken:** the current boot must have been backed up in this
   session, with its sha256 shown. No backup, no write.
-- **Build match:** the phone's `ro.build.display.id` (and fingerprint) matches
-  the value recorded from the donor phone. Mismatch stops the flow.
+- **Build match:** the phone's `ro.build.fingerprint` equals the fingerprint
+  the user pastes in from the donor phone. Mismatch refuses the image before
+  fastboot is even opened.
+  
+  **`ro.build.display.id` is not usable on this hardware — it is empty.** The
+  gate keys on `ro.build.fingerprint`, which is populated
+  (`TCL/4058G/Gflip6_NA_OM:11/RP1A.200720.011/UPEN:user/release-keys`) and
+  identifies the build exactly. `ro.build.description` and
+  `ro.build.version.security_patch` are recorded with it for the run record,
+  but the automated comparison is the fingerprint.
 
 ## Stages
 
-1. **Back up the current boot.** Escape hatch back to the rooted phone.
-2. **Verify the stock image.** Magic, size, user-pasted sha256, build match.
-3. **Flash it to `boot`.** `flashBoot()` only, guarded by `STOCK_VERIFIED`.
-4. **Reboot** into the now-stock boot.
-5. **Wipe userdata**, guided on the keypad: stock recovery
-   `wipe data/factory reset`, with the live phone-status panel and countdown,
-   and Settings → System → Reset options as the fallback if the recovery
-   keys misbehave.
-6. **Confirm factory state.** Build id equals the donor's, `su` absent, package
-   list is the stock set, `ro.boot.verifiedbootstate` is still `orange` because
-   the bootloader is still unlocked — the page states that plainly rather than
-   claiming the phone is factory-fresh.
+Each stage is its own screen, enforced by `facStage()`, which is deliberately
+separate from the rooting step's `setStage()` so a half-finished run in one
+slice cannot leak into the other.
 
-## Known gap: backing up the boot image from the page
+1. **Back up the current boot.** Escape hatch back to the rooted phone. Runs in
+   the companion (`factory-backup-boot`), because the page has no ADB `RECV`.
+   Shows serial, model, build, file path, size and sha256, and requires the user
+   to confirm the serial is the phone they mean.
+2. **Verify the stock image.** Magic, size against the saved backup's size (the
+   real boot partition), user-pasted sha256, and donor fingerprint match.
+3. **Flash it to `boot`.** `flashBoot()` only, guarded by `STOCK_VERIFIED`.
+   Before writing, `getvar serialno` must equal the serial recorded in the
+   backup — a second phone on the bus cannot be written.
+4. **Reboot** into the now-stock boot.
+5. **Wipe userdata on the phone.** Settings → System → Reset options, or
+   recovery (`Volume up + Power`) if it will not start. The wizard refuses to
+   do this over the cable. Then USB debugging is turned back on.
+6. **Confirm factory state.** The companion reads the phone back
+   (`factory-state`): fingerprint must match the donor's, `su` must not answer,
+   the package count is reported, and `verifiedbootstate` is still `orange`
+   because the bootloader stays unlocked. The page states that plainly rather
+   than claiming the phone is factory-fresh.
+
+## The boot backup, and the gap it used to leave
 
 The page's ADB client (`wizard/pages/js/adb.js`) has `shell()` and
-`pushFile()`. It has **no SYNC `RECV`**, so the page cannot pull a file off the
-phone today. `dd if=/dev/block/by-name/boot of=/sdcard/...` over `shell()` can
-create the image on the phone, but nothing in the page can read it back.
+`pushFile()` but **no SYNC `RECV`**, so the page cannot pull a file off the
+phone. That was the one real gap in this design.
 
-Three ways to close it, to be chosen when the slice is built:
+It is closed companion-side: `backupBoot()` in `companion/main.js` runs
+`su -c dd if=/dev/block/by-name/boot of=/sdcard/...`, `adb pull`s the result to
+`~/Downloads/flip2-wizard/backups/`, hashes it on the host with `crypto`, and
+deletes the sdcard copy. The page receives `{serial, path, size, sha256,
+magic}` and refuses to continue unless `magic === 'ANDROID!'`.
 
-- **Companion-side pull** (preferred): add an `ipcMain` handler that runs
-  `adb pull` on the host and returns the sha256. The companion already shells
-  out for udev, and the host `adb` server is the thing holding the USB
-  interface anyway. The page keeps its own hash check on the returned bytes.
-- **Base64 over shell** with `toybox base64` in one stream, verified by size and
-  hash. No new ADB plumbing, but it is slow for a 24 MB image and the output
-  passes through a text stream that truncates badly if anything goes wrong.
-- **Host-only backup**: the operator runs `adb pull` themselves and pastes the
-  sha256 into the page. Honest, but it moves the safety-critical step outside
-  the gate.
-
-Whichever wins, the rule stands: the flow will not enable the flash until the
-page holds a sha256 for a backup it has actually read.
+The rule stands: the flow does not enable the flash until the page holds a
+sha256 for a backup that was actually read.
 
 ## Donor phone: getting the stock image
 
@@ -118,14 +129,17 @@ Survey the donor first — reachable over adb? rooted? what build?
 
 Then compare builds before treating the image as usable:
 
-| property | must match |
-|----------|-----------|
-| `ro.product.model` | `4058G` |
-| `ro.build.display.id` | exact |
-| `ro.build.fingerprint` | exact |
-| `ro.build.version.security_patch` | exact |
+| property | must match | checked by |
+|----------|-----------|------------|
+| `ro.product.model` | `4058G` | run record |
+| `ro.build.fingerprint` | exact | **the gate** |
+| `ro.build.description` | exact | run record |
+| `ro.build.version.security_patch` | exact | run record |
+| `ro.build.display.id` | *not used — empty on this build* | — |
 
-A boot image from a different build is archived but never flashed.
+A boot image from a different build is archived but never flashed. The
+fingerprint is the one the wizard compares automatically, because it is the
+only property on this phone that names the build unambiguously.
 
 ## What this slice does not do
 

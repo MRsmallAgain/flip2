@@ -91,14 +91,18 @@ phase runs unless the device's declared size matches the image exactly.
 Do not run the rooting slice against your current Flip 2 if it is already
 rooted — unlocking it would erase it.
 
-## Return to factory (designed, not built)
+## Return to factory (built, not yet run)
 
-A third slice is designed for the opposite direction: flash a stock `boot.img`
-from a phone of the same build, wipe userdata, and leave the phone unrooted
-with the bootloader still unlocked. It is gated by typing `factory`, and it is
-**design only** — no code exists yet. See
-[RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) for the gates, the stages, and the
-open question about pulling the boot backup off the phone.
+A third slice does the opposite direction: save the phone's current boot image
+to this PC, flash a stock `boot.img` from a phone of the same build, then wipe
+userdata on the phone and leave it unrooted with the bootloader still unlocked.
+It is gated by typing `factory`, linked from the footer, and it shows one stage
+at a time like the rooting slice.
+
+It has **never written a partition**. It is proven on a phone only when the run
+is recorded in `FACTORY-TEST.md`. See
+[RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) for the gates, the stages, and why
+the boot backup runs on the host rather than in the page.
 
 ## What is not committed here
 
