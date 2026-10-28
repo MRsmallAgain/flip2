@@ -16,4 +16,6 @@ contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
   factoryIdentity: function () { return ipcRenderer.invoke('factory-identity'); },
   factoryBackupBoot: function () { return ipcRenderer.invoke('factory-backup-boot'); },
   factoryState: function (fingerprint) { return ipcRenderer.invoke('factory-state', fingerprint); },
+  factoryListBackups: function () { return ipcRenderer.invoke('factory-list-backups'); },
+  factoryReadBackup: function (dest) { return ipcRenderer.invoke('factory-read-backup', dest); },
 });

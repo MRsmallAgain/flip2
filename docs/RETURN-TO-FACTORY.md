@@ -1,14 +1,49 @@
 # Return to factory (gated, wizard step)
 
-Design for a third wizard slice that puts a rooted Flip 2 back to a stock boot
-and wipes userdata, with the same "nothing happens until you type the word"
-gate the other destructive slices use. Written 2026-10-28 for the run on
-`ONTKKB9L7PEUX4Z5`.
+Design for a third wizard slice that puts a Flip 2 back to the boot image it was
+last saved on, then wipes userdata, with the same "nothing happens until you
+type the word" gate the other destructive slices use.
 
 **Status: built, not yet run.** The slice exists in `wizard/pages/` and the
-companion, and it has never been used to write a partition. Nothing has been
-flashed, wiped or relocked. The next step is to prove it on this phone as the
+companion. It has never been used to write a partition. Nothing has been
+flashed, wiped or relocked. The next step is to prove it on a phone as the
 guinea pig, then record the run in `docs/FACTORY-TEST.md`.
+
+## What it restores: the phone's own boot image, not downloaded firmware
+
+The source is a copy of the phone's own `boot` partition that the wizard saved
+earlier — this visit, or an earlier one. Nothing is downloaded and no second
+phone is needed.
+
+This matters for two reasons.
+
+**There is nothing to download.** No stock image for build `UPEN`
+(`TCL/4058G/Gflip6_NA_OM:11/RP1A.200720.011/UPEN:user/release-keys`) exists
+online, and both phones on hand carry modified boot images, so the only honest
+source for a particular phone's boot is that phone.
+
+**It is also the only revive path.** A phone that will not start cannot be
+dumped now, but a copy saved on an earlier visit can still be put back. That
+turns the slice from a restore button into a recovery tool.
+
+### What that means about root
+
+Root lives in the boot image's ramdisk. A restored copy therefore brings back
+the root state that copy was taken in — it is not a separate thing that gets
+reset. If the copy was taken on a rooted phone, the phone comes back rooted.
+
+So this is not factory firmware in the security sense, and the slice does not
+pretend otherwise:
+
+- the gate has a box for it — "I accept that the phone comes back in whatever
+  root state that copy was taken in";
+- step 2 shows the root state recorded with the copy;
+- step 6 compares the phone's root state against the copy's instead of
+  demanding "no root", and says "the phone came back as the copy that was
+  saved" when they agree.
+
+What the wipe still gives you is a clean userdata partition: no accounts, no
+apps, no photos. That is the part "factory reset" normally means.
 
 ## Why it is not just another catalog entry
 
@@ -18,13 +53,10 @@ guinea pig, then record the run in `docs/FACTORY-TEST.md`.
 sets `VERIFIED['neutron']` only on an exact size + SHA-256 match, and
 `flashBoot()` refuses to run without it.
 
-A stock boot image pulled from the user's own phone has no upstream pin and
-cannot get one. Adding it to the catalog would dilute what that file means and
-would still leave the hash attacker-controlled. So the stock path is a
-**separate** gate with separate state: `STOCK_VERIFIED`, not `VERIFIED`.
-
-The two gates must not cross-feed. A neutron image must never satisfy the
-stock path and vice versa, even on a hash collision of the user-pasted value.
+A copy of the phone's own boot has no upstream pin and cannot get one. So it is
+a **separate** gate with separate state (`FACTORY_PICKED` / `FACTORY_VERIFIED`),
+and the two must not cross-feed: a neutron image must never satisfy this path
+and this path must never satisfy the neutron one.
 
 ## Hard constraints
 
@@ -36,11 +68,11 @@ stock path and vice versa, even on a hash collision of the user-pasted value.
 - **No relock, no `flashing unlock_critical`.** Relocking a 4058G whose boot
   image is not the exact stock build is the single most reliable way to
   hard-brick this hardware. The bootloader stays unlocked and the page says so.
-- **No write without a same-build match.** If the stock image's build id does
-  not match the phone's, the image is archived and the flow stops.
+- **No write of a copy from another build.** When the phone can be read and its
+  fingerprint differs from the copy's, the copy is refused.
 - **Nothing auto-runs.** Every write is its own click, and the page shows one
-  stage at a time (the same `renderStage()` / `setStage()` machinery the
-  rooting step uses, so the two slices cannot fight over the screen).
+  stage at a time (`facStage()`), kept separate from the rooting step's stage
+  machinery so a half-finished run in either slice cannot leak across.
 
 ## Gate before the slice opens
 
@@ -50,132 +82,95 @@ typing **`factory`** — a different word from `yes` (allowed to download) and
 
 Three acknowledgements, each a separate checkbox, all required:
 
-1. I have the stock `boot.img` for *this* build, from a phone of the same build.
-2. I understand userdata is erased: apps, photos, settings.
-3. I understand root is gone afterwards and re-rooting is a separate run.
-
-## Gate before the write
-
-Enforced in code, not in prose:
-
-- **Exactly one USB device**, serial read from the phone and displayed. Never
-  hardcoded; a second phone on the bus stops the flow.
-- **Image sanity:** file size not larger than the boot partition size, and the
-  first eight bytes are the `ANDROID!` boot header magic.
-- **Hash agreement:** the page computes SHA-256 in WebCrypto and compares it
-  with a value the user pastes in from wherever they got the image. The pasted
-  value is printed into the run log so the record says what was trusted.
-- **Backup already taken:** the current boot must have been backed up in this
-  session, with its sha256 shown. No backup, no write.
-- **Build match:** the phone's `ro.build.fingerprint` equals the fingerprint
-  the user pastes in from the donor phone. Mismatch refuses the image before
-  fastboot is even opened.
-  
-  **`ro.build.display.id` is not usable on this hardware — it is empty.** The
-  gate keys on `ro.build.fingerprint`, which is populated
-  (`TCL/4058G/Gflip6_NA_OM:11/RP1A.200720.011/UPEN:user/release-keys`) and
-  identifies the build exactly. `ro.build.description` and
-  `ro.build.version.security_patch` are recorded with it for the run record,
-  but the automated comparison is the fingerprint.
+1. I understand the phone is restored from a copy of its own boot image, not
+   from downloaded firmware.
+2. I accept that every app, photo and setting on this phone is erased.
+3. I accept that the phone comes back in whatever root state that copy was
+   taken in.
 
 ## Stages
 
-Each stage is its own screen, enforced by `facStage()`, which is deliberately
-separate from the rooting step's `setStage()` so a half-finished run in one
-slice cannot leak into the other.
+1. **Save a copy, or choose one.**
+   - *Save a copy from the phone* runs in the companion (`factory-backup-boot`),
+     because the page's ADB client has no SYNC `RECV`. It runs
+     `su -c dd if=/dev/block/by-name/boot of=/sdcard/…`, pulls the file to
+     `~/Downloads/flip2-wizard/backups/`, hashes it on the host with `crypto`,
+     records the build fingerprint, model and whether the phone was rooted at
+     that moment, writes a JSON sidecar beside it, and deletes the sdcard copy.
+     Read-only on the phone: nothing is written to any partition.
+   - *Look for saved copies* calls `factory-list-backups`, which lists the
+     `.img` files in that folder newest first. The hash comes from the sidecar
+     when it is well-formed and is recomputed from disk when it is not, so a
+     copy with no sidecar is still usable.
 
-1. **Back up the current boot.** Escape hatch back to the rooted phone. Runs in
-   the companion (`factory-backup-boot`), because the page has no ADB `RECV`.
-   Shows serial, model, build, file path, size and sha256, and requires the user
-   to confirm the serial is the phone they mean.
-2. **Verify the stock image.** Magic, size against the saved backup's size (the
-   real boot partition), user-pasted sha256, and donor fingerprint match.
-3. **Flash it to `boot`.** `flashBoot()` only, guarded by `STOCK_VERIFIED`.
+   Either way the result lands in `FACTORY_PICKED`, which is what step 2 checks.
+2. **Check the copy.** `factory-read-backup` re-reads the file off disk and
+   re-hashes it *now*; the page refuses unless the first eight bytes are
+   `ANDROID!`, the size fits the 24 MiB `boot` partition, and the fresh SHA-256
+   equals the one recorded when it was saved. When the phone can be read, its
+   `ro.build.fingerprint` must also equal the copy's — that comparison is
+   skipped when the phone will not boot, which is exactly the case this exists
+   for. Passing sets `FACTORY_VERIFIED`.
+3. **Flash it to `boot`.** `flashBoot()` only, guarded by `FACTORY_VERIFIED`.
    Before writing, `getvar serialno` must equal the serial recorded in the
-   backup — a second phone on the bus cannot be written.
-4. **Reboot** into the now-stock boot.
+   copy, so a second phone on the bus cannot be written. A copy with no serial
+   recorded says so in the log instead of guessing.
+4. **Reboot** into the restored boot image.
 5. **Wipe userdata on the phone.** Settings → System → Reset options, or
    recovery (`Volume up + Power`) if it will not start. The wizard refuses to
    do this over the cable. Then USB debugging is turned back on.
-6. **Confirm factory state.** The companion reads the phone back
-   (`factory-state`): fingerprint must match the donor's, `su` must not answer,
-   the package count is reported, and `verifiedbootstate` is still `orange`
-   because the bootloader stays unlocked. The page states that plainly rather
-   than claiming the phone is factory-fresh.
+6. **Confirm what came back.** The companion reads the phone back
+   (`factory-state`): fingerprint against the copy's, `su` state against the
+   copy's recorded `rooted` flag, package count, and `verifiedbootstate`. The
+   bootloader is still unlocked, so verified boot stays `orange`; the page
+   states that plainly rather than claiming a factory-fresh security state.
 
-## The boot backup, and the gap it used to leave
+## Where the copies live, and why the page cannot reach anything else
 
-The page's ADB client (`wizard/pages/js/adb.js`) has `shell()` and
-`pushFile()` but **no SYNC `RECV`**, so the page cannot pull a file off the
-phone. That was the one real gap in this design.
+Copies and their sidecars are written under
+`app.getPath('downloads')/flip2-wizard/backups/` — never inside the repo.
 
-It is closed companion-side: `backupBoot()` in `companion/main.js` runs
-`su -c dd if=/dev/block/by-name/boot of=/sdcard/...`, `adb pull`s the result to
-`~/Downloads/flip2-wizard/backups/`, hashes it on the host with `crypto`, and
-deletes the sdcard copy. The page receives `{serial, path, size, sha256,
-magic}` and refuses to continue unless `magic === 'ANDROID!'`.
+`readBootBackup()` resolves both the folder and the requested file with
+`realpath` and refuses anything that is not inside that folder, so a path
+invented by the page cannot read arbitrary files off the host. The hash is
+recomputed from the bytes being returned rather than taken from the sidecar, so
+an edited sidecar cannot smuggle a different image through step 2.
 
-The rule stands: the flow does not enable the flash until the page holds a
-sha256 for a backup that was actually read.
+Each sidecar records `serial`, `path`, `size`, `sha256`, `magic`, `takenAt`,
+`fingerprint`, `model` and `rooted`.
 
-## Donor phone: getting the stock image
+## The gate on the hash, restated
 
-Survey the donor first — reachable over adb? rooted? what build?
-
-- **Rooted donor:** `su -c dd if=/dev/block/by-name/boot of=/sdcard/boot-stock.img`
-  then `adb pull`. Cleanest — **but only if that donor was rooted by patching its
-  own stock boot.** A donor that was rooted by *flashing a modified boot image*
-  (this is how both phones here were rooted) has no stock image on its boot
-  partition at all; `dd` returns the modified one.
-- **Unrooted donor:** SP Flash Tool readback. Heavier, and the driver/download
-  mode requirements are its own project — but it is the only route that cannot
-  be contaminated by a previous patch.
-
-### Why the rooted-donor route failed on the donor we tried (2026-10-28)
-
-The donor `MRV8IJJVPRYTS4UG` was surveyed with root. Its `/boot` is an older
-neutron+Magisk build, not stock, so it cannot supply a factory image:
-
-- `overlay.d/init.custom.rc` contains `setprop neutron.build 2022-09-01T03:50`
-  — a *different, older* neutron build than the pinned `neutron.img`
-  (`2024-09-18T00:02`).
-- Kernel sections differ: donor 8,082,472 bytes vs pinned 8,108,496 bytes.
-- Whole-image sha256 `40ef8d56…7cedd6a5` vs the pinned `31237917…841d3c1`.
-- No Magisk pre-patch backup exists anywhere on the device
-  (`find / -xdev -name 'magisk_backup*'` → nothing), and `/otapkg` holds only
-  `cache`, `omadm`, `system` with no image.
-- `magiskboot cpio restore` + `repack` does **not** recover stock: `restore`
-  only undoes what Magisk listed in `.rmlist`, and that list never named
-  `overlay.d/init.custom.rc`, so the neutron marker survives the round trip.
-
-Salvageable from that donor: `.backup/init` (the genuine TCL init) is
-byte-identical to the pinned image's, sha256 `64bb641b…645f535a`. The original
-**kernel** is not recoverable this way — only a clean source or a readback of a
-never-rooted phone will do.
-
-So the acceptable sources for a stock image are: TCL/carrier firmware for this
-exact build (`UPEN`), an SP Flash readback of a phone that has never been
-rooted, or a donor rooted by Magisk patching its own stock boot.
-
-Then compare builds before treating the image as usable:
-
-| property | must match | checked by |
-|----------|-----------|------------|
-| `ro.product.model` | `4058G` | run record |
-| `ro.build.fingerprint` | exact | **the gate** |
-| `ro.build.description` | exact | run record |
-| `ro.build.version.security_patch` | exact | run record |
-| `ro.build.display.id` | *not used — empty on this build* | — |
-
-A boot image from a different build is archived but never flashed. The
-fingerprint is the one the wizard compares automatically, because it is the
-only property on this phone that names the build unambiguously.
+The rule is: the flow does not enable the flash until the page holds a SHA-256
+for a copy it actually read off the disk during this run. Nothing is written on
+the strength of a hash typed in by hand, and there is no field where a person
+could paste one.
 
 ## What this slice does not do
 
 - Does not relock, and does not touch `unlock_critical`.
 - Does not flash `super`, `vbmeta`, system, product, or the preloader, and does
   not write the EMMC_BOOT header.
-- Does not re-root. Re-rooting is the existing rooting slice, run afterwards.
+- Does not download anything, and does not use another phone's boot image.
+- Does not un-root. A copy taken on a rooted phone comes back rooted, by
+  design; re-rooting after an unrooted copy is the existing rooting slice.
 - Does not promise a factory-fresh security state: the bootloader is still
   unlocked, so verified boot stays `orange`.
+
+## History: why the stock-image route was abandoned
+
+This slice was first designed around flashing a stock `boot.img` from a donor
+phone of the same build. That route was dropped on 2026-10-28:
+
+- No stock `UPEN` image is published online, and neither on-hand phone has one
+  on its `boot` partition — both were rooted by flashing a modified image, so
+  `dd` returns that modified image, not stock.
+- A synthesized stock-equivalent `boot.img` was built and boot-tested on donor
+  `MRV8IJJVPRYTS4UG` twice. Both attempts failed identically at the preloader,
+  and the donor was recovered and verified both times. That image is marked
+  **do not flash again**.
+- The donor's `boot` is not even this build: it carries an AT&T 4058R image
+  (`patch2019-06-06`), so it would be refused by the fingerprint check.
+
+The dump-based design removes the dependency entirely. Detail of the synthesis
+attempts is in `docs/IMAGE-BUILD.md`.

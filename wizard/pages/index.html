@@ -170,55 +170,56 @@
 <!-- return-to-factory slice: not linked from the step bar -->
 <section class="step" id="step-factory" hidden>
   <h2>Return to factory</h2>
-  <p class="danger"><b>This erases everything on the phone</b> — apps, photos, settings — and leaves it unrooted. It writes one partition, <code>boot</code>, from a stock image taken off another phone of the same build. The bootloader stays unlocked.</p>
-  <p>You need three things before you start: the stock <code>boot.img</code> from another TCL 4058G of the same build, its SHA-256, and this phone plugged in with USB debugging on.</p>
+  <p class="danger"><b>This erases everything on the phone</b> — apps, photos, settings — and puts its boot image back to a copy the wizard saved earlier. Nothing is downloaded, and no other partition is touched. The bootloader stays unlocked.</p>
+  <p>You do not need firmware from anywhere. The wizard keeps a copy of this phone's own boot image on this computer: step 1 saves one now, or you can use a copy saved on an earlier visit. That copy is what gets put back — which is also the only way to revive a phone that will not start.</p>
   <p>Type <b>factory</b> to continue:<br>
   <label class="inline"><input id="factory-input" autocomplete="off" size="10"></label></p>
   <div id="factory-acks">
-    <label class="inline"><input type="checkbox" id="fac-ack-image"> I have the stock boot image, taken from a phone of the same build.</label>
+    <label class="inline"><input type="checkbox" id="fac-ack-copy"> I understand the phone is restored from a copy of its own boot image, not from downloaded firmware.</label>
     <label class="inline"><input type="checkbox" id="fac-ack-wipe"> I accept that every app, photo and setting on this phone is erased.</label>
-    <label class="inline"><input type="checkbox" id="fac-ack-root"> I accept that the phone is unrooted afterwards, and root has to be put back.</label>
+    <label class="inline"><input type="checkbox" id="fac-ack-state"> I accept that the phone comes back in whatever root state that copy was taken in.</label>
   </div>
   <p><button id="factory-open" disabled>Show the steps</button>
      <span id="factory-gate-msg" class="note"></span></p>
 
   <div id="factory-body" class="hidden">
     <div id="fac-stage-backup">
-      <h3 class="stage-h"><span class="stage-n">1</span> Save the boot image this phone has now</h3>
-      <p>This copies the boot image the phone is running right now to this computer, so you can go back to it later. Nothing is written to the phone. Leave the phone switched on and plugged in.</p>
-      <p><button id="fac-backup">Save the boot image</button> <span id="fac-backup-msg" class="status"></span></p>
+      <h3 class="stage-h"><span class="stage-n">1</span> Save a copy of the boot image, or choose one</h3>
+      <p>If the phone still starts, save a copy of the boot image it is running now — that is the image this step will later put back. Nothing is written to the phone. Leave it switched on and plugged in.</p>
+      <p><button id="fac-backup">Save a copy from the phone</button> <span id="fac-backup-msg" class="status"></span></p>
       <div id="fac-backup-facts" class="now hidden"></div>
-      <label class="inline hidden" id="fac-serial-ok-wrap"><input type="checkbox" id="fac-serial-ok"> That serial number is the phone I am returning to factory.</label>
-      <p><button id="fac-backup-next" class="ghost" disabled>Continue to the stock image</button></p>
+
+      <h4 class="stage-h">Copies already on this computer</h4>
+      <p>If the phone will not start, use a copy you saved on an earlier visit. This is the only way to bring a phone that will not boot back.</p>
+      <p><button id="fac-refresh" class="ghost">Look for saved copies</button> <span id="fac-copies-msg" class="status"></span></p>
+      <label class="inline hidden" id="fac-copies-wrap">Which copy:<br><select id="fac-copies"></select></label>
+      <p><button id="fac-backup-next" class="ghost" disabled>Continue</button></p>
     </div>
 
     <div id="fac-stage-verify" class="hidden">
-      <h3 class="stage-h"><span class="stage-n">2</span> Check the stock image before it goes near the phone</h3>
-      <p>Choose the <code>boot.img</code> you took from the other phone, then paste its SHA-256 exactly as it was recorded. The wizard checks that the file really is a boot image, that it fits this phone's boot partition, and that its hash matches what you pasted.</p>
-      <p><input type="file" id="fac-file"></p>
-      <label class="inline">SHA-256 of that file:<br><input id="fac-sha-input" size="70" autocomplete="off"></label>
-      <label class="inline">The other phone's build fingerprint, copied from its <code>ro.build.fingerprint</code>:<br><input id="fac-donor-fp" size="70" autocomplete="off"></label>
-      <p class="note">The image is only refused if that fingerprint differs from this phone's. A boot image from a different build can leave the phone unable to start.</p>
-      <p><button id="fac-verify">Check the file</button> <span id="fac-verify-msg" class="status"></span></p>
+      <h3 class="stage-h"><span class="stage-n">2</span> Check the copy before it goes near the phone</h3>
+      <p>The wizard reads the file off this computer again and checks it: that it really is a boot image, that its size fits the phone's <code>boot</code> partition, and that its SHA-256 is the one recorded when it was saved. If the file has changed since then, it is refused.</p>
+      <div id="fac-picked" class="now hidden"></div>
+      <p><button id="fac-verify">Check the copy</button> <span id="fac-verify-msg" class="status"></span></p>
       <pre class="log hidden" id="fac-verify-log"></pre>
       <p><button id="fac-verify-back" class="ghost">Back</button>
-         <button id="fac-verify-next" class="ghost" disabled>Continue to install</button></p>
+         <button id="fac-verify-next" class="ghost" disabled>Continue</button></p>
     </div>
 
     <div id="fac-stage-flash" class="hidden">
       <h3 class="stage-h"><span class="stage-n">3</span> Put the phone in flashing mode, then install</h3>
       <p>Switch the phone off. Then hold <b>Volume down</b> and plug the cable in — keep holding until a black screen with small white text appears. That is the bootloader. Leave the battery in.</p>
-      <p id="fac-need-backup" class="warn hidden">The boot image was not saved in this session, so this would not be reversible. Go back to step 1 first.</p>
-      <p id="fac-need-stock" class="warn hidden">The stock image has not been checked yet. Go back to step 2 first.</p>
+      <p class="note">If the screen stays black and the phone keeps restarting, it is stuck before the bootloader. Unplug it, take the battery out, put it back, then hold <b>Volume down</b> and plug in again.</p>
+      <p id="fac-need-copy" class="warn hidden">No copy has been checked yet, so there is nothing to put back. Go back to step 2 first.</p>
       <p><button id="fac-pick">Connect to the phone</button>
-         <button id="fac-flash" class="ghost" disabled>Install the stock image</button>
+         <button id="fac-flash" class="ghost" disabled>Install the copy</button>
          <span id="fac-flash-msg" class="status"></span></p>
       <pre class="log hidden" id="fac-flash-log"></pre>
     </div>
 
     <div id="fac-stage-reboot" class="hidden">
       <h3 class="stage-h"><span class="stage-n">4</span> Restart the phone</h3>
-      <p>The stock boot image is installed. Restart the phone and let it start. It will come up as the stock system, still with all your data on it — the wipe comes next.</p>
+      <p>The saved copy is installed. Restart the phone and let it start. It comes up on that boot image, still with all your data on it — the wipe comes next.</p>
       <p><button id="fac-reboot">Restart the phone</button> <span id="fac-reboot-msg" class="status"></span></p>
     </div>
 
@@ -236,8 +237,8 @@
     </div>
 
     <div id="fac-stage-done" class="hidden">
-      <h3 class="stage-h"><span class="stage-n">6</span> Check the phone is really back to factory</h3>
-      <p>This asks the phone what it is now: the same build as before, no root, and only the stock apps.</p>
+      <h3 class="stage-h"><span class="stage-n">6</span> Check what the phone came back as</h3>
+      <p>This asks the phone what it is now and compares it with the copy that was put back: the same build, and root in the same state as when the copy was saved. Apps and data are only gone if you did the wipe in step 5.</p>
       <p><button id="fac-check">Check the phone now</button> <span id="fac-check-msg" class="status"></span></p>
       <div id="fac-facts" class="now hidden"></div>
       <p class="note">The bootloader stays unlocked, so the phone reports <code>verifiedbootstate</code> as <code>orange</code>. That is the one non-stock fact, and it is expected. Relocking over a modified boot is the move most likely to hard-brick this phone, so this wizard never does it.</p>

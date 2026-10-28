@@ -341,26 +341,130 @@ async function phoneIdentity() {
   return props;
 }
 
+const BACKUP_DIR = () => path.join(downloadDir(), 'backups');
+const sha256Of = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+
+// A restored copy brings back a boot image, not root as a separate thing — root
+// lives in that image's ramdisk, so whether `su` answered is a property of the
+// copy. It is recorded with the copy so the final check can compare like with
+// like instead of promising an unrooted phone that a rooted copy cannot deliver.
+async function phoneRooted(serial) {
+  try {
+    return /uid=0/.test(await adbRun(['-s', serial, 'shell', 'su -c id'], 30000));
+  } catch (e) {
+    return false;
+  }
+}
+
+// A copy is only reusable later if it remembers what it came from, so every
+// dump writes a small sidecar beside it. That is what lets a copy saved in an
+// earlier session be restored onto the right phone — including the case that
+// matters most, a phone that will not start and so cannot be dumped now.
+async function writeSidecar(dest, info) {
+  await fsp.writeFile(dest.replace(/\.img$/, '.json'), JSON.stringify(info, null, 2) + '\n')
+    .catch(function () { /* the image is the important part */ });
+}
+
 // Read the boot partition into sdcard, pull it to this PC, hash it here. Read
 // only: no partition is written, and the copy on sdcard is removed afterwards.
 async function backupBoot() {
   const serial = await adbSerial();
-  const dir = path.join(downloadDir(), 'backups');
+  const dir = BACKUP_DIR();
   await fsp.mkdir(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const dest = path.join(dir, 'boot-' + stamp + '.img');
   const remote = '/sdcard/flip2-boot-backup.img';
-  await adbRun(['-s', serial, 'shell',
-    'su -c "dd if=/dev/block/by-name/boot of=' + remote + '"'], 180000);
+  // Reading /dev/block/by-name/boot needs root. Without it adb's own error is
+  // cryptic, and the honest answer is that this phone cannot be dumped — the
+  // person needs to hear that rather than guess at a permission message.
+  try {
+    await adbRun(['-s', serial, 'shell',
+      'su -c "dd if=/dev/block/by-name/boot of=' + remote + '"'], 180000);
+  } catch (e) {
+    throw new Error('this phone has no root, so its boot image cannot be copied off it. ' +
+      'Use a copy saved on an earlier visit, or root the phone first.');
+  }
   await adbRun(['-s', serial, 'pull', remote, dest], 300000);
   await adbRun(['-s', serial, 'shell', 'rm -f ' + remote]).catch(function () {});
   const buf = await fsp.readFile(dest);
-  return {
+  if (!buf.length) {
+    throw new Error('the copy that came off the phone is empty, so it is not a way back. ' +
+      'Nothing was written to the phone.');
+  }
+  const prop = (name) => adbRun(['-s', serial, 'shell', 'getprop', name], 30000)
+    .then(function (s) { return String(s || '').trim(); })
+    .catch(function () { return ''; });
+  const info = {
     serial: serial,
     path: dest,
     size: buf.length,
-    sha256: crypto.createHash('sha256').update(buf).digest('hex'),
+    sha256: sha256Of(buf),
     magic: buf.slice(0, 8).toString('latin1'),
+    takenAt: new Date().toISOString(),
+    fingerprint: await prop('ro.build.fingerprint'),
+    model: await prop('ro.product.model'),
+    rooted: await phoneRooted(serial),
+  };
+  await writeSidecar(dest, info);
+  return info;
+}
+
+// Copies already on this PC, newest first. Sizes are read from disk; the hash
+// comes from the sidecar when it is trustworthy and is recomputed when it is
+// not, so a copy with no sidecar is still usable and still named honestly.
+async function listBootBackups() {
+  let names = [];
+  try { names = await fsp.readdir(BACKUP_DIR()); } catch (e) { return []; }
+  const out = [];
+  for (const name of names) {
+    if (!/\.img$/.test(name)) continue;
+    const full = path.join(BACKUP_DIR(), name);
+    let st;
+    try { st = await fsp.stat(full); } catch (e) { continue; }
+    if (!st.isFile()) continue;
+    let meta = {};
+    try { meta = JSON.parse(await fsp.readFile(full.replace(/\.img$/, '.json'), 'utf8')); }
+    catch (e) { meta = {}; }
+    let sha256 = /^[0-9a-f]{64}$/.test(String(meta.sha256 || '')) ? meta.sha256 : '';
+    if (!sha256) {
+      try { sha256 = sha256Of(await fsp.readFile(full)); } catch (e) { continue; }
+    }
+    out.push({
+      path: full,
+      name: name,
+      size: st.size,
+      sha256: sha256,
+      serial: String(meta.serial || ''),
+      fingerprint: String(meta.fingerprint || ''),
+      model: String(meta.model || ''),
+      takenAt: String(meta.takenAt || st.mtime.toISOString()),
+      mtime: st.mtime.toISOString(),
+    });
+  }
+  out.sort(function (a, b) { return a.mtime < b.mtime ? 1 : -1; });
+  return out.slice(0, 20);
+}
+
+// Hand the page the bytes it is about to write, re-read and re-hashed at that
+// moment. Only files inside the wizard's own backup folder are reachable, so a
+// path from the page cannot reach out to something else on this computer.
+async function readBootBackup(dest) {
+  let realDir;
+  try { realDir = await fsp.realpath(BACKUP_DIR()); }
+  catch (e) { throw new Error('the backup folder is not on this computer — save a copy first'); }
+  let real;
+  try { real = await fsp.realpath(String(dest || '')); }
+  catch (e) { throw new Error('that backup file is not on this computer any more'); }
+  if (real !== realDir && !real.startsWith(realDir + path.sep)) {
+    throw new Error('that file is not one of the wizard’s own boot copies');
+  }
+  const buf = await fsp.readFile(real);
+  return {
+    path: real,
+    size: buf.length,
+    sha256: sha256Of(buf),
+    magic: buf.slice(0, 8).toString('latin1'),
+    bytes: buf,
   };
 }
 
@@ -435,6 +539,24 @@ function createWindow() {
           'udevBtnVisible: (function (el) { return !!el && !el.classList.contains("hidden"); })(document.getElementById("udev-native")),' +
           'usbApi: !!navigator.usb,' +
           'serialApi: !!navigator.serial,' +
+          // The factory slice addresses its stage divs by concatenation, so a
+          // missing one only shows up at runtime. Checking every id it touches
+          // here is what keeps that from surfacing in front of the user.
+          'factoryMissing: (function () {' +
+          '  var ids = ["fac-ack-copy","fac-ack-wipe","fac-ack-state","fac-backup",' +
+          '    "fac-backup-facts","fac-backup-msg","fac-backup-next","fac-check",' +
+          '    "fac-check-msg","fac-copies","fac-copies-msg","fac-copies-wrap","fac-facts",' +
+          '    "fac-flash","fac-flash-log","fac-flash-msg","fac-need-copy","fac-pick",' +
+          '    "fac-picked","fac-reboot","fac-reboot-msg","fac-refresh",' +
+          '    "fac-stage-backup","fac-stage-done","fac-stage-flash","fac-stage-reboot",' +
+          '    "fac-stage-verify","fac-stage-wipe","fac-verify","fac-verify-back",' +
+          '    "fac-verify-log","fac-verify-msg","fac-verify-next","fac-wipe-next"];' +
+          '  return ids.filter(function (id) { return !document.getElementById(id); });' +
+          '})(),' +
+          'factoryGateLocked: (function () {' +
+          '  var b = document.getElementById("factory-open");' +
+          '  return !!b && b.disabled;' +
+          '})(),' +
           'udev: u };})'
         ).then(function (state) {
           console.log('SMOKE ' + JSON.stringify(state));
@@ -458,6 +580,8 @@ app.whenReady().then(function () {
   ipcMain.handle('factory-identity', function () { return phoneIdentity(); });
   ipcMain.handle('factory-backup-boot', function () { return backupBoot(); });
   ipcMain.handle('factory-state', function (_e, fp) { return factoryState(fp); });
+  ipcMain.handle('factory-list-backups', function () { return listBootBackups(); });
+  ipcMain.handle('factory-read-backup', function (_e, dest) { return readBootBackup(dest); });
   createWindow();
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

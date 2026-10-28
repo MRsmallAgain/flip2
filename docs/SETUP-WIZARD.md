@@ -93,16 +93,22 @@ rooted — unlocking it would erase it.
 
 ## Return to factory (built, not yet run)
 
-A third slice does the opposite direction: save the phone's current boot image
-to this PC, flash a stock `boot.img` from a phone of the same build, then wipe
-userdata on the phone and leave it unrooted with the bootloader still unlocked.
-It is gated by typing `factory`, linked from the footer, and it shows one stage
-at a time like the rooting slice.
+A third slice goes the other way: put back a copy of this phone's own `boot`
+image that the wizard saved earlier — this visit, or one before it — then wipe
+userdata on the phone. Nothing is downloaded; there is no stock image for this
+build to download. It is gated by typing `factory`, linked from the footer, and
+it shows one stage at a time like the rooting slice.
+
+Two things to know before using it. A copy saved on a rooted phone puts root
+back with it, because root lives in that image's ramdisk — so this restores the
+phone to the state the copy was taken in, not to virgin firmware. And it is the
+only way back for a phone that will not start, since such a phone cannot be
+dumped now.
 
 It has **never written a partition**. It is proven on a phone only when the run
 is recorded in `FACTORY-TEST.md`. See
 [RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) for the gates, the stages, and why
-the boot backup runs on the host rather than in the page.
+the boot copy is read and written on the host rather than in the page.
 
 ## What is not committed here
 

@@ -885,15 +885,21 @@ function initFastboot() {
 
 // --- return-to-factory slice (factory-gated, not on the step bar) -------------
 
-// A stock boot image has no upstream pin, so it must never be able to satisfy
-// the rooting path, and neutron.img must never satisfy this one. Only a file
-// that passed the header, size, pasted-hash and build checks lands here.
-var STOCK_VERIFIED = null;   // { bytes: Uint8Array, sha256: string }
-var FACTORY_BACKUP = null;   // this session's host-side boot backup
-var FACTORY_CURRENT = null;  // this phone's identity, read at backup time
+// The image this slice writes is this phone's own boot partition, saved by the
+// wizard on this visit or an earlier one. It has no upstream pin, so it must
+// never satisfy the rooting path, and neutron.img must never satisfy this one.
+// Only a copy re-read off disk and re-hashed in step 2 lands in FACTORY_VERIFIED.
+var FACTORY_PICKED = null;    // the copy chosen in step 1, with its recorded hash
+var FACTORY_VERIFIED = null;  // { bytes, sha256, path } after the disk re-check
+var FACTORY_CURRENT = null;   // this phone's identity, after a fresh dump
+var FACTORY_COPIES = [];      // copies found on this computer, newest first
 var factoryStageName = null;
 
 var FACTORY_STAGES = ['backup', 'verify', 'flash', 'reboot', 'wipe', 'done'];
+
+// The 4058G boot partition is 24 MiB. The device rejects anything larger in the
+// DATA phase anyway, but refusing here keeps a wrong file off the wire entirely.
+var BOOT_PARTITION = 25165824;
 
 // The same one-thing-on-screen rule the rooting step uses, kept as its own
 // stage machine so a half-finished run in either slice cannot leak across.
@@ -902,8 +908,20 @@ function facStage(name) {
   FACTORY_STAGES.forEach(function (s) {
     $('fac-stage-' + s).classList.toggle('hidden', s !== name);
   });
-  $('fac-need-backup').classList.toggle('hidden', name !== 'flash' || !!FACTORY_BACKUP);
-  $('fac-need-stock').classList.toggle('hidden', name !== 'flash' || !!STOCK_VERIFIED);
+  $('fac-need-copy').classList.toggle('hidden', name !== 'flash' || !!FACTORY_VERIFIED);
+}
+
+function facWhen(iso) {
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? 'date not recorded' : d.toLocaleString();
+}
+
+// One line per saved copy: when it was taken, and off which phone.
+function facCopyLabel(c) {
+  var bits = [facWhen(c.takenAt)];
+  if (c.model) bits.push(c.model);
+  bits.push(c.serial || 'phone not recorded');
+  return bits.join(' · ') + ' — ' + Math.round(c.size / 1024) + ' KiB';
 }
 
 function factRow(box, label, value, cls) {
@@ -925,7 +943,7 @@ function initFactory() {
   // acknowledged, so nobody arrives here holding one of them and guessing.
   function gate() {
     var word = $('factory-input').value.trim() === 'factory';
-    var acks = $('fac-ack-image').checked && $('fac-ack-wipe').checked && $('fac-ack-root').checked;
+    var acks = $('fac-ack-copy').checked && $('fac-ack-wipe').checked && $('fac-ack-state').checked;
     $('factory-open').disabled = !(word && acks);
     $('factory-gate-msg').textContent = !word
       ? 'Type the word to unlock the steps.'
@@ -936,29 +954,27 @@ function initFactory() {
     ev.preventDefault();
     showStep('factory');
     // A fresh visit starts locked at step 1 with nothing carried over from a
-    // previous run — a stale backup or a checked hash would be a false promise.
+    // previous run — a copy checked in a run that ended somewhere else would be
+    // a false promise about what is about to be written.
     $('factory-body').classList.add('hidden');
-    STOCK_VERIFIED = null;
-    FACTORY_BACKUP = null;
+    FACTORY_PICKED = null;
+    FACTORY_VERIFIED = null;
     FACTORY_CURRENT = null;
+    FACTORY_COPIES = [];
     $('factory-input').value = '';
-    ['fac-ack-image', 'fac-ack-wipe', 'fac-ack-root'].forEach(function (id) { $(id).checked = false; });
-    ['fac-backup-msg', 'fac-verify-msg', 'fac-flash-msg', 'fac-reboot-msg', 'fac-check-msg'].forEach(function (id) {
-      setStatus(id, '', '');
-    });
-    ['fac-backup-facts', 'fac-facts'].forEach(function (id) {
+    ['fac-ack-copy', 'fac-ack-wipe', 'fac-ack-state'].forEach(function (id) { $(id).checked = false; });
+    ['fac-backup-msg', 'fac-copies-msg', 'fac-verify-msg', 'fac-flash-msg', 'fac-reboot-msg', 'fac-check-msg']
+      .forEach(function (id) { setStatus(id, '', ''); });
+    ['fac-backup-facts', 'fac-picked', 'fac-facts'].forEach(function (id) {
       $(id).classList.add('hidden');
       $(id).textContent = '';
       $(id).className = 'now hidden';
     });
-    $('fac-serial-ok-wrap').classList.add('hidden');
-    $('fac-serial-ok').checked = false;
+    $('fac-copies-wrap').classList.add('hidden');
+    $('fac-copies').textContent = '';
     $('fac-backup-next').disabled = true;
     $('fac-verify-next').disabled = true;
     $('fac-flash').disabled = true;
-    $('fac-file').value = '';
-    $('fac-sha-input').value = '';
-    $('fac-donor-fp').value = '';
     ['fac-verify-log', 'fac-flash-log'].forEach(function (id) {
       $(id).textContent = '';
       $(id).classList.add('hidden');
@@ -968,7 +984,7 @@ function initFactory() {
   });
 
   $('factory-input').addEventListener('input', gate);
-  ['fac-ack-image', 'fac-ack-wipe', 'fac-ack-root'].forEach(function (id) {
+  ['fac-ack-copy', 'fac-ack-wipe', 'fac-ack-state'].forEach(function (id) {
     $(id).addEventListener('change', gate);
   });
 
@@ -977,9 +993,46 @@ function initFactory() {
     facStage('backup');
   });
 
-  // 1 · back up the boot image the phone is running now. This is the only way
-  // back to a rooted phone without unlocking it again, so nothing else opens
-  // until it exists and someone has read the serial off the screen.
+  // Copies already on this computer, so a phone that will not start can still be
+  // restored from a copy saved on an earlier visit. Newest first.
+  function loadCopies() {
+    if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.factoryListBackups) {
+      setStatus('fac-copies-msg', 'Open this page in the Flip 2 Companion app to look for saved copies.', 'bad');
+      return Promise.resolve();
+    }
+    setStatus('fac-copies-msg', 'looking…', 'wait');
+    return window.FLIP2_NATIVE.factoryListBackups().then(function (list) {
+      FACTORY_COPIES = Array.isArray(list) ? list : [];
+      var sel = $('fac-copies');
+      sel.textContent = '';
+      FACTORY_COPIES.forEach(function (c, i) {
+        var opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = facCopyLabel(c);
+        sel.appendChild(opt);
+      });
+      $('fac-copies-wrap').classList.toggle('hidden', !FACTORY_COPIES.length);
+      setStatus('fac-copies-msg', FACTORY_COPIES.length
+        ? FACTORY_COPIES.length + (FACTORY_COPIES.length === 1 ? ' saved copy found.' : ' saved copies found.')
+        : 'No copies saved on this computer yet. Save one from the phone above.', FACTORY_COPIES.length ? 'ok' : '');
+      if (FACTORY_COPIES.length) selectCopy();
+    }).catch(function (e) {
+      setStatus('fac-copies-msg', cleanErr(e), 'bad');
+    });
+  }
+
+  function selectCopy() {
+    var c = FACTORY_COPIES[Number($('fac-copies').value || 0)];
+    if (!c) return;
+    FACTORY_PICKED = c;
+    FACTORY_VERIFIED = null;
+    $('fac-backup-next').disabled = false;
+    setStatus('fac-copies-msg', 'Chosen: ' + facWhen(c.takenAt) + ' from ' + (c.serial || 'a phone whose serial was not recorded') + '. It is checked in step 2.', 'ok');
+  }
+
+  // 1 · save the boot image the phone is running now, or choose one already on
+  // this computer. A copy is what step 3 puts back, so nothing else opens until
+  // one has been chosen.
   $('fac-backup').addEventListener('click', function () {
     var btn = this;
     if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.factoryBackupBoot) {
@@ -993,30 +1046,32 @@ function initFactory() {
       window.FLIP2_NATIVE.factoryBackupBoot()
     ]).then(function (r) {
       FACTORY_CURRENT = r[0];
-      FACTORY_BACKUP = r[1];
+      var info = r[1];
       var box = $('fac-backup-facts');
       box.textContent = '';
       box.className = 'now';
       box.classList.remove('hidden');
-      var okHeader = FACTORY_BACKUP.magic === 'ANDROID!';
-      factRow(box, 'Phone serial', FACTORY_BACKUP.serial);
-      factRow(box, 'Model', FACTORY_CURRENT['ro.product.model'] || '(not reported)');
-      factRow(box, 'Build', FACTORY_CURRENT['ro.build.fingerprint'] || '(not reported)');
-      factRow(box, 'Saved file', FACTORY_BACKUP.path);
-      factRow(box, 'Size', FACTORY_BACKUP.size + ' bytes');
-      factRow(box, 'SHA-256', FACTORY_BACKUP.sha256);
-      factRow(box, 'Header', okHeader ? 'boot image (ANDROID!)' : FACTORY_BACKUP.magic, okHeader ? 'ok' : 'bad');
+      var okHeader = info.magic === 'ANDROID!';
+      factRow(box, 'Phone serial', info.serial);
+      factRow(box, 'Model', info.model || '(not reported)');
+      factRow(box, 'Build', info.fingerprint || '(not reported)');
+      factRow(box, 'Saved file', info.path);
+      factRow(box, 'Size', info.size + ' bytes');
+      factRow(box, 'SHA-256', info.sha256);
+      factRow(box, 'Header', okHeader ? 'boot image (ANDROID!)' : info.magic, okHeader ? 'ok' : 'bad');
+      factRow(box, 'Root right now', info.rooted ? 'rooted — a copy taken now comes back rooted' : 'no root');
       if (!okHeader) {
-        FACTORY_BACKUP = null;
-        $('fac-serial-ok-wrap').classList.add('hidden');
-        setStatus('fac-backup-msg', 'That file is not a boot image, so it is not a way back. Nothing was written to the phone.', 'bad');
+        setStatus('fac-backup-msg', 'That file is not a boot image, so it is not a way to bring this phone back. Nothing was written to the phone.', 'bad');
         btn.disabled = false;
         return;
       }
-      setStatus('fac-backup-msg', 'Saved. Keep this file — it is how this phone gets root back later.', 'ok');
-      $('fac-serial-ok-wrap').classList.remove('hidden');
-      $('fac-serial-ok').checked = false;
-      $('fac-backup-next').disabled = true;
+      FACTORY_PICKED = info;
+      FACTORY_VERIFIED = null;
+      $('fac-backup-next').disabled = false;
+      // The copy just saved belongs in the list too, so it can be chosen later
+      // even if the phone cannot be read on that visit.
+      loadCopies().catch(function () {});
+      setStatus('fac-backup-msg', 'Saved. That is the image step 3 puts back, and it stays on this computer for next time.', 'ok');
       btn.disabled = false;
     }).catch(function (e) {
       setStatus('fac-backup-msg', cleanErr(e), 'bad');
@@ -1024,71 +1079,84 @@ function initFactory() {
     });
   });
 
-  $('fac-serial-ok').addEventListener('change', function () {
-    $('fac-backup-next').disabled = !(this.checked && FACTORY_BACKUP);
+  $('fac-refresh').addEventListener('click', function () { loadCopies(); });
+  $('fac-copies').addEventListener('change', selectCopy);
+
+  // 1 · carry the chosen copy into step 2 and show exactly what was chosen, so
+  // the person can see the date and the phone it came off before it is checked.
+  $('fac-backup-next').addEventListener('click', function () {
+    if (!FACTORY_PICKED) {
+      setStatus('fac-copies-msg', 'Choose a copy first.', 'bad');
+      return;
+    }
+    FACTORY_VERIFIED = null;
+    $('fac-verify-next').disabled = true;
+    var box = $('fac-picked');
+    box.textContent = '';
+    box.className = 'now';
+    box.classList.remove('hidden');
+    factRow(box, 'Saved', facWhen(FACTORY_PICKED.takenAt));
+    factRow(box, 'From', FACTORY_PICKED.model || '(model not recorded)');
+    factRow(box, 'Phone serial', FACTORY_PICKED.serial || 'not recorded');
+    factRow(box, 'Build when saved', FACTORY_PICKED.fingerprint || '(not recorded)');
+    factRow(box, 'File', FACTORY_PICKED.path);
+    factRow(box, 'Size', FACTORY_PICKED.size + ' bytes');
+    factRow(box, 'Recorded SHA-256', FACTORY_PICKED.sha256);
+    factRow(box, 'Root in that copy', FACTORY_PICKED.rooted
+      ? 'yes — the phone comes back rooted'
+      : (FACTORY_PICKED.rooted === false ? 'no — the phone comes back unrooted' : 'not recorded'));
+    facStage('verify');
   });
 
-  $('fac-backup-next').addEventListener('click', function () { facStage('verify'); });
-
-  // 2 · check the stock image. Header, size against this phone's real boot
-  // partition, the hash the user pasted, and that both phones are the same
-  // build. Any one of those failing stops it here, before fastboot exists.
+  // 2 · read the copy off this computer again and check it. Header, size against
+  // the real boot partition, and the hash recorded when it was saved. Anything
+  // that has changed since then is refused, before fastboot exists.
   $('fac-verify').addEventListener('click', function () {
-    var file = $('fac-file').files[0];
-    var pasted = $('fac-sha-input').value.trim().toLowerCase().replace(/\s+/g, '');
-    var donorFp = $('fac-donor-fp').value.trim();
     $('fac-verify-log').textContent = '';
     var log = makeLog('fac-verify-log');
-    STOCK_VERIFIED = null;
+    FACTORY_VERIFIED = null;
     $('fac-verify-next').disabled = true;
 
-    if (!FACTORY_BACKUP) {
-      setStatus('fac-verify-msg', 'Save this phone’s own boot image in step 1 first — without it there is no way back.', 'bad');
+    if (!FACTORY_PICKED) {
+      setStatus('fac-verify-msg', 'Choose a copy in step 1 first — without one there is nothing to put back.', 'bad');
       return;
     }
-    if (!file) {
-      setStatus('fac-verify-msg', 'Choose the stock boot image first.', 'bad');
-      return;
-    }
-    if (!/^[0-9a-f]{64}$/.test(pasted)) {
-      setStatus('fac-verify-msg', 'Paste the file’s SHA-256: 64 characters, hex.', 'bad');
-      return;
-    }
-    if (!donorFp) {
-      setStatus('fac-verify-msg', 'Paste the other phone’s build fingerprint so the two phones can be compared.', 'bad');
-      return;
-    }
-    var here = (FACTORY_CURRENT && FACTORY_CURRENT['ro.build.fingerprint']) || '';
-    if (donorFp !== here) {
-      log('this phone: ' + (here || '(not reported)'));
-      log('other phone: ' + donorFp);
-      setStatus('fac-verify-msg', 'That image came from a different build, so it is refused. Nothing was written.', 'bad');
+    if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.factoryReadBackup) {
+      setStatus('fac-verify-msg', 'Open this page in the Flip 2 Companion app — a plain browser cannot read the copy.', 'bad');
       return;
     }
 
-    setStatus('fac-verify-msg', 'checking the file…', 'wait');
-    file.arrayBuffer().then(function (buf) {
-      var view = new Uint8Array(buf);
+    setStatus('fac-verify-msg', 'reading the copy off this computer…', 'wait');
+    window.FLIP2_NATIVE.factoryReadBackup(FACTORY_PICKED.path).then(function (got) {
+      var bytes = new Uint8Array(got.bytes);
       var magic = '';
-      for (var i = 0; i < 8 && i < view.length; i++) magic += String.fromCharCode(view[i]);
+      for (var i = 0; i < 8 && i < bytes.length; i++) magic += String.fromCharCode(bytes[i]);
+      log('header: ' + (magic === 'ANDROID!' ? 'ANDROID!' : magic || '(empty file)'));
+      log('size: ' + bytes.length + ' bytes (partition holds ' + BOOT_PARTITION + ')');
+      log('sha256 now: ' + got.sha256);
+      log('sha256 when saved: ' + FACTORY_PICKED.sha256);
       if (magic !== 'ANDROID!') {
         throw new Error('That file does not start with a boot image header, so it cannot be installed. Nothing was written.');
       }
-      if (view.length > FACTORY_BACKUP.size) {
-        throw new Error('That file is ' + view.length + ' bytes, larger than this phone’s boot partition (' + FACTORY_BACKUP.size + ' bytes). Nothing was written.');
+      if (bytes.length > BOOT_PARTITION) {
+        throw new Error('That file is ' + bytes.length + ' bytes, larger than the boot partition (' + BOOT_PARTITION + ' bytes). Nothing was written.');
       }
-      return sha256Hex(buf).then(function (hex) {
-        if (hex !== pasted) {
-          throw new Error('The SHA-256 does not match the value you pasted, so the file is not the one you meant. Nothing was written.');
-        }
-        STOCK_VERIFIED = { bytes: view, sha256: hex };
-        log('header: ANDROID!');
-        log('size: ' + view.length + ' bytes (partition is ' + FACTORY_BACKUP.size + ')');
-        log('sha256: ' + hex + ' — matches the pasted value');
-        log('build: ' + donorFp + ' — matches this phone');
-        setStatus('fac-verify-msg', 'Checked. This is a boot image from the same build as this phone.', 'ok');
-        $('fac-verify-next').disabled = false;
-      });
+      if (got.sha256 !== FACTORY_PICKED.sha256) {
+        throw new Error('The file has changed since it was saved, so it is not the copy that was checked. Nothing was written.');
+      }
+      // When the phone can be read, its build must match the copy's. Skipped
+      // when the phone will not boot — that is exactly when this is used.
+      var expect = FACTORY_PICKED.fingerprint;
+      var here = (FACTORY_CURRENT && FACTORY_CURRENT['ro.build.fingerprint']) || '';
+      if (expect && here && expect !== here) {
+        log('this phone: ' + here);
+        log('copy came from: ' + expect);
+        throw new Error('That copy came from a different build, so it is refused. Nothing was written.');
+      }
+      if (expect && here) log('build: matches this phone');
+      FACTORY_VERIFIED = { bytes: bytes, sha256: got.sha256, path: got.path };
+      setStatus('fac-verify-msg', 'Checked. This is the copy that was saved, unchanged.', 'ok');
+      $('fac-verify-next').disabled = false;
     }).catch(function (e) {
       log(e.message);
       setStatus('fac-verify-msg', e.message, 'bad');
@@ -1097,21 +1165,22 @@ function initFactory() {
 
   $('fac-verify-back').addEventListener('click', function () { facStage('backup'); });
   $('fac-verify-next').addEventListener('click', function () {
-    if (!STOCK_VERIFIED) {
-      setStatus('fac-verify-msg', 'Check the file first.', 'bad');
+    if (!FACTORY_VERIFIED) {
+      setStatus('fac-verify-msg', 'Check the copy first.', 'bad');
       return;
     }
     facStage('flash');
   });
 
-  // 3 · connect to the bootloader and confirm it is the same phone the backup
-  // came from. Serial is read from the device, never assumed.
+  // 3 · connect to the bootloader and confirm it is the same phone the copy came
+  // from. Serial is read from the device, never assumed; a copy with no serial
+  // recorded cannot be compared, so that is said rather than guessed.
   $('fac-pick').addEventListener('click', function () {
     if (!navigator.usb) {
       setStatus('fac-flash-msg', 'This browser has no WebUSB. Use the Flip 2 Companion app.', 'bad');
       return;
     }
-    var want = FACTORY_BACKUP && FACTORY_BACKUP.serial;
+    var want = (FACTORY_PICKED && FACTORY_PICKED.serial) || '';
     $('fac-flash').disabled = true;
     setStatus('fac-flash-msg', 'connecting to the bootloader…', 'wait');
     FASTBOOT.log = makeLog('fac-flash-log');
@@ -1123,9 +1192,10 @@ function initFactory() {
       var got = String(s || '').trim();
       FASTBOOT.log('serialno: ' + (got || '(none reported)'));
       if (want && got !== want) {
-        throw new Error('This is a different phone (' + (got || 'no serial') + '), not the one that was backed up (' + want + '). Unplug it and connect the right one. Nothing was written.');
+        throw new Error('This is a different phone (' + (got || 'no serial') + '), not the one the copy came from (' + want + '). Unplug it and connect the right one. Nothing was written.');
       }
-      setStatus('fac-flash-msg', 'Connected to ' + (got || 'the phone') + '. The stock image can be installed now.', 'ok');
+      if (!want) FASTBOOT.log('the copy has no serial recorded, so there is nothing to compare it with');
+      setStatus('fac-flash-msg', 'Connected to ' + (got || 'the phone') + '. The copy can be installed now.', 'ok');
       $('fac-flash').disabled = false;
     }).catch(function (e) {
       setStatus('fac-flash-msg', cleanErr(e), 'bad');
@@ -1134,22 +1204,18 @@ function initFactory() {
 
   $('fac-flash').addEventListener('click', function () {
     var btn = this;
-    if (!STOCK_VERIFIED) {
-      setStatus('fac-flash-msg', 'The stock image was not checked, so nothing is sent.', 'bad');
-      return;
-    }
-    if (!FACTORY_BACKUP) {
-      setStatus('fac-flash-msg', 'This phone’s own boot image was not saved, so nothing is sent.', 'bad');
+    if (!FACTORY_VERIFIED) {
+      setStatus('fac-flash-msg', 'The copy was not checked, so nothing is sent.', 'bad');
       return;
     }
     btn.disabled = true;
-    setStatus('fac-flash-msg', 'installing the stock boot image…', 'wait');
-    FASTBOOT.flashBoot(new Uint8Array(STOCK_VERIFIED.bytes), function (line) {
+    setStatus('fac-flash-msg', 'installing the copy…', 'wait');
+    FASTBOOT.flashBoot(new Uint8Array(FACTORY_VERIFIED.bytes), function (line) {
       FASTBOOT.log('INFO: ' + line);
     }, function (sent, total) {
       setStatus('fac-flash-msg', 'sending ' + Math.round(sent / 1024) + ' / ' + Math.round(total / 1024) + ' KiB…', 'wait');
     }).then(function () {
-      setStatus('fac-flash-msg', 'Stock boot image installed.', 'ok');
+      setStatus('fac-flash-msg', 'The copy is installed.', 'ok');
       facStage('reboot');
     }).catch(function (e) {
       setStatus('fac-flash-msg', cleanErr(e), 'bad');
@@ -1173,8 +1239,9 @@ function initFactory() {
 
   $('fac-wipe-next').addEventListener('click', function () { facStage('done'); });
 
-  // 6 · ask the phone what it is now. The build and the absence of root are the
-  // two things worth reading; the unlocked bootloader is stated as expected.
+  // 6 · ask the phone what it is now and compare it with the copy that was put
+  // back. Root is not a separate thing to check: it lives in that image's
+  // ramdisk, so the honest question is whether the phone came back as the copy.
   $('fac-check').addEventListener('click', function () {
     var btn = this;
     if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.factoryState) {
@@ -1183,23 +1250,31 @@ function initFactory() {
     }
     btn.disabled = true;
     setStatus('fac-check-msg', 'asking the phone…', 'wait');
-    var expected = (FACTORY_CURRENT && FACTORY_CURRENT['ro.build.fingerprint']) || '';
+    var copy = FACTORY_PICKED || {};
+    var expected = copy.fingerprint || (FACTORY_CURRENT && FACTORY_CURRENT['ro.build.fingerprint']) || '';
     window.FLIP2_NATIVE.factoryState(expected).then(function (st) {
       var box = $('fac-facts');
-      var happy = st.buildMatches && !st.rooted;
+      // A copy with no recorded root state cannot be compared, so it is not
+      // counted against the run — only a definite mismatch is a failure.
+      var rootAgrees = typeof copy.rooted !== 'boolean' || st.rooted === copy.rooted;
+      var buildAgrees = !expected || st.buildMatches;
+      var happy = rootAgrees && buildAgrees;
       box.textContent = '';
       box.className = 'now' + (happy ? ' caught' : ' bad');
       box.classList.remove('hidden');
       factRow(box, 'Phone serial', st.serial);
       factRow(box, 'Model', st.model || '(not reported)');
-      factRow(box, 'Build', st.fingerprint || '(not reported)', st.buildMatches ? 'ok' : 'bad');
+      factRow(box, 'Build', st.fingerprint || '(not reported)', buildAgrees ? 'ok' : 'bad');
       factRow(box, 'Security patch', st.patch || '(not reported)');
-      factRow(box, 'Root', st.rooted ? 'su still answers as root' : 'no root', st.rooted ? 'bad' : 'ok');
+      factRow(box, 'Root', st.rooted ? 'rooted' : 'no root', rootAgrees ? 'ok' : 'bad');
+      factRow(box, 'Root in the copy', typeof copy.rooted === 'boolean'
+        ? (copy.rooted ? 'rooted' : 'no root')
+        : '(not recorded)', rootAgrees ? 'ok' : 'bad');
       factRow(box, 'Apps installed', st.packages < 0 ? 'could not count them' : String(st.packages));
       factRow(box, 'Bootloader', st.flashLocked === '1' ? 'locked' : 'unlocked (expected)', '');
       factRow(box, 'Verified boot', st.verifiedBootState || '(not reported)', '');
       setStatus('fac-check-msg', happy
-        ? 'Back on the stock build, with no root. That is the factory state.'
+        ? 'The phone came back as the copy that was saved.'
         : 'Not quite there — read the rows above.', happy ? 'ok' : 'bad');
       btn.disabled = false;
     }).catch(function (e) {
