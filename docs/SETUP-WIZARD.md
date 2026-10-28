@@ -91,6 +91,15 @@ phase runs unless the device's declared size matches the image exactly.
 Do not run the rooting slice against your current Flip 2 if it is already
 rooted — unlocking it would erase it.
 
+## Return to factory (designed, not built)
+
+A third slice is designed for the opposite direction: flash a stock `boot.img`
+from a phone of the same build, wipe userdata, and leave the phone unrooted
+with the bootloader still unlocked. It is gated by typing `factory`, and it is
+**design only** — no code exists yet. See
+[RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) for the gates, the stages, and the
+open question about pulling the boot backup off the phone.
+
 ## What is not committed here
 
 The third-party binaries and models (neutron.img, Forkgram APK, whisper and
