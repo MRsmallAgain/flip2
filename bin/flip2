@@ -34,6 +34,9 @@ Commands:
   pack-all           Build per-component Magisk zips + APKs + SHA256SUMS bundle
   deroot             Remove flip2 root components; keep user APKs + settings
   image <sub>        Base-image system tree: build-tree
+  wizard <sub>       Setup wizard device scripts: render | check
+  release            Publish GitHub release from packed dist
+  source <sub>       Fetch external APK sources: fetch
 
 Environment:
   FLIP2_ROOT         Repo root (default: $FLIP2_ROOT)
@@ -285,6 +288,52 @@ case "$cmd" in
         echo "  See docs/IMAGE-BUILD.md."
         ;;
       *) echo "Unknown image subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  wizard)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      render)
+        exec "$FLIP2_ROOT/pipeline/wizard/render.sh" all
+        ;;
+      check)
+        tmp="$(mktemp)"
+        cp "$FLIP2_ROOT/wizard/device/install.sh" "$tmp.install"
+        cp "$FLIP2_ROOT/wizard/device/verify.sh" "$tmp.verify"
+        "$FLIP2_ROOT/pipeline/wizard/render.sh" all >/dev/null
+        drift=0
+        diff -q "$tmp.install" "$FLIP2_ROOT/wizard/device/install.sh" >/dev/null || drift=1
+        diff -q "$tmp.verify" "$FLIP2_ROOT/wizard/device/verify.sh" >/dev/null || drift=1
+        rm -f "$tmp.install" "$tmp.verify"
+        if [[ "$drift" -eq 0 ]]; then
+          echo "OK: wizard device scripts match manifest (no drift)"
+          exit 0
+        fi
+        echo "DRIFT: run flip2 wizard render and commit" >&2
+        exit 1
+        ;;
+      help|-h|--help)
+        echo "Usage: flip2 wizard {render|check}"
+        echo "  render — regenerate install.sh and verify.sh GENERATED regions from manifest.json"
+        echo "  check  — fail if a render would change committed device scripts"
+        ;;
+      *) echo "Unknown wizard subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  release)
+    exec "$FLIP2_ROOT/pipeline/deploy/release.sh" "$@"
+    ;;
+  source)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      fetch) exec "$FLIP2_ROOT/pipeline/deploy/source-fetch.sh" "$@" ;;
+      help|-h|--help)
+        echo "Usage: flip2 source fetch"
+        echo "  Download manifest external APKs into pipeline/deploy/sources/ (gitignored)."
+        ;;
+      *) echo "Unknown source subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;
   ""|-h|--help|help)

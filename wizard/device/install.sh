@@ -52,6 +52,7 @@ pkill -f 'FlipMouse/service.sh' 2>/dev/null
 pkill -f 'FlipMouse/mouse' 2>/dev/null
 sleep 1
 
+# BEGIN GENERATED
 place_module() {
   mid=$1; zip=$2
   [ -f "$IN/$zip" ] || fail "module zip missing: $IN/$zip"
@@ -61,11 +62,11 @@ place_module() {
   ok "module placed: $mid"
 }
 
-place_module flip2_nav_overlay      flip2_nav_overlay-magisk.zip
-place_module flip2_keypad_backspace flip2_keypad_backspace-magisk.zip
-place_module FlipMouse              FlipMouse.zip
-place_module flip2_pixel_tag_drawer flip2_pixel_tag_drawer-magisk.zip
-place_module flip2_launcher_overlay flip2_launcher_overlay-magisk.zip
+place_module flip2_nav_overlay              flip2_nav_overlay-magisk.zip
+place_module flip2_keypad_backspace         flip2_keypad_backspace-magisk.zip
+place_module FlipMouse                      FlipMouse.zip
+place_module flip2_pixel_tag_drawer         flip2_pixel_tag_drawer-magisk.zip
+place_module flip2_launcher_overlay         flip2_launcher_overlay-magisk.zip
 
 # Nothing starts FlipMouse's daemon until Magisk service time — start it now,
 # the way installer/service.sh does.
@@ -88,12 +89,12 @@ install_apk() {
   ok "installed: $pkg"
 }
 
-install_apk launcher4.apk   com.tim.flip2.launcher4
-install_apk nullkeyboard.apk com.tim.flip2.nullkeyboard
-install_apk forkgram.apk    org.forkgram.classic
-install_apk intertune.apk   dev.skye.intertune
-install_apk bouncy.apk      com.dozingcatsoftware.bouncy
-install_apk materialfiles.apk me.zhanghai.android.files
+install_apk launcher4.apk          com.tim.flip2.launcher4
+install_apk nullkeyboard.apk       com.tim.flip2.nullkeyboard
+install_apk forkgram.apk           org.forkgram.classic
+install_apk materialfiles.apk      me.zhanghai.android.files
+install_apk intertune.apk          dev.skye.intertune
+install_apk bouncy.apk             com.dozingcatsoftware.bouncy
 
 # --- IME settings (manifest 70): values mirror payload data/settings.txt ---
 settings put secure show_ime_with_hard_keyboard '1' \
@@ -104,8 +105,10 @@ settings put secure default_input_method "$NULL_IME" \
   || fail "settings: default_input_method"
 settings put secure accessibility_soft_keyboard_mode '1' \
   || fail "settings: accessibility_soft_keyboard_mode"
-settings put system dtmf_tone '0'      || fail "settings: dtmf_tone"
-settings put system dtmf_tone_type '0' || fail "settings: dtmf_tone_type"
+settings put system dtmf_tone '0' \
+  || fail "settings: dtmf_tone"
+settings put system dtmf_tone_type '0' \
+  || fail "settings: dtmf_tone_type"
 appops set --user 0 $NULL_PKG WRITE_SETTINGS allow \
   || fail "appops: WRITE_SETTINGS for $NULL_PKG"
 pm grant $NULL_PKG android.permission.RECORD_AUDIO \
@@ -127,18 +130,11 @@ settings put global 'keyshortcut_downkey' 'Recents-com.android.systemui-com.tcl.
 ok "home keys applied"
 
 # --- display size, manifest 95: logical 321x428 on the 240x320 panel --------
-# Writing the setting is enough on this ROM — WindowManager re-reads
-# display_size_forced at boot, so it lands at the reboot the modules need.
-# Launcher4's dimens and the nav overlay are built for this logical size.
-# Undo on the phone with: wm size reset
 settings put global 'display_size_forced' '321,428' \
   || fail "settings: display_size_forced"
 ok "display size 321x428 (takes effect after reboot)"
 
 # --- wallpaper: default background, copied where the framework reads it -----
-# This ROM has no `cmd wallpaper`; /data/system/users/0/wallpaper is the file
-# the wallpaper service loads at boot. Optional: the published installer zip
-# may predate the asset, so a missing file is a NOTE, not a FAIL.
 WP=/data/local/flip2/incoming/flip2-wallpaper.png
 WPDST=/data/system/users/0/wallpaper
 if [ -f "$WP" ] && [ ! -f "$STAGE/.wallpaper-applied" ]; then
@@ -152,10 +148,10 @@ else
   echo "NOTE: no flip2-wallpaper.png in incoming/; keeping the current wallpaper"
 fi
 
-# --- Home -------------------------------------------------------------------
 cmd package set-home-activity $HOME_ACT >/dev/null 2>&1 \
   || fail "could not set HOME to launcher4"
 ok "HOME set to launcher4"
+# END GENERATED
 
 # --- Whisper ggml: one multilingual bin serves both lang dirs --------------
 W=$IN/ggml-tiny-q5_1.bin
