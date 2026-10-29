@@ -1,5 +1,9 @@
 # Flip2 toolkit (TCL Gflip6 / Flip 2)
 
+<p align="center">
+  <img src="docs/branding/readme-banner.png" alt="Flip2 toolkit — browser wizard, Tier B installer, four deployment tiers" width="100%" />
+</p>
+
 Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voice dictation on the real keypad, a virtual mouse driven by the directional keys, a tag app drawer, a clean custom launcher, and a hardened Telegram client — installed **one zip, one boot**, or baked straight into your own firmware, with a **de-root path that actually works**.
 
 <p align="center">
@@ -13,7 +17,20 @@ Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voi
 
 Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Launcher3 RRO overlay**, and **recovery** after bad Magisk launcher experiments.
 
-No CLI? A **[browser setup wizard](docs/SETUP-WIZARD.md)** (`wizard/`) does the full install from Chrome on Linux over WebUSB — verified downloads, push, install, verify — plus an erase-gated rooting slice. Prefer a desktop app? `flip2 companion` runs the same wizard in Electron with one-click udev rules and no device chooser.
+## Setup wizard (Chrome on Linux)
+
+<p align="center">
+  <img src="wizard/assets/og-wizard.png" alt="Flip 2 Linux setup wizard — six verified steps" width="720" />
+</p>
+
+No CLI? The **[browser setup wizard](docs/SETUP-WIZARD.md)** (`wizard/`) walks through six steps: credits gate → SHA-256 verified downloads → udev → WebUSB connect → push & install → on-device verify. Read **[SAFETY.md](docs/SAFETY.md)** first (what flashes vs what only uses ADB). For a conservative first install, use the **Tier B full installer zip** from [Releases](https://github.com/MRsmallAgain/flip2/releases); the wizard automates the same payload but marks step 5 as experimental.
+
+```bash
+cd wizard && python3 -m http.server 8000
+# Chrome → http://127.0.0.1:8000/pages/
+```
+
+Prefer a desktop app? **`flip2 companion`** serves the same pages over `flip2://` with one-click udev and auto USB pick. Branding assets: **[docs/branding/README.md](docs/branding/README.md)** (GitHub social preview: upload `docs/branding/github-social-preview.png` in repo settings).
 
 **Quick start**
 
