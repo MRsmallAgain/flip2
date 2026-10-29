@@ -18,7 +18,7 @@ Commands:
   recovery           Remove bad launcher Magisk module, restore stock Launcher3, apply overlay
   pack-overlay       Build Magisk zip for overlay only (launcher-overlay/dist/)
   home-keys          Apply home-keys.json to Settings.Global
-  display <sub>      Global density / font / screen-compat (see docs/DISPLAY-DPI.md)
+  display <sub>      Logical size (321x428) / density / font / compat (see docs/DISPLAY-DPI.md)
   fork <subcmd>      Launcher3 fork (Magisk): build | pack | install | rollback | status | extract
   launcher4 <sub>    User APK com.tim.flip2.launcher4: build | install | set-home | uninstall | status
   ime <sub>          Null keyboard + STT: build | hide-bar | restore | status | models | lang

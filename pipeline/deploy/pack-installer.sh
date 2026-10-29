@@ -162,6 +162,16 @@ if echo "$ROWS" | awk -F'|' '$2 == "home_keys" { found=1 } END { exit found ? 0 
   done
 fi
 
+# display: the logical size the launcher dimens and nav overlay are built for.
+# WindowManager re-reads display_size_forced at boot, so no boot script is
+# needed — the reboot the modules already require applies it.
+if echo "$ROWS" | awk -F'|' '$2 == "display" { found=1 } END { exit found ? 0 : 1 }'; then
+  jq -r '.components[] | select(.name=="display") | .settings[]? // empty' "$MANIFEST" \
+    | while IFS=' ' read -r ns key val; do
+        printf "settings put %s '%s' '%s'\n" "$ns" "$key" "$val"
+      done >> "$DATA/settings.txt"
+fi
+
 # Vosk/Whisper models: never bundled; only URLs baked in if the packer got any.
 if [ "${#VOSK_URLS[@]}" -gt 0 ]; then
   for u in "${VOSK_URLS[@]}"; do

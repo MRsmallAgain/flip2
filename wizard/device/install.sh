@@ -126,6 +126,15 @@ settings put global 'keyshortcut_downkey' 'Recents-com.android.systemui-com.tcl.
   || fail "keyshortcut_downkey"
 ok "home keys applied"
 
+# --- display size, manifest 95: logical 321x428 on the 240x320 panel --------
+# Writing the setting is enough on this ROM — WindowManager re-reads
+# display_size_forced at boot, so it lands at the reboot the modules need.
+# Launcher4's dimens and the nav overlay are built for this logical size.
+# Undo on the phone with: wm size reset
+settings put global 'display_size_forced' '321,428' \
+  || fail "settings: display_size_forced"
+ok "display size 321x428 (takes effect after reboot)"
+
 # --- Home -------------------------------------------------------------------
 cmd package set-home-activity $HOME_ACT >/dev/null 2>&1 \
   || fail "could not set HOME to launcher4"

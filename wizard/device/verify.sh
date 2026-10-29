@@ -139,6 +139,19 @@ done
 SKB=$(settings get secure accessibility_soft_keyboard_mode 2>/dev/null)
 echo "NOTE: accessibility_soft_keyboard_mode=$SKB (TCL reverts this; harmless)"
 
+# --- Display size (logical 321x428 on the 240x320 panel) ----------------------
+# Checked against the persisted setting rather than `wm size`, because the
+# override only becomes an active size at the next boot; a phone whose reboot
+# has not happened yet still reports `Physical size` only.
+SIZE=$(settings get global display_size_forced 2>/dev/null)
+if [ "$SIZE" = "321,428" ]; then
+  echo "PASS: display_size_forced=321,428"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: display_size_forced is '$SIZE' (expected 321,428; set it in Settings → Display or reboot)"
+  FAILS=$((FAILS + 1))
+fi
+
 echo ""
 echo "SUMMARY: $PASS passed, $FAILS failed"
 [ "$FAILS" -eq 0 ] && exit 0

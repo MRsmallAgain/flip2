@@ -125,7 +125,7 @@ MD
 
 jq -r '.components
   | sort_by(.install_order)[]
-  | "| \(.install_order) | \(.name) | \(if .artifact == "settings-write" then "home-keys.json + apply-home-keys.sh" elif .external then (if .external.url then "\(.external.asset) (download from \(.external.url))" else "\(.external.asset) (download from \(.external.repo), tag \(.external.tag))" end) else (.zip // .apk | split("/")[-1]) end) | \(.artifact) | \(.root_install) | \(.root_runtime) | \(.reboot) |"' "$MANIFEST" \
+  | "| \(.install_order) | \(.name) | \(if .name == "home_keys" then "home-keys.json + apply-home-keys.sh" elif .artifact == "settings-write" then "display_size_forced (settings)" elif .external then (if .external.url then "\(.external.asset) (download from \(.external.url))" else "\(.external.asset) (download from \(.external.repo), tag \(.external.tag))" end) else (.zip // .apk | split("/")[-1]) end) | \(.artifact) | \(.root_install) | \(.root_runtime) | \(.reboot) |"' "$MANIFEST" \
   >> "$OUT/README.md"
 
 cat >> "$OUT/README.md" <<'MD'
@@ -146,6 +146,9 @@ cat >> "$OUT/README.md" <<'MD'
 - **Forkgram**: not included — download the patched release from
   github.com/MRsmallAgain/TelegramAndroid (tag flip2-13.0.2.0-r1) per GPL.
 - **home_keys**: run `./apply-home-keys.sh` with a device connected (no root).
+- **display**: `adb shell wm size 321x428` (what the installer bakes into
+  `display_size_forced`). The override is re-read at boot, so it persists.
+  Undo with `wm size reset`.
 
 ### IME settings block (adb shell, root or adb root)
 

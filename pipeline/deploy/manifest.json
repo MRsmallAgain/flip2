@@ -189,9 +189,25 @@
         "image"
       ],
       "install_order": 90,
+      "notes": "global keyshortcut_leftkey|rightkey|upkey|downkey|shortcuts_bar, baked from launcher-overlay/home-keys.json by pack-installer.sh"
+    },
+    {
+      "name": "display",
+      "artifact": "settings-write",
+      "build": null,
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": true,
+      "tiers": [
+        "clean",
+        "full"
+      ],
+      "install_order": 95,
       "settings": [
-        "global keyshortcut_leftkey|rightkey|upkey|downkey|shortcuts_bar from launcher-overlay/home-keys.json"
-      ]
+        "global display_size_forced 321,428"
+      ],
+      "notes": "Logical 321x428 on the 240x320 panel. WindowManager re-reads display_size_forced at boot, so this needs no boot script; it takes effect at the reboot the modules need anyway. Launcher4's dimens and the nav overlay are built for this size. Undo: wm size reset."
     }
   ],
   "deroot_summary": {
@@ -201,6 +217,7 @@
       "forkgram",
       "materialfiles",
       "home_keys",
+      "display size override",
       "default HOME",
       "default IME"
     ],

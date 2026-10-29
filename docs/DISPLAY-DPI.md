@@ -11,8 +11,13 @@ Main panel: **240×320**, physical density **160** (`ro.sf.lcd_density`). Cover:
 | **Launcher4 menu** | `launcher-overlay/res/values/dimens.xml` — scaled `allapp_*` / `toolapp_*` / `widget_big_font_size`; merged at **`flip2 launcher4 build`** |
 | **System UI text** | **`flip2 display font 1.15`** (adjust 1.0–1.2; **`flip2 display font reset`** to undo) |
 
-**Undo size:** `adb shell wm size reset`  
-**Re-apply size after reboot:** size override may not persist — re-run size or add a boot script if you want it permanent.
+**Undo size:** **`flip2 display size reset`** (or `adb shell wm size reset`).
+
+**It persists.** `wm size` writes `Settings.Global.display_size_forced` (`321,428`), and WindowManager re-reads that at boot — verified on donor `MRV8IJJVPRYTS4UG` on 2026-10-29 by writing the setting raw with no `wm` call and rebooting: the phone came back with `Override size: 321x428`. No boot script is needed, so the bundle bakes the value instead.
+
+**Bundled since 2026-10-29.** The `display` component (`install_order` 95) in `pipeline/deploy/manifest.json` writes the setting from the installer zip's boot-time `service.sh`, from the wizard's `install.sh`, and from `flip2 setup full`. `verify.sh` checks it. `flip2 display size 321x428` applies it by hand.
+
+**One caveat for wizard users.** `wizard/catalog.json` still pins the published installer zip at `v1.1.1-flip2` (`sha256 5511f77a…`), which predates this change. Downloading that zip through the wizard therefore does **not** install the display fix — only the repo-tree paths above carry it until the zip is repacked, released, and the catalog repinned.
 
 ## Per-app DPI (Telegram, Pixel Tag Drawer, …)
 

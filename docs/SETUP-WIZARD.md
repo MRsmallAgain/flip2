@@ -60,7 +60,7 @@ For a public page, serve the `wizard/` directory from any static host
    is kept for Retry; the page cleans it up on success.
 6. **Verify.** `verify.sh` runs on the phone and prints one PASS/FAIL line
    per check (daemon, IME, home, six apps, speech models, stt_lang, the five
-   home-key shortcuts, IME settings).
+   home-key shortcuts, IME settings, and `display_size_forced=321,428`).
 
 The wizard never clears the home-key shortcuts, never downloads a browser
 (menu slot 7 stays `org.chromium.chrome` — Chrome is already on the phone),
@@ -94,7 +94,8 @@ rooted — unlocking it would erase it.
 On 2026-10-29 the flash button on that slice was pressed for the first time:
 donor `MRV8IJJVPRYTS4UG` went from a `boot` hash of `40ef8d56…` to the
 `neutron.img` pin, rebooted, and came up rooted on Magisk 27.0 — with the full
-app and module set installed and verifying 27/27 on the other side.
+app and module set installed and verifying 28/28 on the other side (the
+  display-size check was added the same day, after the run itself).
 [FLASH-2026-10-29.md](FLASH-2026-10-29.md) records the run, including the one
 place it fell back to host adb and why.
 

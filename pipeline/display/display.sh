@@ -13,7 +13,8 @@ usage() {
   cat <<EOF
 Usage: flip2 display <subcommand> [args]
 
-  status                    Show wm density and font_scale
+  status                    Show wm size, density and font_scale
+  size [reset|WxH]          Logical display size override (default 321x428)
   density [reset|DPI]       Global display density (default panel). reset = stock 160
   compat on|off <package>   am screen-compat (legacy letterbox), not per-app DPI
   font [reset|SCALE]        system font_scale (1.0 default)
@@ -23,6 +24,8 @@ Per-app DPI for Forkgram/Pixel Tag Drawer is not available on retail Android 11.
 See: $ROOT/docs/DISPLAY-DPI.md
 
 Examples:
+  flip2 display size 321x428
+  flip2 display size reset
   flip2 display density 140
   flip2 display density reset
   flip2 display compat on $TELEGRAM_PKG
@@ -38,11 +41,30 @@ case "$cmd" in
     usage
     ;;
   status)
+    adb shell wm size 2>/dev/null || true
+    echo -n "display_size_forced: "
+    adb shell settings get global display_size_forced 2>/dev/null || echo "(unset)"
     adb shell wm density 2>/dev/null || true
     echo -n "font_scale: "
     adb shell settings get system font_scale 2>/dev/null || echo "(unknown)"
     echo "Forkgram: $TELEGRAM_PKG"
     echo "Tag drawer: $TAGDRAWER_PKG"
+    ;;
+  size)
+    arg="${1:-}"
+    if [[ -z "$arg" ]]; then
+      adb shell wm size
+      exit 0
+    fi
+    if [[ "$arg" == "reset" ]]; then
+      adb shell wm size reset
+      echo "Done. Size override cleared."
+      exit 0
+    fi
+    # Same value the bundle bakes into display_size_forced at install time,
+    # written through `wm size` so it applies now as well as at next boot.
+    adb shell wm size "$arg"
+    echo "Done. Takes effect immediately and survives a reboot."
     ;;
   density)
     arg="${1:-}"
