@@ -19,7 +19,7 @@ Main panel: **240×320**, physical density **160** (`ro.sf.lcd_density`). Cover:
 
 **In the Tier A image** the setting cannot be a file, so `flip2 image build-tree` emits it into the tree's `first-boot.sh`; run that once as root after Magisk is up ([IMAGE-BUILD.md](IMAGE-BUILD.md) step 5a). Applied that way it survived a reboot on the donor: `Override size: 321x428`.
 
-**One caveat for wizard users.** `wizard/catalog.json` still pins the published installer zip at `v1.1.1-flip2` (`sha256 5511f77a…`), which predates this change. Downloading that zip through the wizard therefore does **not** install the display fix — only the repo-tree paths above carry it until the zip is repacked, released, and the catalog repinned.
+**Wizard users are covered since v1.2.0-flip2.** `wizard/catalog.json` was repinned on 2026-10-29 to the release built from `feature/rooting-slice` @ `80ea6c4` — `flip2-installer-full-magisk.zip`, 16,424,801 B, sha256 `be8b5fc7d2fe4b56ae0aa3d91d72a3de12e5be0cf36a09a8687cc6eeaf1e26bb`. The pin was checked by downloading the published asset back and hashing it, not by trusting the local build. The wizard's push set takes the APKs, modules and wallpaper out of that zip, so a wizard install now carries the size override too.
 
 ## Per-app DPI (Telegram, Pixel Tag Drawer, …)
 

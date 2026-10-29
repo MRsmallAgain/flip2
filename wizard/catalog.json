@@ -1,7 +1,7 @@
 {
   "$comment": "Flip2 setup wizard download catalog. Every hash below was computed from the real upstream file (sha256sum), not guessed; sizes are exact byte counts. The browser verifies each download with WebCrypto SHA-256 against these pins before anything is pushed to the phone. Nothing in this catalog is stored in the repo or attached to releases — these are pointers to upstream artifacts.",
-  "version": "1.1.1-flip2",
-  "pinned": "2026-10-26",
+  "version": "1.2.0-flip2",
+  "pinned": "2026-10-29",
   "files": [
     {
       "id": "neutron",
@@ -17,13 +17,13 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "purpose": "Flip2 single-shot Magisk installer (full tier): installs user APKs (launcher4, Null Keyboard), downloads external APKs (Forkgram, Material Files), unpacks the flip2 Magisk modules, applies baked settings and home-keys, then self-removes. Matches release v1.1.1-flip2.",
-      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.1.1-flip2/flip2-installer-full-magisk.zip",
-      "size": 16102817,
-      "sha256": "5511f77ab0cbb83e2b6858d99b4aeaa13e307e12b3fb5f9d3218f569d891d79d",
+      "purpose": "Flip2 single-shot Magisk installer (full tier): installs user APKs (launcher4, Null Keyboard), downloads external APKs (Forkgram, Material Files), unpacks the flip2 Magisk modules, applies baked settings (home-keys, the 321x428 logical size) and the default wallpaper, then self-removes. Matches release v1.2.0-flip2.",
+      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.2.0-flip2/flip2-installer-full-magisk.zip",
+      "size": 16424801,
+      "sha256": "be8b5fc7d2fe4b56ae0aa3d91d72a3de12e5be0cf36a09a8687cc6eeaf1e26bb",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "github.com/MRsmallAgain/flip2 release v1.1.1-flip2"
+      "upstream": "github.com/MRsmallAgain/flip2 release v1.2.0-flip2"
     },
     {
       "id": "forkgram",
