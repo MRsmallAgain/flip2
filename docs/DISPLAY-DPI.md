@@ -11,8 +11,15 @@ Main panel: **240×320**, physical density **160** (`ro.sf.lcd_density`). Cover:
 | **Launcher4 menu** | `launcher-overlay/res/values/dimens.xml` — scaled `allapp_*` / `toolapp_*` / `widget_big_font_size`; merged at **`flip2 launcher4 build`** |
 | **System UI text** | **`flip2 display font 1.15`** (adjust 1.0–1.2; **`flip2 display font reset`** to undo) |
 
-**Undo size:** `adb shell wm size reset`  
-**Re-apply size after reboot:** size override may not persist — re-run size or add a boot script if you want it permanent.
+**Undo size:** **`flip2 display size reset`** (or `adb shell wm size reset`).
+
+**It persists.** `wm size` writes `Settings.Global.display_size_forced` (`321,428`), and WindowManager re-reads that at boot — verified on donor `MRV8IJJVPRYTS4UG` on 2026-10-29 by writing the setting raw with no `wm` call and rebooting: the phone came back with `Override size: 321x428`. No boot script is needed, so the bundle bakes the value instead.
+
+**Bundled since 2026-10-29.** The `display` component (`install_order` 95) in `pipeline/deploy/manifest.json` writes the setting from the installer zip's boot-time `service.sh`, from the wizard's `install.sh`, and from `flip2 setup full`. `verify.sh` checks it. `flip2 display size 321x428` applies it by hand.
+
+**In the Tier A image** the setting cannot be a file, so `flip2 image build-tree` emits it into the tree's `first-boot.sh`; run that once as root after Magisk is up ([IMAGE-BUILD.md](IMAGE-BUILD.md) step 5a). Applied that way it survived a reboot on the donor: `Override size: 321x428`.
+
+**Wizard users are covered since v1.2.0-flip2.** `wizard/catalog.json` was repinned on 2026-10-29 to the release built from `feature/rooting-slice` @ `80ea6c4` — `flip2-installer-full-magisk.zip`, 16,424,801 B, sha256 `be8b5fc7d2fe4b56ae0aa3d91d72a3de12e5be0cf36a09a8687cc6eeaf1e26bb`. The pin was checked by downloading the published asset back and hashing it, not by trusting the local build. The wizard's push set takes the APKs, modules and wallpaper out of that zip, so a wizard install now carries the size override too.
 
 ## Per-app DPI (Telegram, Pixel Tag Drawer, …)
 

@@ -46,3 +46,6 @@ pipeline/ime/null-keyboard/jni/*.so
 
 # Electron companion
 companion/node_modules/
+
+# External APKs fetched by flip2 source fetch
+pipeline/deploy/sources/

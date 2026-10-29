@@ -2,6 +2,9 @@
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.5 system-ui,sans-serif;color:var(--ink);background:var(--bg)}
 header{padding:16px 20px;border-bottom:1px solid var(--line);background:#fff}
+header.site-header{display:flex;align-items:flex-start;gap:14px;max-width:880px;margin:0 auto}
+header.site-header .header-logo{flex:none;margin-top:2px}
+header.site-header h1{margin:0;font-size:20px}
 h1{margin:0;font-size:20px}
 .sub{margin:4px 0 0;color:#555;font-size:14px}
 main{max-width:880px;margin:0 auto;padding:16px 20px 80px}
@@ -32,7 +35,37 @@ pre.rules{background:#f1efe9;border:1px solid var(--line);padding:12px;border-ra
 .badge-exp{display:inline-block;vertical-align:2px;margin-left:8px;padding:1px 8px;border:1px solid #e7c88a;border-radius:999px;background:#fdf3e0;color:#8a6d00;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .danger{background:#fbe9e7;border:1px solid #e39b93;padding:10px 12px;border-radius:6px}
 .note{color:#555;font-size:14px}
+/* Live "what the phone is doing" panel in the rooting step. */
+.now{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:#fbfaf7;margin:10px 0}
+.now-row{display:flex;gap:10px;align-items:baseline;font-size:15px}
+.now-label{color:#555;font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+.now-hint{margin:6px 0 0;font-size:14px;color:#555;min-height:1.5em}
+.now.live{background:#fdf3e0;border-color:#e7c88a}
+.now.caught{background:#e8f5ec;border-color:#8cc9a2}
+.now.bad{background:#fbe9e7;border-color:#e39b93}
+.watchbar{margin-top:10px;height:8px;border-radius:999px;background:#e7e3d9;overflow:hidden}
+#boot-bar{height:100%;width:0;background:var(--accent);transition:width .2s linear}
+#boot-bar.run{background:var(--ok)}
+.count{margin-top:8px;font-size:14px;color:#8a6d00;font-variant-numeric:tabular-nums}
+/* Recovery card: shown instead of the watch panel while the phone is in a
+   mode the wizard cannot use. Numbered actions, no jargon. */
+#wake-box .now-hint{margin-top:10px}
+.wake-steps{margin:8px 0 0;padding-left:22px;font-size:15px}
+.wake-steps li{margin:8px 0}
+#wake-box.woke{background:#e8f5ec;border-color:#8cc9a2}
+/* Numbered stage headings. Only one stage is on screen at a time, so the
+   number is what tells someone how far along they are. */
+.stage-h{display:flex;align-items:center;gap:10px;margin:18px 0 8px;font-size:16px}
+.stage-n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:999px;background:var(--accent);color:#fff;font-size:13px;font-weight:600;flex:none}
 .hidden{display:none!important}
 label.inline{display:block;margin:10px 0}
 ol li,ul li{margin:6px 0}
 footer{max-width:880px;margin:0 auto;padding:0 20px 40px;color:#777;font-size:13px}
+footer p{margin:6px 0}
+.footer-advanced-label{color:#8a6d00;font-weight:600}
+table.safety-paths{font-size:14px;margin:10px 0 14px}
+table.safety-paths td:first-child{white-space:nowrap}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
+.modal-panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 20px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.modal-panel h3{margin:0 0 10px;font-size:17px}
+.modal-panel ul{margin:0 0 14px;padding-left:20px;font-size:14px}

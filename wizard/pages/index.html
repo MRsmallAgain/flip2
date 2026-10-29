@@ -4,12 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Flip 2 Linux setup wizard</title>
+<meta name="description" content="Verify downloads, connect over WebUSB, install flip2 on a rooted TCL Flip 2 from Chrome on Linux.">
+<meta property="og:title" content="Flip 2 Linux setup wizard">
+<meta property="og:description" content="SHA-256 verified files · six steps · install and verify on device">
+<meta property="og:type" content="website">
+<meta property="og:image" content="../assets/og-wizard.png">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>Flip 2 Linux setup wizard</h1>
-  <p class="sub">Chrome on Linux · WebUSB · nothing downloads until you type <code>yes</code></p>
+<header class="site-header">
+  <img src="../assets/logo.svg" alt="" width="40" height="40" class="header-logo">
+  <div>
+    <h1>Flip 2 Linux setup wizard</h1>
+    <p class="sub">Verifies every download before touching your phone. Nothing downloads until you type <code>yes</code>.</p>
+  </div>
 </header>
 <nav id="steps">
   <span data-step="credit">1 · credits</span>
@@ -29,12 +39,22 @@
     <thead><tr><th>What</th><th>Author</th><th>License</th><th>Link</th></tr></thead>
     <tbody></tbody>
   </table>
-  <h3>What the wizard will and will not do</h3>
-  <ul>
-    <li>It verifies every download in this page with SHA-256 before pushing anything to the phone. A mismatch stops that file.</li>
-    <li>It pushes files into <code>/data/local/flip2/</code> and runs an install script. It does not flash any partition on this step.</li>
-    <li>It never touches <code>super</code>, <code>vbmeta</code>, system, product, or the preloader, and never writes the EMMC_BOOT header.</li>
-  </ul>
+	  <h3>Pick your path (read before you continue)</h3>
+	  <table class="safety-paths">
+	    <thead><tr><th>Path</th><th>Flashes partitions?</th><th>Wipes data?</th></tr></thead>
+	    <tbody>
+	      <tr><td><b>Steps 1–6</b> (install button)</td><td>No — ADB + Magisk modules only</td><td>No</td></tr>
+	      <tr><td><b>Release installer zip</b> (GitHub)</td><td>No</td><td>No — <em>recommended for first setup</em></td></tr>
+			    </tbody>
+	  </table>
+	  <p class="warn"><b>Brick risk</b> is mostly wrong flashes to <code>super</code>, <code>vbmeta</code>, system, or preloader — the main install path does <em>not</em> do that. Half-failed installs are retryable; verify (step 6) shows what landed. See <code>docs/SAFETY.md</code> in the flip2 repo for the full guide.</p>
+	  <h3>What the wizard will and will not do</h3>
+	  <ul>
+	    <li>It verifies every download in this page with SHA-256 before pushing anything to the phone. A mismatch stops that file.</li>
+	    <li>It pushes files into <code>/data/local/flip2/</code> and runs an install script. It does not flash any partition on the numbered steps.</li>
+	    <li>It never touches <code>super</code>, <code>vbmeta</code>, system, product, or the preloader, and never writes the EMMC_BOOT header on steps 1–6.</li>
+		  </ul>
+	  <p class="note">If the phone is already rooted (<code>su</code> works), use files → install, or the release zip.</p>
   <label class="inline">Type <b>yes</b> to allow downloads: <input id="gate-input" autocomplete="off" size="6"></label>
   <p><button id="gate-btn" disabled>Continue</button>
      <span id="gate-msg" class="note"></span></p>
@@ -43,16 +63,19 @@
 <!-- 2: downloads + checksums -->
 <section class="step" id="step-download">
   <h2>Files</h2>
-  <p>Browsers cannot read these servers directly (they do not send cross-origin headers), so the page links each file, you download it normally, then pick it below. The page checks SHA-256 against the pinned catalog before it will use a file.</p>
+  <p>Every file is checked against a pinned SHA-256 before the wizard will use it. In the Companion app, <b>Use files already on this PC</b> picks up copies you already have, and <b>Download all here</b> fetches the rest directly. In a plain browser, download each one and choose it below.</p>
   <table id="dl-table">
-    <thead><tr><th>File</th><th>Size</th><th>Purpose</th><th>Download</th><th>Status</th></tr></thead>
+    <thead><tr><th>File</th><th>Size</th><th>Author</th><th>Get</th><th>Status</th></tr></thead>
     <tbody></tbody>
   </table>
   <input type="file" id="dl-pick" multiple class="hidden">
-  <p><button id="dl-pick-btn" class="ghost">Choose downloaded files</button>
+  <p><button id="dl-local-btn" class="hidden">Use files already on this PC</button>
+     <button id="dl-fetch-btn" class="hidden">Download all here</button>
+     <button id="dl-pick-btn" class="ghost">Choose downloaded files</button>
      <span id="dl-msg" class="status"></span></p>
   <div id="dl-results"></div>
-  <p><button id="dl-next" disabled>Continue</button></p>
+  <p><button class="ghost" data-back="credit">Back</button>
+     <button id="dl-next" disabled>Continue</button></p>
 </section>
 
 <!-- 3: udev pause -->
@@ -65,20 +88,23 @@
     <li><code>sudo udevadm control --reload-rules && sudo udevadm trigger</code></li>
     <li>Unplug the phone and plug it back in.</li>
   </ol>
-  <p class="note">This file covers both adb modes the phone presents (composite <code>1bbb:0167</code> and adb-only <code>1bbb:0c01</code>). It also lists the MediaTek preloader <code>0e8d:2000</code> so that device is permissioned if it appears. This wizard does not open the preloader.</p>
+  <p class="note">This file covers both adb modes the phone presents (composite <code>1bbb:0167</code> and adb-only <code>1bbb:0c01</code>) and the MediaTek preloader <code>0e8d:2000</code> used by the optional rooting slice.</p>
   <p><button id="udev-native" class="hidden">Install the rules for me</button>
      <span id="udev-native-msg" class="status"></span></p>
-  <p><button id="udev-done">I did this — continue</button></p>
+  <p><button class="ghost" data-back="download">Back</button>
+     <button id="udev-done">I did this — continue</button></p>
 </section>
 
-<!-- 4: connect -->
-<section class="step" id="step-usb">
-  <h2>Connect</h2>
-  <p>On the phone: <b>Settings → About → tap build number 7 times</b>, then <b>Developer options → USB debugging</b> on, and plug in USB. Then pick the phone below.</p>
-  <p><button id="usb-btn">Pick phone</button>
+	<!-- 4: connect -->
+	<section class="step" id="step-usb">
+	  <h2>Connect</h2>
+	  <p>On the phone: <b>Settings → About → tap build number 7 times</b>, then <b>Developer options → USB debugging</b> on, and plug in USB. Then pick the phone below.</p>
+	  <p id="usb-rooted-banner" class="warn hidden"><b>Already rooted?</b> You do not need the footer “erase and root” link — that flow wipes the phone. Continue to install (step 5) or use the release installer zip for a conservative first setup.</p>
+	  <p><button id="usb-btn">Pick phone</button>
      <span id="usb-msg" class="status"></span></p>
   <pre class="log hidden" id="usb-log"></pre>
-  <p><button id="usb-next" disabled>Continue to install</button></p>
+  <p><button class="ghost" data-back="udev">Back</button>
+     <button id="usb-next" disabled>Continue to install</button></p>
 </section>
 
 <!-- 5: install -->
@@ -90,7 +116,8 @@
      <button id="inst-retry" class="ghost hidden">Retry</button>
      <span id="inst-msg" class="status"></span></p>
   <pre class="log hidden" id="inst-log"></pre>
-  <p><button id="inst-next" disabled>Continue to verify</button></p>
+  <p><button class="ghost" data-back="usb">Back</button>
+     <button id="inst-next" disabled>Continue to verify</button></p>
 </section>
 
 <!-- 6: verify -->
@@ -101,17 +128,33 @@
      <button id="ver-recheck" class="ghost hidden">Run again</button>
      <span id="ver-msg" class="status"></span></p>
   <pre class="log hidden" id="ver-log"></pre>
+  <p><button class="ghost" data-back="install">Back</button></p>
 </section>
 
 </main>
-<footer>
-  Flip 2 wizard · verify step runs <code>verify.sh</code> on the phone
+	<div id="inst-modal" class="modal hidden" role="dialog" aria-labelledby="inst-modal-title">
+	  <div class="modal-panel">
+	    <h3 id="inst-modal-title">Before push and install</h3>
+	    <ul>
+	      <li>This step does <b>not</b> flash system, super, vbmeta, or preloader.</li>
+	      <li>It <b>requires root</b> (<code>su</code>) on the phone.</li>
+	      <li>A failed run may leave modules half-applied — use <b>Retry</b>; the release installer zip is the more conservative first-time path.</li>
+	    </ul>
+	    <p><button id="inst-modal-go">I understand — push and install</button>
+	       <button id="inst-modal-cancel" class="ghost">Cancel</button></p>
+	  </div>
+	</div>
+	<footer>
+  <p>Flip 2 wizard · step 6 checks what landed on the phone.</p>
 </footer>
 <script src="../fflate.js"></script>
 <script src="js/catalog.js"></script>
 <script src="js/keys.js"></script>
 <script src="js/adb.js"></script>
+<script src="js/push-manifest.js"></script>
 <script src="js/pipeline.js"></script>
+<script src="js/bootrom.js"></script>
+<script src="js/fastboot.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

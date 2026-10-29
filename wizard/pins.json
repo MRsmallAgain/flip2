@@ -1,0 +1,77 @@
+{
+  "version": "1.2.0-flip2",
+  "pinned": "2026-10-29",
+  "catalog": "wizard/catalog.json",
+  "files": [
+    {
+      "id": "neutron",
+      "file": "neutron.img",
+      "sha256": "31237917ef51fa6e7ee588da1cfc84bb378859de2d49681fdd4f84290841d3c1",
+      "size": 25165824,
+      "url": "https://github.com/neutronscott/flip2/releases/download/v2024.09.17.kefs/neutron.img"
+    },
+    {
+      "id": "installer-full",
+      "file": "flip2-installer-full-magisk.zip",
+      "sha256": "be8b5fc7d2fe4b56ae0aa3d91d72a3de12e5be0cf36a09a8687cc6eeaf1e26bb",
+      "size": 16424801,
+      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.2.0-flip2/flip2-installer-full-magisk.zip"
+    },
+    {
+      "id": "forkgram",
+      "file": "forkgram-13.0.2.0-flip2-patched.apk",
+      "sha256": "bc378c74c378c23c2115ca1755b5322b15d30132098bcc8136ef1f13a817ce38",
+      "size": 40136550,
+      "url": "https://github.com/MRsmallAgain/TelegramAndroid/releases/download/flip2-13.0.2.0-r1/forkgram-13.0.2.0-flip2-patched.apk"
+    },
+    {
+      "id": "whisper-tiny",
+      "file": "ggml-tiny-q5_1.bin",
+      "sha256": "818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7",
+      "size": 32152673,
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny-q5_1.bin"
+    },
+    {
+      "id": "vosk-en",
+      "file": "vosk-model-small-en-us-0.15.zip",
+      "sha256": "30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498",
+      "size": 41205931,
+      "url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
+    },
+    {
+      "id": "vosk-uk",
+      "file": "vosk-model-small-uk-v3-nano.zip",
+      "sha256": "d6b50be0a2d20f891720f3a83c98290bb2d396fd666142dbf716e8ad302f8233",
+      "size": 77622640,
+      "url": "https://alphacephei.com/vosk/models/vosk-model-small-uk-v3-nano.zip"
+    },
+    {
+      "id": "tagdrawer",
+      "file": "com.iwadjp.pixeltagdrawer_7.apk",
+      "sha256": "8215454c5b7c8b1465cbc82f304f1cc448fb0c93b63ffc7d15f16b31ce7f6435",
+      "size": 8433539,
+      "url": "https://f-droid.org/repo/com.iwadjp.pixeltagdrawer_7.apk"
+    },
+    {
+      "id": "bouncy",
+      "file": "com.dozingcatsoftware.bouncy_43.apk",
+      "sha256": "ffda0d9cb0b1b2aa58be9559dda891c4fa24391bc481d297a8e3d96c31f62721",
+      "size": 3233743,
+      "url": "https://f-droid.org/repo/com.dozingcatsoftware.bouncy_43.apk"
+    },
+    {
+      "id": "intertune",
+      "file": "dev.skye.intertune_96.apk",
+      "sha256": "64779316cc70046276c03964358dc7a7471dca9c7f2b24e1c4a79966745638fe",
+      "size": 14504398,
+      "url": "https://f-droid.org/repo/dev.skye.intertune_96.apk"
+    },
+    {
+      "id": "materialfiles",
+      "file": "me.zhanghai.android.files_40.apk",
+      "sha256": "2fe900bf43d725b655008d438f5ca46d0da0f301e3784403b5b96c3fc2df6e8a",
+      "size": 10944578,
+      "url": "https://f-droid.org/repo/me.zhanghai.android.files_40.apk"
+    }
+  ]
+}

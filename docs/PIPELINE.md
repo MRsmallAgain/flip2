@@ -63,6 +63,11 @@ export PATH="$HOME/.local/share/flip2/bin:$PATH"
 | `flip2 recovery` | Post-crash recovery |
 | `flip2 pack-overlay` | Magisk zip for RRO only |
 | `flip2 home-keys` | Settings.Global shortcuts |
+| `flip2 display size [reset\|WxH]` | Logical size override, default `321x428` (see [DISPLAY-DPI.md](DISPLAY-DPI.md)) |
+| `flip2 display status` | `wm size`, `display_size_forced`, density, font scale |
+| `flip2 wallpaper apply` | Copy the default PNG to `/data/system/users/0/wallpaper` (root; reboot to show - see [WALLPAPER.md](WALLPAPER.md)) |
+| `flip2 wallpaper status` | Compare the device wallpaper with `pipeline/wallpaper/assets/` |
+| `flip2 wallpaper gen` | Regenerate the asset from `gen-wallpaper.py` |
 | `flip2 tagdrawer pack` | F-Droid APK → Magisk zip |
 | `flip2 tagdrawer install` | System app module + remove AppShelf; reboot |
 | `flip2 tagdrawer rollback` | Remove `flip2_pixel_tag_drawer` module |

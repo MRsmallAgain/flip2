@@ -51,6 +51,8 @@ The tree contains (see its `MANIFEST.txt` + `SHA256SUMS`):
 | `system/usr/keylayout/matrix-keypad.kl` | backspace remap (no Magisk needed) |
 | `product/overlay/Flip2NavOverlay.apk` | hide the 30px nav bar |
 | `product/overlay/Flip2LauncherOverlay.apk` | stock Launcher3 menu RRO |
+| `system/media/flip2-wallpaper.png` | default wallpaper asset (copied into `/data` at first boot) |
+| `first-boot.sh` | the two settings this tree cannot express, plus the wallpaper copy - see step 5a |
 
 Notes:
 
@@ -60,6 +62,14 @@ Notes:
 - FlipMouse is **not** in the tree: it needs runtime root to read
   `/dev/input`. Forkgram is never bundled (GPL). Both arrive via the
   Tier B installer.
+- **A merge tree can only carry files.** The settings-write components
+  (`home_keys`, and `display`'s `display_size_forced`) and the wallpaper's copy
+  into `/data/system/users/0` are therefore *not* baked into the image. They
+  are emitted as **`first-boot.sh`** in the tree root, with the values already
+  filled in from the manifest and `launcher-overlay/home-keys.json`. Run it
+  once as root after Magisk is up - step 5a below. Without it the image boots
+  with stock key shortcuts, stock 240x320 logical size and no flip2 wallpaper;
+  nothing else is affected.
 
 ## 3. Merge the tree into the stock images
 
@@ -106,6 +116,28 @@ The one-shot installer installs Forkgram (downloaded at install time),
 applies IME/home-keys settings, starts FlipMouse, writes
 `/data/local/flip2/deroot.sh`, and removes itself.
 
+### 5a. Run `first-boot.sh` from the image tree
+
+The installer zip cannot cover everything the image needs: `first-boot.sh` is
+generated from *your* manifest at build time and lives in the tree, not in the
+zip. Run it once, as root, after Magisk is working:
+
+```bash
+adb push pipeline/deploy/dist/flip2-system-tree/first-boot.sh /data/local/tmp/
+adb shell su -c "sh /data/local/tmp/first-boot.sh"
+adb reboot
+```
+
+It writes the `keyshortcut_*` settings, `display_size_forced=321,428`, and
+copies `system/media/flip2-wallpaper.png` to `/data/system/users/0/wallpaper`
+(`system:system`, `600`, `wallpaper_file` label). Both settings are re-read by
+the framework at boot, so the reboot is what makes the size take effect, and
+the wallpaper shows on the same boot.
+
+The wallpaper copy is stamp-guarded with `/data/local/flip2/.wallpaper-applied`
+so re-running the script never replaces a background the user has since chosen.
+Everything else is idempotent. See [WALLPAPER.md](WALLPAPER.md).
+
 ## 6. Verification gate
 
 Before trusting the image, run the checklist in
@@ -118,6 +150,75 @@ Tier-level checks after step 5:
 - `flip2 ime status` — Null Keyboard is default, models present
 - d-pad Up opens PixelTagDrawer; ⌫ deletes in chat (keypad KL)
 - no 30px nav bar (nav overlay RRO active)
+- `flip2 wallpaper status` - `MATCH: the flip2 wallpaper is installed`
+- `flip2 display status` - `Override size: 321x428`
+
+## Recovery: a `super` write that stalls mid-image
+
+Measured on the reference 4058G, 2026-10-28. A full 2 GiB `super` write can
+die partway through even with a good cable and A/C power, and the on-device
+partition is then a **torn mix of two images**. Do not boot the phone in that
+state; finish the write first.
+
+**How it looks.** `fastboot flash super` stops printing progress. The host
+`fastboot` process sits in state `D` inside `usbfs_start_wait_urb`, and the
+device stops answering `getvar`. That is a dead USB transfer, not disk IO and
+not a host fault — two attempts on different chunk sizes stalled in the same
+region of the image (885.8 MiB at the default ~128 MiB chunk; 43.08% at
+`-S 64M`).
+
+**Only a physical power cycle clears it.** `USBDEVFS_CLEAR_HALT` on the two
+bulk endpoints woke the channel for exactly one command and then it died again;
+it is not a port reset and is not permission to retry a 2 GiB transfer.
+`USBDEVFS_RESET`, sysfs `unbind`, `sudo` and `chmod` on the device node are not
+part of this procedure.
+
+**Write only the missing tail.** Stock `super` data stops at the last non-zero
+4 KiB block — on this build that is 1,689,915,392 bytes (1611.63 MiB) of a
+2,147,483,648-byte partition — so the remaining ~436 MiB is zeros and never
+needs writing. Resume below the stall point (864 MiB here, deliberately
+re-covering the uncertain boundary) and emit an Android sparse image:
+
+- 28-byte header, `<IHHHHIIII` = magic `0xED26FF3A`, major 1, minor 0,
+  file-header 28, chunk-header 12, block size 4096, total blocks, chunk count,
+  checksum 0
+- per chunk, `<HHII` = type, reserved, block count, total byte size
+- type `0xCAC1` raw (payload follows), type `0xCAC3` don't-care (no payload)
+
+Prefix and suffix are don't-care; the middle is raw chunks read from the stock
+image. Re-read the file before flashing and assert that the chunk block counts
+sum to the total block count and that there are no trailing bytes. Then
+`fastboot flash super <tail>.sparse` — roughly 748 MiB instead of 2 GiB, and on
+this hardware it completed in 104.5 s where both full pushes had died.
+
+Two things bite here:
+
+- **`fastboot` re-sparsifies at transport time**, so the `Sending sparse
+  'super' N/M` counts in its output do not match the chunk count you built. Do
+  not use those numbers to decide whether the write finished — look for
+  `Finished. Total time`.
+- **Do not hash a raw `adb exec-out dd` capture of the partition.** The stream
+  is CRLF-translated (`0a` becomes `0d0a`), so the file comes back ~11 MB too
+  large with a wrong hash and a divergence at the first `0x0a` byte. Hash on the
+  device and let only the digest cross USB:
+
+  ```bash
+  adb shell 'su -c "dd if=/dev/block/by-name/super bs=4096 count=412577 \
+      2>/dev/null | sha256sum"'
+  dd if=super.img bs=4096 count=412577 2>/dev/null | sha256sum   # same range, host
+  ```
+
+**A `fastboot devices` line proves nothing.** It prints the serial straight from
+the USB descriptor, and this device's bootloader enumerates as `0e8d:201c` both
+when it is healthy and when its command channel is dead. Test the channel with
+`fastboot getvar product` and require `product: gflip6` before any write; a
+`201c` that answers is a working bootloader and must not be treated as wedged.
+
+One more thing worth knowing during a recovery: **bootloader fastboot accepts
+the physical partition name `vbmeta_system`, while fastbootd rejects it with
+`No such file or directory`.** With `vbmeta_system` restored and `super`
+verified byte-identical to stock over its non-zero range, the device boots back
+to Android normally.
 
 ## Device probes (measured on the reference 4058G, 2026-10-26)
 

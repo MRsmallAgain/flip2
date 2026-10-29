@@ -43,16 +43,13 @@ Before uploading, confirm the keyboard inside the full installer:
 
 ## Publish
 
-Push `master` first. Create the release from the commit you just pushed, not from an older local HEAD.
+Push `master` first. Pack assets, write release notes, then:
 
 ```bash
-gh release create "v<version>" --target master --title "flip2 toolkit v<version>" --notes-file /tmp/flip2-notes.md \
-  pipeline/deploy/dist/flip2-installer-clean-magisk.zip \
-  pipeline/deploy/dist/flip2-installer-full-magisk.zip \
-  pipeline/deploy/dist/flip2-packages-<version>.zip \
-  pipeline/deploy/dist/flip2-system-tree-<version>.zip \
-  pipeline/deploy/dist/SHA256SUMS
+flip2 release --notes /tmp/flip2-notes.md
 ```
+
+This wraps `gh release create "v<version>" --target master` with the five dist assets (both installer zips, packages zip, system-tree zip, SHA256SUMS). Use `flip2 release --dry-run` to print the command without uploading.
 
 Match the v1.0.0 notes: a verify snippet (`sha256sum -c SHA256SUMS`), the four-tier table, and the "not included" list. Forkgram stays a separate GPL release (`flip2-13.0.2.0-r1`); the full installer downloads it. Vosk and Whisper models are not bundled. Say what was actually verified on the 4058G. Do not claim the cursor hold grabs the keypad unless a new on-device test showed the arrow swallowed.
 

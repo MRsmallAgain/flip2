@@ -22,49 +22,44 @@ var PIPE = {
   // files: map of catalog id -> Uint8Array (verified contents)
   // Returns a map remoteName -> Uint8Array ready to push.
   buildPushSet: function (files) {
+    var M = typeof PUSH_MANIFEST !== 'undefined' ? PUSH_MANIFEST : null;
+    if (!M) throw new Error('PUSH_MANIFEST missing — run pipeline/wizard/gen-pipeline-js.sh');
     var installer = fflate.unzipSync(files['installer-full']);
-    var want = [
-      'payload/modules/flip2_nav_overlay-magisk.zip',
-      'payload/modules/flip2_keypad_backspace-magisk.zip',
-      'payload/modules/FlipMouse.zip',
-      'payload/modules/flip2_launcher_overlay-magisk.zip'
-    ];
     var out = {};
-    var i, name;
-    for (i = 0; i < want.length; i++) {
-      if (!installer[want[i]]) throw new Error('installer zip is missing ' + want[i]);
-      name = want[i].split('/').pop();
-      out[name] = installer[want[i]];
+    var i, name, path;
+    for (i = 0; i < M.installerModulePaths.length; i++) {
+      path = M.installerModulePaths[i];
+      if (!installer[path]) throw new Error('installer zip is missing ' + path);
+      name = path.split('/').pop();
+      out[name] = installer[path];
     }
-    var apks = ['payload/apks/launcher4.apk', 'payload/apks/nullkeyboard.apk'];
-    for (i = 0; i < apks.length; i++) {
-      if (!installer[apks[i]]) throw new Error('installer zip is missing ' + apks[i]);
-      name = apks[i].split('/').pop();
-      out[name] = installer[apks[i]];
+    for (i = 0; i < M.installerApkPaths.length; i++) {
+      path = M.installerApkPaths[i];
+      if (!installer[path]) throw new Error('installer zip is missing ' + path);
+      name = path.split('/').pop();
+      out[name] = installer[path];
     }
 
     // Tag Drawer: rebuild the module zip around the fresh F-Droid APK.
-    var td = fflate.unzipSync(installer['payload/modules/flip2_pixel_tag_drawer-magisk.zip']);
-    var tdEntry = 'system/app/PixelTagDrawer/PixelTagDrawer.apk';
+    var tdPath = M.tagDrawerModulePath;
+    var td = fflate.unzipSync(installer[tdPath]);
+    var tdEntry = M.tagDrawerApkEntry;
     if (!td[tdEntry]) throw new Error('Tag Drawer zip is missing ' + tdEntry);
     td[tdEntry] = files['tagdrawer'];
-    out['flip2_pixel_tag_drawer-magisk.zip'] = fflate.zipSync(td);
+    out[tdPath.split('/').pop()] = fflate.zipSync(td);
 
-    // Browser-downloaded files, renamed to the short names install.sh wants.
-    out['forkgram.apk'] = files['forkgram'];
-    out['intertune.apk'] = files['intertune'];
-    out['bouncy.apk'] = files['bouncy'];
-    out['materialfiles.apk'] = files['materialfiles'];
-    out['ggml-tiny-q5_1.bin'] = files['whisper-tiny'];
-    out['vosk-model-small-en-us-0.15.zip'] = files['vosk-en'];
-    out['vosk-model-small-uk-v3-nano.zip'] = files['vosk-uk'];
+    if (M.wallpaperPath && installer[M.wallpaperPath]) {
+      out['flip2-wallpaper.png'] = installer[M.wallpaperPath];
+    }
 
-    // sanity: the 14 names install.sh requires
-    var need = ['flip2_nav_overlay-magisk.zip', 'flip2_keypad_backspace-magisk.zip',
-      'FlipMouse.zip', 'flip2_pixel_tag_drawer-magisk.zip', 'flip2_launcher_overlay-magisk.zip',
-      'launcher4.apk', 'nullkeyboard.apk', 'forkgram.apk', 'intertune.apk', 'bouncy.apk',
-      'materialfiles.apk', 'ggml-tiny-q5_1.bin', 'vosk-model-small-en-us-0.15.zip',
-      'vosk-model-small-uk-v3-nano.zip'];
+    var renames = M.catalogRenames;
+    for (var catId in renames) {
+      if (!Object.prototype.hasOwnProperty.call(renames, catId)) continue;
+      if (!files[catId]) throw new Error('catalog file missing: ' + catId);
+      out[renames[catId]] = files[catId];
+    }
+
+    var need = M.requiredIncoming;
     for (i = 0; i < need.length; i++) {
       if (!out[need[i]]) throw new Error('push set incomplete: ' + need[i]);
     }

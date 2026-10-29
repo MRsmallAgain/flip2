@@ -58,42 +58,15 @@ case "$HOME_NOW" in
     ;;
 esac
 
-# --- Apps installed -----------------------------------------------------------
+# BEGIN GENERATED
+# --- Apps installed (manifest full|wizard user-apk labels) ----------------
 for entry in \
-  'Intertune dev.skye.intertune' \
-  'Bouncy com.dozingcatsoftware.bouncy' \
-  'Forkgram org.forkgram.classic' \
-  'Tag Drawer com.iwadjp.pixeltagdrawer' \
-  'Material Files me.zhanghai.android.files' \
-  'Launcher4 com.tim.flip2.launcher4' \
-  'Null Keyboard com.tim.flip2.nullkeyboard'; do
+  'Launcher4 com.tim.flip2.launcher4' \n  'Null Keyboard com.tim.flip2.nullkeyboard' \n  'Forkgram org.forkgram.classic' \n  'Material Files me.zhanghai.android.files' \n  'Intertune dev.skye.intertune' \n  'Bouncy Ball com.dozingcatsoftware.bouncy' \n  'Tag Drawer com.iwadjp.pixeltagdrawer' \n  ; do
   pkg=${entry##* }; label=${entry% *}
   check "$label installed" pm path "$pkg"
 done
 
-# --- Speech models exist (Whisper bin in both langs, Vosk am/conf/graph) -----
-for lang in en uk; do
-  check "whisper $lang model" test -s "/data/data/$NULL_PKG/files/whisper/$lang/model.bin"
-done
-for lang in en uk; do
-  for sub in am conf graph; do
-    check "vosk $lang/$sub" test -e "/data/data/$NULL_PKG/files/vosk/$lang/$sub"
-  done
-done
-
-# --- stt_lang=uk --------------------------------------------------------------
-LANG_NOW=$(grep stt_lang "/data/data/$NULL_PKG/shared_prefs/flip2_null_ime.xml" 2>/dev/null \
-  | sed 's/.*>\([^<]*\)<.*/\1/')
-if [ "$LANG_NOW" = "uk" ]; then
-  echo "PASS: stt_lang=uk"
-  PASS=$((PASS + 1))
-else
-  echo "FAIL: stt_lang='$LANG_NOW' (expected uk)"
-  FAILS=$((FAILS + 1))
-fi
-
 # --- The five keyshortcuts match home-keys.json -------------------------------
-# Same values launcher-overlay/home-keys.json pins (== installer settings.txt).
 expect_leftkey='Intertune-dev.skye.intertune-com.dd3boh.outertune.MainActivity'
 expect_rightkey='Messages-com.android.mms-com.android.mms.ui.ConversationList'
 expect_shortcutsbar='Bluetooth-com.android.settings-com.android.settings.Settings$ConnectedDeviceDashboardActivity'
@@ -115,6 +88,38 @@ for entry in \
     FAILS=$((FAILS + 1))
   fi
 done
+
+# --- Display size (logical 321x428 on the 240x320 panel) ----------------------
+SIZE=$(settings get global display_size_forced 2>/dev/null)
+if [ "$SIZE" = "321,428" ]; then
+  echo "PASS: display_size_forced=321,428"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: display_size_forced is '$SIZE' (expected 321,428)"
+  FAILS=$((FAILS + 1))
+fi
+# END GENERATED
+
+# --- Speech models exist (Whisper bin in both langs, Vosk am/conf/graph) -----
+for lang in en uk; do
+  check "whisper $lang model" test -s "/data/data/$NULL_PKG/files/whisper/$lang/model.bin"
+done
+for lang in en uk; do
+  for sub in am conf graph; do
+    check "vosk $lang/$sub" test -e "/data/data/$NULL_PKG/files/vosk/$lang/$sub"
+  done
+done
+
+# --- stt_lang=uk --------------------------------------------------------------
+LANG_NOW=$(grep stt_lang "/data/data/$NULL_PKG/shared_prefs/flip2_null_ime.xml" 2>/dev/null \
+  | sed 's/.*>\([^<]*\)<.*/\1/')
+if [ "$LANG_NOW" = "uk" ]; then
+  echo "PASS: stt_lang=uk"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: stt_lang='$LANG_NOW' (expected uk)"
+  FAILS=$((FAILS + 1))
+fi
 
 # --- IME-related settings ------------------------------------------------------
 # accessibility_soft_keyboard_mode is deliberately NOT a check: TCL's
@@ -138,6 +143,24 @@ for entry in \
 done
 SKB=$(settings get secure accessibility_soft_keyboard_mode 2>/dev/null)
 echo "NOTE: accessibility_soft_keyboard_mode=$SKB (TCL reverts this; harmless)"
+
+# --- Wallpaper (optional: only checked when the installer shipped an asset) --
+# This ROM has no `cmd wallpaper`; the file at /data/system/users/0/wallpaper is
+# what the framework loads at boot. A phone that was installed before the asset
+# existed keeps whatever wallpaper the user has, so absence is a NOTE.
+WP_DEV=/data/system/users/0/wallpaper
+WP_HOST=/data/local/flip2/incoming/flip2-wallpaper.png
+if [ -f "$WP_HOST" ]; then
+  if [ -f "$WP_DEV" ] && cmp -s "$WP_HOST" "$WP_DEV" ]; then
+    echo "PASS: wallpaper is the flip2 default"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: wallpaper does not match the shipped flip2-wallpaper.png (reboot, or apply with 'flip2 wallpaper apply')"
+    FAILS=$((FAILS + 1))
+  fi
+else
+  echo "NOTE: no shipped wallpaper asset in incoming/; skipping that check"
+fi
 
 echo ""
 echo "SUMMARY: $PASS passed, $FAILS failed"
