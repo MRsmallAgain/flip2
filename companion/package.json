@@ -6,7 +6,8 @@
   "license": "MIT",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "start:safe": "ELECTRON_DISABLE_GPU=1 electron . --disable-gpu --disable-gpu-compositing"
   },
   "devDependencies": {
     "electron": "^33.2.0"

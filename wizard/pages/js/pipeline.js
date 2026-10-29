@@ -117,5 +117,58 @@ var PIPE = {
   cleanup: function (onLog) {
     return ADB.shell('rm -rf /data/local/flip2/incoming/*', function (line) { onLog(line); })
       .then(function () { onLog('OK: cleaned incoming/'); });
+  },
+
+  // Companion: host adb push (avoids WebUSB sync: timeout on Linux).
+  hostPushAndInstall: function (pushSet, installSh, onLog) {
+    var N = window.FLIP2_NATIVE;
+    if (!N || !N.wizardHostPrepare) {
+      return Promise.reject(new Error('host adb install requires Flip 2 Companion'));
+    }
+    var names = Object.keys(pushSet);
+    var done = 0;
+    return N.wizardHostPrepare().then(function () {
+      var seq = Promise.resolve();
+      names.forEach(function (nm) {
+        seq = seq.then(function () {
+          onLog('push ' + nm + ' (' + Math.round(pushSet[nm].length / 1024) + ' KiB)…');
+          var raw = pushSet[nm];
+          var bin = '';
+          for (var j = 0; j < raw.length; j++) bin += String.fromCharCode(raw[j]);
+          var b64 = btoa(bin);
+          return N.wizardHostPushOne({ name: nm, dataBase64: b64 }).then(function () {
+            done++;
+            onLog('OK: pushed ' + nm + ' (' + done + '/' + names.length + ')');
+          });
+        });
+      });
+      return seq.then(function () {
+        return N.wizardHostRunInstall({ installSh: installSh });
+      }).then(function (r) {
+        if (r.lines) r.lines.forEach(onLog);
+        if (!r.ok) throw new Error(r.error || 'install failed');
+        if (r.warnings) r.warnings.forEach(function (w) { onLog('note: ' + w); });
+      });
+    });
+  },
+
+  hostCleanup: function (onLog) {
+    var N = window.FLIP2_NATIVE;
+    if (!N || !N.wizardHostCleanup) return Promise.resolve();
+    return N.wizardHostCleanup().then(function (r) {
+      if (r.lines) r.lines.forEach(onLog);
+      if (r.warning) onLog('note: cleanup non-fatal — ' + r.warning);
+    });
+  },
+
+  hostVerify: function (verifySh, onLog) {
+    var N = window.FLIP2_NATIVE;
+    if (!N || !N.wizardHostVerify) {
+      return Promise.reject(new Error('host adb verify requires Flip 2 Companion'));
+    }
+    return N.wizardHostVerify({ verifySh: verifySh }).then(function (r) {
+      if (r.lines) r.lines.forEach(onLog);
+      if (!r.ok) throw new Error(r.error || 'verify failed');
+    });
   }
 };

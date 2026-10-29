@@ -18,4 +18,11 @@ contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
   factoryState: function (fingerprint) { return ipcRenderer.invoke('factory-state', fingerprint); },
   factoryListBackups: function () { return ipcRenderer.invoke('factory-list-backups'); },
   factoryReadBackup: function (dest) { return ipcRenderer.invoke('factory-read-backup', dest); },
+  wizardHostAdbReady: function () { return ipcRenderer.invoke('wizard-host-adb-ready'); },
+  wizardHostShell: function (payload) { return ipcRenderer.invoke('wizard-host-shell', payload); },
+  wizardHostPrepare: function () { return ipcRenderer.invoke('wizard-host-prepare'); },
+  wizardHostPushOne: function (payload) { return ipcRenderer.invoke('wizard-host-push-one', payload); },
+  wizardHostRunInstall: function (payload) { return ipcRenderer.invoke('wizard-host-run-install', payload); },
+  wizardHostCleanup: function () { return ipcRenderer.invoke('wizard-host-cleanup'); },
+  wizardHostVerify: function (payload) { return ipcRenderer.invoke('wizard-host-verify', payload); },
 });

@@ -324,6 +324,23 @@ async function adbSerial() {
   return ready[0].split(/\s+/)[0];
 }
 
+async function wizardHostAdbReady() {
+  try {
+    const serial = await adbSerial();
+    return { ok: true, serial: serial, message: 'Phone ready over host adb (' + serial + ').' };
+  } catch (e) {
+    return { ok: false, serial: '', message: e.message || String(e) };
+  }
+}
+
+async function wizardHostShell(payload) {
+  const cmd = String(payload && payload.cmd || '');
+  if (!cmd) throw new Error('shell: cmd required');
+  const serial = await adbSerial();
+  const out = await adbRun(['-s', serial, 'shell', cmd], payload.timeoutMs || 30000);
+  return { ok: true, stdout: out };
+}
+
 const IDENTITY_PROPS = [
   'ro.product.model', 'ro.product.device', 'ro.build.fingerprint',
   'ro.build.description', 'ro.build.version.release',
@@ -504,6 +521,160 @@ async function factoryState(expectedFingerprint) {
   };
 }
 
+// Wizard install/verify over host adb — WebUSB sync: often times out on Linux.
+// adbd cannot create files under /data/local/flip2 (SELinux); stage on sdcard, su cp.
+const WIZARD_STAGING = '/sdcard/Download/flip2-wizard-staging';
+let wizardHostTmp = null;
+
+function shellQuote(s) {
+  return "'" + String(s).replace(/'/g, "'\\''") + "'";
+}
+
+async function wizardHostSu(serial, shCmd, timeoutMs) {
+  await adbRun(['-s', serial, 'shell', 'su', '0', 'sh', '-c', shCmd], timeoutMs || 120000);
+}
+
+function installOutputLooksOk(lines) {
+  const text = (lines || []).join('\n');
+  if (/^FAIL:/m.test(text)) return false;
+  return /DONE: install complete/.test(text);
+}
+
+async function wizardHostWriteRootFile(serial, destPath, content, mode) {
+  const modeStr = String(mode || '644');
+  const b64 = Buffer.from(String(content), 'utf8').toString('base64');
+  const tmp = destPath + '.wizard-tmp';
+  const cmd =
+    'base64 -d > ' + shellQuote(tmp) + ' <<\'WIZEOF\'\n' + b64 + '\nWIZEOF\n' +
+    ' && chmod ' + modeStr + ' ' + shellQuote(tmp) +
+    ' && mv -f ' + shellQuote(tmp) + ' ' + shellQuote(destPath);
+  await wizardHostSu(serial, cmd, 180000);
+}
+
+async function wizardHostPrepare() {
+  await adbSerial();
+  wizardHostTmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
+  const serial = await adbSerial();
+  await wizardHostSu(serial,
+    'mkdir -p /data/local/flip2/incoming ' + WIZARD_STAGING + ' && rm -rf ' + WIZARD_STAGING + '/*',
+    60000);
+  return { ok: true };
+}
+
+async function wizardHostPushOne(payload) {
+  const name = String(payload.name || '');
+  let buf;
+  if (payload.dataBase64) {
+    buf = Buffer.from(String(payload.dataBase64), 'base64');
+  } else if (payload.data != null) {
+    buf = Buffer.isBuffer(payload.data) ? payload.data : Buffer.from(payload.data);
+  } else {
+    throw new Error('push: name and dataBase64 (or data) required');
+  }
+  if (!name) throw new Error('push: name required');
+  if (!wizardHostTmp) await wizardHostPrepare();
+  const serial = await adbSerial();
+  const local = path.join(wizardHostTmp, name);
+  await fsp.writeFile(local, buf);
+  const remoteStage = WIZARD_STAGING + '/' + name;
+  const dest = '/data/local/flip2/incoming/' + name;
+  await adbRun(['-s', serial, 'push', local, remoteStage], 900000);
+  await wizardHostSu(serial,
+    'cp ' + shellQuote(remoteStage) + ' ' + shellQuote(dest) + ' && rm -f ' + shellQuote(remoteStage),
+    900000);
+  return { ok: true, name: name, size: buf.length };
+}
+
+async function wizardHostRunInstall(payload) {
+  const lines = [];
+  const log = (s) => { lines.push(String(s)); };
+  try {
+    const serial = await adbSerial();
+    const installSh = String(payload.installSh || '');
+    if (!installSh) throw new Error('install.sh text missing');
+    if (!wizardHostTmp) wizardHostTmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
+    const shLocal = path.join(wizardHostTmp, 'install.sh');
+    await fsp.writeFile(shLocal, installSh, 'utf8');
+    log('push install.sh');
+    const shStage = WIZARD_STAGING + '/install.sh';
+    await adbRun(['-s', serial, 'push', shLocal, shStage], 120000);
+    try {
+      await wizardHostSu(serial,
+        'install -m 755 ' + shellQuote(shStage) + ' /data/local/flip2/install.sh && rm -f ' + shellQuote(shStage),
+        120000);
+    } catch (deployErr) {
+      log('note: install -m755 deploy failed (' + (deployErr.message || deployErr) + '); trying su cp…');
+      await wizardHostSu(serial,
+        'cp ' + shellQuote(shStage) + ' /data/local/flip2/install.sh && chmod 755 /data/local/flip2/install.sh && rm -f ' + shellQuote(shStage),
+        120000);
+    }
+    log('running install.sh as root…');
+    const out = await adbRun(['-s', serial, 'shell', 'su', '0', 'sh', '-c', 'sh /data/local/flip2/install.sh'], 1800000);
+    out.split('\n').forEach(function (line) {
+      if (line.length) log(line);
+    });
+    const fail = lines.find(function (l) { return /^FAIL:/.test(l); });
+    if (fail) return { ok: false, error: fail, lines: lines };
+    if (installOutputLooksOk(lines)) return { ok: true, lines: lines };
+    return { ok: false, error: 'install.sh did not report DONE', lines: lines };
+  } catch (e) {
+    if (installOutputLooksOk(lines)) {
+      log('note: post-install step failed (' + (e.message || e) + ') but install output looks complete');
+      return { ok: true, lines: lines, warnings: [e.message || String(e)] };
+    }
+    return { ok: false, error: e.message || String(e), lines: lines };
+  } finally {
+    if (wizardHostTmp) {
+      await fsp.rm(wizardHostTmp, { recursive: true, force: true }).catch(function () {});
+      wizardHostTmp = null;
+    }
+  }
+}
+
+async function wizardHostCleanup() {
+  const lines = [];
+  try {
+    const serial = await adbSerial();
+    await wizardHostSu(serial, 'rm -rf /data/local/flip2/incoming/*', 120000);
+    lines.push('OK: cleaned incoming/');
+    return { ok: true, lines: lines };
+  } catch (e) {
+    lines.push('note: cleanup skipped (' + (e.message || e) + ')');
+    return { ok: true, lines: lines, warning: e.message || String(e) };
+  }
+}
+
+async function wizardHostVerify(payload) {
+  const lines = [];
+  const log = (s) => { lines.push(String(s)); };
+  try {
+    const serial = await adbSerial();
+    const verifySh = String(payload.verifySh || '');
+    if (!verifySh) throw new Error('verify.sh text missing');
+    const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
+    try {
+      const vLocal = path.join(tmp, 'verify.sh');
+      await fsp.writeFile(vLocal, verifySh, 'utf8');
+      const vStage = WIZARD_STAGING + '/verify.sh';
+      await adbRun(['-s', serial, 'push', vLocal, vStage], 120000);
+      await wizardHostSu(serial,
+        'install -m 755 ' + shellQuote(vStage) + ' /data/local/flip2/verify.sh && rm -f ' + shellQuote(vStage),
+        120000);
+      const out = await adbRun(['-s', serial, 'shell', 'su', '0', 'sh', '-c', 'sh /data/local/flip2/verify.sh'], 600000);
+      out.split('\n').forEach(function (line) {
+        if (line.length) log(line);
+      });
+      const fail = lines.find(function (l) { return /^FAIL:/.test(l); });
+      if (fail) return { ok: false, error: fail, lines: lines };
+      return { ok: true, lines: lines };
+    } finally {
+      await fsp.rm(tmp, { recursive: true, force: true }).catch(function () {});
+    }
+  } catch (e) {
+    return { ok: false, error: e.message || String(e), lines: lines };
+  }
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1020,
@@ -634,6 +805,13 @@ app.whenReady().then(function () {
   ipcMain.handle('factory-state', function (_e, fp) { return factoryState(fp); });
   ipcMain.handle('factory-list-backups', function () { return listBootBackups(); });
   ipcMain.handle('factory-read-backup', function (_e, dest) { return readBootBackup(dest); });
+  ipcMain.handle('wizard-host-adb-ready', function () { return wizardHostAdbReady(); });
+  ipcMain.handle('wizard-host-shell', function (_e, payload) { return wizardHostShell(payload); });
+  ipcMain.handle('wizard-host-prepare', function () { return wizardHostPrepare(); });
+  ipcMain.handle('wizard-host-push-one', function (_e, payload) { return wizardHostPushOne(payload); });
+  ipcMain.handle('wizard-host-run-install', function (_e, payload) { return wizardHostRunInstall(payload); });
+  ipcMain.handle('wizard-host-cleanup', function () { return wizardHostCleanup(); });
+  ipcMain.handle('wizard-host-verify', function (_e, payload) { return wizardHostVerify(payload); });
   createWindow();
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

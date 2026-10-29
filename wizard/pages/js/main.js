@@ -66,6 +66,34 @@ function probeRooted() {
     .catch(function () {});
 }
 
+function isBenignInstallError(msg) {
+  if (!msg) return false;
+  var m = String(msg);
+  if (/Permission denied.*chmod/i.test(m)) return true;
+  if (/install -m755 deploy failed/i.test(m)) return true;
+  if (/cleanup (failed|skipped)/i.test(m)) return true;
+  return false;
+}
+
+function maybeRecoverInstallAfterFailure(errMsg, log) {
+  var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostVerify;
+  if (!useHost || !VERIFY_SH) return Promise.resolve(false);
+  log('checking whether install actually succeeded (verify probe)…');
+  var verifyShText = typeof VERIFY_SH === 'string' ? VERIFY_SH : new TextDecoder().decode(VERIFY_SH);
+  return PIPE.hostVerify(verifyShText, log).then(function () {
+    return true;
+  }).catch(function () {
+    return false;
+  });
+}
+
+function markInstallSuccess(msg) {
+  setStatus('inst-msg', msg || 'Install complete.', 'ok');
+  $('inst-next').disabled = false;
+  var skip = $('inst-skip-verify');
+  if (skip) skip.classList.add('hidden');
+}
+
 function runPushAndInstall() {
   var files = {};
   ['installer-full', 'tagdrawer', 'forkgram', 'intertune', 'bouncy',
@@ -84,15 +112,39 @@ function runPushAndInstall() {
     $('inst-btn').disabled = false;
     return;
   }
-  setStatus('inst-msg', 'pushing ' + Object.keys(pushSet).length + ' files…', 'wait');
-  PIPE.pushAndInstall(pushSet, INSTALL_SH, log).then(function () {
-    return PIPE.cleanup(log);
+  var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostPrepare;
+  if (useHost) {
+    setStatus('inst-msg', 'pushing via host adb (' + Object.keys(pushSet).length + ' files)…', 'wait');
+  } else {
+    setStatus('inst-msg', 'pushing ' + Object.keys(pushSet).length + ' files…', 'wait');
+  }
+  var installShText = typeof INSTALL_SH === 'string' ? INSTALL_SH : new TextDecoder().decode(INSTALL_SH);
+  var pushP = useHost
+    ? PIPE.hostPushAndInstall(pushSet, installShText, log)
+    : PIPE.pushAndInstall(pushSet, INSTALL_SH, log);
+  var cleanP = useHost ? PIPE.hostCleanup(log) : PIPE.cleanup(log);
+  pushP.then(function () {
+    return cleanP;
   }).then(function () {
-    setStatus('inst-msg', 'Install complete.', 'ok');
-    $('inst-next').disabled = false;
+    markInstallSuccess('Install complete.');
   }).catch(function (e) {
-    setStatus('inst-msg', e.message, 'bad');
+    var errMsg = e.message || String(e);
+    setStatus('inst-msg', errMsg, 'bad');
     $('inst-retry').classList.remove('hidden');
+    var skip = $('inst-skip-verify');
+    var hint = $('inst-wipe-hint');
+    if (skip) skip.classList.remove('hidden');
+    if (hint) hint.classList.remove('hidden');
+    return maybeRecoverInstallAfterFailure(errMsg, log).then(function (recovered) {
+      if (recovered) {
+        markInstallSuccess('Install reported an error, but verify passed — continuing.');
+        unlockAdvancedFooter();
+        return;
+      }
+      if (isBenignInstallError(errMsg)) {
+        log('note: this error is often harmless after a successful install — use Continue to verify anyway');
+      }
+    });
   }).then(function () {
     $('inst-btn').disabled = false;
   });
@@ -454,7 +506,52 @@ function usbError(e) {
   return m;
 }
 
+function enableUsbContinue(message, cls) {
+  setStatus('usb-msg', message, cls || 'ok');
+  $('usb-next').disabled = false;
+}
+
+function checkHostAdb() {
+  var N = window.FLIP2_NATIVE;
+  if (!N || !N.wizardHostAdbReady) {
+    return Promise.reject(new Error('host adb check requires Flip 2 Companion'));
+  }
+  setStatus('usb-msg', 'checking host adb…', 'wait');
+  return N.wizardHostAdbReady().then(function (r) {
+    if (r.ok) {
+      enableUsbContinue(r.message || 'Phone ready over host adb.', 'ok');
+      probeRootedHost();
+      return;
+    }
+    setStatus('usb-msg', r.message || 'Phone not ready over adb.', 'bad');
+    $('usb-next').disabled = true;
+  });
+}
+
+function probeRootedHost() {
+  var banner = $('usb-rooted-banner');
+  if (!banner || !window.FLIP2_NATIVE || !window.FLIP2_NATIVE.wizardHostShell) return;
+  window.FLIP2_NATIVE.wizardHostShell({ cmd: 'su -c id', timeoutMs: 15000 })
+    .then(function (r) {
+      if (r.ok && /uid=0/.test(r.stdout || '')) banner.classList.remove('hidden');
+    })
+    .catch(function () {});
+}
+
 function initUsb() {
+  var hostBtn = $('usb-host-btn');
+  var hint = $('usb-companion-hint');
+  if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostAdbReady) {
+    if (hint) hint.classList.remove('hidden');
+    if (hostBtn) hostBtn.classList.remove('hidden');
+    if (hostBtn) {
+      hostBtn.addEventListener('click', function () {
+        hostBtn.disabled = true;
+        checkHostAdb().finally(function () { hostBtn.disabled = false; });
+      });
+    }
+    checkHostAdb();
+  }
   $('usb-btn').addEventListener('click', function () {
     if (!navigator.usb) {
       setStatus('usb-msg', 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
@@ -468,11 +565,14 @@ function initUsb() {
       ADB.log = adbLog;
       return ADB.connect();
     }).then(function () {
-      setStatus('usb-msg', 'Connected over ADB.', 'ok');
-      $('usb-next').disabled = false;
+      enableUsbContinue('Connected over ADB.', 'ok');
       probeRooted();
     }).catch(function (e) {
-      setStatus('usb-msg', usbError(e), 'bad');
+      var msg = usbError(e);
+      if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostAdbReady) {
+        msg += ' Or press Check host adb — Companion install does not need WebUSB.';
+      }
+      setStatus('usb-msg', msg, 'bad');
     });
   });
   $('usb-next').addEventListener('click', function () { showStep('install'); });
@@ -500,8 +600,17 @@ function initInstall() {
     this.classList.add('hidden');
     setStatus('inst-msg', '', '');
     $('inst-btn').disabled = false;
+    $('inst-next').disabled = true;
+    var skip = $('inst-skip-verify');
+    var hint = $('inst-wipe-hint');
+    if (skip) skip.classList.add('hidden');
+    if (hint) hint.classList.add('hidden');
   });
   $('inst-next').addEventListener('click', function () { showStep('verify'); });
+  var skipBtn = $('inst-skip-verify');
+  if (skipBtn) {
+    skipBtn.addEventListener('click', function () { showStep('verify'); });
+  }
 }
 
 // --- 6 · verify ---------------------------------------------------------------------
@@ -510,9 +619,12 @@ function initVerify() {
   function runVerify() {
     $('ver-btn').disabled = true;
     $('ver-recheck').classList.add('hidden');
-    setStatus('ver-msg', 'running verify.sh…', 'wait');
+    var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostVerify;
+    setStatus('ver-msg', useHost ? 'running verify.sh (host adb)…' : 'running verify.sh…', 'wait');
     var log = makeLog('ver-log');
-    PIPE.verify(VERIFY_SH, log).then(function () {
+    var verifyShText = typeof VERIFY_SH === 'string' ? VERIFY_SH : new TextDecoder().decode(VERIFY_SH);
+    var verifyP = useHost ? PIPE.hostVerify(verifyShText, log) : PIPE.verify(VERIFY_SH, log);
+    verifyP.then(function () {
       setStatus('ver-msg', 'All checks passed.', 'ok');
     }).catch(function (e) {
       setStatus('ver-msg', e.message, 'bad');
@@ -1372,6 +1484,11 @@ function init() {
     initRoot();
     initFastboot();
     initFactory();
+    if (window.FLIP2_NATIVE) {
+      unlockAdvancedFooter();
+      var fw = $('footer-wipe-always');
+      if (fw) fw.classList.remove('hidden');
+    }
     showStep('credit');
     return Promise.all([
       fetch('../device/install.sh').then(function (r) { return r.text(); }),

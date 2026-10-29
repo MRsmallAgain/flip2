@@ -103,7 +103,9 @@
 	  <h2>Connect</h2>
 	  <p>On the phone: <b>Settings → About → tap build number 7 times</b>, then <b>Developer options → USB debugging</b> on, and plug in USB. Then pick the phone below.</p>
 	  <p id="usb-rooted-banner" class="warn hidden"><b>Already rooted?</b> You do not need the footer “erase and root” link — that flow wipes the phone. Continue to install (step 5) or use the release installer zip for a conservative first setup.</p>
-	  <p><button id="usb-btn">Pick phone</button>
+		  <p id="usb-companion-hint" class="note hidden">In <b>Flip 2 Companion</b>, install uses host <code>adb</code> — you do not need WebUSB. Plug in USB, accept the debugging prompt, then press <b>Check host adb</b>.</p>
+		  <p><button id="usb-btn">Pick phone</button>
+     <button id="usb-host-btn" class="ghost hidden">Check host adb</button>
      <span id="usb-msg" class="status"></span></p>
   <pre class="log hidden" id="usb-log"></pre>
   <p><button class="ghost" data-back="udev">Back</button>
@@ -119,8 +121,10 @@
      <button id="inst-retry" class="ghost hidden">Retry</button>
      <span id="inst-msg" class="status"></span></p>
   <pre class="log hidden" id="inst-log"></pre>
+  <p id="inst-wipe-hint" class="note hidden"><b>Wiping the phone?</b> This wizard does not erase userdata over USB. On the phone: <b>Settings → System → Reset options → Erase all data (factory reset)</b>, or recovery <b>Volume up + Power → Wipe data</b>. PC backup: <code>~/flip2-pre-wipe-backup</code>.</p>
   <p><button class="ghost" data-back="usb">Back</button>
-     <button id="inst-next" disabled>Continue to verify</button></p>
+     <button id="inst-next" disabled>Continue to verify</button>
+     <button id="inst-skip-verify" class="ghost hidden">Continue to verify anyway</button></p>
 </section>
 
 <!-- 6: verify -->
@@ -291,6 +295,7 @@
 	    <a href="#" id="factory-link">return this phone to factory</a>
 	  </p>
 	  <p id="footer-advanced-hint" class="note">Advanced links (rooting / factory) appear after you run verify once.</p>
+	  <p id="footer-wipe-always" class="note hidden">To wipe userdata only: use the phone’s factory reset (Settings or recovery). The wizard never wipes over the cable.</p>
 	</footer>
 <script src="../fflate.js"></script>
 <script src="js/catalog.js"></script>
