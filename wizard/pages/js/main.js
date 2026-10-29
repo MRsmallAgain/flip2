@@ -526,6 +526,837 @@ function initVerify() {
   $('ver-recheck').addEventListener('click', runVerify);
 }
 
+// --- rooting slice (erase-gated, not on the step bar) ----------------------------------
+
+// Plain-language view of the mode the phone is in, from the companion's
+// read-only USB scan. The same 120 s window BOOTROM.boot waits for.
+var WATCH_MS = 120000;
+
+// A transfer that stopped halfway leaves the bootloader waiting for a payload
+// that will never arrive. It still shows up on USB exactly like a healthy one,
+// so the only way to tell is that it stops answering. Nothing was written, and
+// only a power cycle clears it.
+var silentWake = false;
+
+var PHONE_VIEW = {
+  android:  { box: 'live',   cls: 'ok',   label: 'Android is running',
+              hint: 'Nothing to do yet. Take the battery out and put it back in.' },
+  absent:   { box: 'live',   cls: 'wait', label: 'phone is off USB',
+              hint: 'Expected for a moment right after the battery comes out. This is the good sign.' },
+  preloader:{ box: 'caught', cls: 'ok',   label: 'startup mode caught',
+              hint: 'Keep the cable in — the wizard is taking over now.' },
+  fastboot: { box: 'caught', cls: 'ok',   label: 'flashing mode',
+              hint: 'The hard part is done. Continue below.' },
+  bootrom:  { box: 'bad',    cls: 'bad',  label: 'wrong startup mode',
+              hint: 'Do not continue. Unplug the cable, put the battery back, and start over.' },
+  stuck:    { box: 'bad',    cls: 'bad',  label: 'not responding normally',
+              hint: 'Hold the power button for about 10 seconds until it restarts, then let Android come up.' },
+  conflict: { box: 'bad',    cls: 'bad',  label: 'two phone modes at once',
+              hint: 'Unplug any other phone, then wait for this panel to settle.' },
+  unknown:  { box: 'bad',    cls: 'bad',  label: 'cannot read USB',
+              hint: 'The companion could not list USB devices.' }
+};
+
+// What to tell someone when the phone is not in a state the wizard can use.
+// Each entry is a numbered list of physical actions; the panel replaces itself
+// the moment the phone answers, so nobody has to know what to look for.
+var WAKE = {
+  stuck: {
+    title: 'Wake the phone first',
+    hint: 'The phone is in a mode nothing can use. This takes about a minute.',
+    steps: [
+      'Hold the phone\u2019s power button down for about 10 seconds, until the screen goes dark.',
+      'Let go, then wait for the home screen to come back.',
+      'Leave the USB cable plugged in. This panel changes on its own when the phone is ready.'
+    ]
+  },
+  bootrom: {
+    title: 'Phone is in the wrong mode',
+    hint: 'Nothing was written to the phone. Get it back to Android before continuing.',
+    steps: [
+      'Unplug the USB cable.',
+      'Hold the power button for about 10 seconds, until the screen goes dark.',
+      'Plug the cable back in and wait for the home screen. This panel changes on its own.'
+    ]
+  },
+  silent: {
+    title: 'The phone stopped answering',
+    hint: 'Nothing was written to the phone. A power cycle gets it back — then start the catch step again.',
+    steps: [
+      'Unplug the USB cable.',
+      'Take the battery out, wait a moment, and put it back in.',
+      'Leave the cable out until the phone has finished starting normally.',
+      'Plug the cable back in and wait for this panel to say the phone is running Android.',
+      'Then press Start watching again and repeat the catch step.'
+    ]
+  },
+  conflict: {
+    title: 'Two phones on USB',
+    hint: 'The wizard cannot tell which device to use.',
+    steps: [
+      'Unplug every other phone or USB device.',
+      'Leave this Flip 2\u2019s cable plugged in. This panel changes on its own.'
+    ]
+  },
+  unknown: {
+    title: 'Cannot see the phone',
+    hint: 'The companion could not read the USB device list.',
+    steps: [
+      'Unplug the phone and plug it back in.',
+      'If this does not clear, restart the Companion app.'
+    ]
+  }
+};
+
+var watching = false;
+// Which wake card is on screen. The state poller runs once a second, and
+// rebuilding the list every tick would fight the user's scroll and flash the
+// panel; only rewrite it when the card actually changes.
+var wakeShown = null;
+
+// Only one stage of the rooting step is ever on screen. Showing catch, flash
+// and finish together was the reason it was hard to know what to read.
+var stageName = null;
+
+// One place decides which part of the rooting step is on screen: the current
+// stage, unless a wake card is up. Splitting this out means a wake card can
+// take over from any stage and hand control straight back when it clears,
+// instead of leaving two panels side by side to compete for attention.
+function renderStage() {
+  var woken = !$('wake-box').classList.contains('hidden');
+  var name = stageName || 'catch';
+  $('stage-catch').classList.toggle('hidden', woken || name !== 'catch');
+  $('stage-flash').classList.toggle('hidden', woken || name !== 'flash');
+  $('after-box').classList.toggle('hidden', woken || name !== 'done');
+  // Reloading the page clears VERIFIED, so someone can arrive at the install
+  // stage with nothing checked and only find out when the button refuses. Say
+  // it up front instead, pointing back at the file step that sets it.
+  $('fb-need').classList.toggle('hidden', name !== 'flash' || !!VERIFIED['neutron']);
+}
+
+function setStage(name) {
+  stageName = name;
+  renderStage();
+}
+
+function showWake(mode) {
+  var w = WAKE[mode];
+  $('wake-box').classList.remove('hidden');
+  renderStage();
+  // Listening cannot succeed from here, so do not offer the button.
+  $('boot-btn').disabled = true;
+  if (wakeShown === mode) return;
+  wakeShown = mode;
+  $('wake-title').textContent = w.title;
+  $('wake-title').className = 'status bad';
+  $('wake-hint').textContent = w.hint;
+  var ol = $('wake-steps');
+  ol.textContent = '';
+  w.steps.forEach(function (text) {
+    var li = document.createElement('li');
+    li.textContent = text;
+    ol.appendChild(li);
+  });
+}
+
+function hideWake() {
+  $('wake-box').classList.add('hidden');
+  wakeShown = null;
+  renderStage();
+  $('boot-btn').disabled = watching;
+}
+
+// The phone passes through Android, off-USB, preloader and fastboot in about a
+// second during the handover, and each of those used to repaint the status line
+// on its own tick. Hold a mode for a moment before publishing it so the label
+// on screen is still true when someone reads it.
+var MODE_SETTLE_MS = 900;
+var shownMode = null, pendingMode = null, pendingSince = 0;
+
+function showPhoneState(state) {
+  var mode = (state && state.mode) || 'unknown';
+  var now = Date.now();
+  if (mode !== pendingMode) { pendingMode = mode; pendingSince = now; }
+  if (mode !== shownMode && now - pendingSince < MODE_SETTLE_MS) return;
+  if (mode === shownMode) return;
+  shownMode = mode;
+
+  // Leaving fastboot means the power cycle happened, so the next fastboot is a
+  // fresh one. Clear the flag rather than keeping it for the rest of the session.
+  if (mode !== 'fastboot') silentWake = false;
+
+  // Once the phone has been caught, stage 2 has its own status line and this
+  // panel is off screen. Do not narrate USB modes for a stage nobody can see.
+  if (stageName === 'flash' || stageName === 'done') return;
+
+  var view = PHONE_VIEW[mode] || PHONE_VIEW.unknown;
+  var box = $('now-box');
+  box.className = 'now' + (view.box ? ' ' + view.box : '');
+  setStatus('phone-now', view.label, view.cls);
+  $('phone-hint').textContent = view.hint;
+  // A wedged bootloader is still on USB looking exactly like a healthy one; the
+  // only difference is that it stopped answering. Once a command has timed out,
+  // show the power-cycle card instead of telling anyone it is ready to flash.
+  if (silentWake && mode === 'fastboot') {
+    showWake('silent');
+    return;
+  }
+  if (WAKE[mode]) showWake(mode); else hideWake();
+  if (mode === 'fastboot') showFastbootSection();
+}
+
+// The preloader repeats READY while it hands over, so the confirm read can
+// finish on a reply the page rejects even though the phone has already jumped
+// to flashing mode. USB is the authority: if the phone is in fastboot, open
+// the next stage and retire any stale listening error instead of stranding the
+// user on it.
+function showFastbootSection() {
+  if (stageName === 'flash' || stageName === 'done') return;
+  watching = false;
+  stopWatchClock(true);
+  setStage('flash');
+  setStatus('boot-msg', 'The phone is in flashing mode.', 'ok');
+  // Whatever went wrong before the power cycle no longer describes this phone.
+  setStatus('fb-msg', '', '');
+  $('boot-btn').disabled = true;
+}
+
+function pollPhoneState() {
+  if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.phoneState) {
+    setStatus('phone-now', 'not visible in a plain browser', 'wait');
+    $('phone-hint').textContent = 'Open this page in the Flip 2 Companion app to see the live phone state.';
+    hideWake();
+    return;
+  }
+  window.FLIP2_NATIVE.phoneState().then(showPhoneState).catch(function () {
+    setStatus('phone-now', 'cannot read USB', 'bad');
+    hideWake();
+  });
+}
+
+var watchTimer = null;
+var phonePoller = null;
+
+function startWatchClock() {
+  var started = Date.now();
+  stopWatchClock();
+  var bar = $('boot-bar'), count = $('boot-count');
+  bar.classList.remove('run');
+  bar.style.width = '0%';
+  count.classList.remove('hidden');
+  watchTimer = setInterval(function () {
+    var left = Math.max(WATCH_MS - (Date.now() - started), 0);
+    bar.style.width = Math.round((WATCH_MS - left) / WATCH_MS * 100) + '%';
+    count.textContent = 'Listening for the phone — ' + Math.ceil(left / 1000) +
+      ' s left. ' + (left > 0 ? 'Take the battery out and put it back in now.' : '');
+  }, 200);
+}
+
+function stopWatchClock(caught) {
+  if (watchTimer) { clearInterval(watchTimer); watchTimer = null; }
+  var bar = $('boot-bar'), count = $('boot-count');
+  if (caught) {
+    bar.classList.add('run');
+    bar.style.width = '100%';
+    count.textContent = 'Caught it.';
+  } else {
+    count.textContent = '';
+    count.classList.add('hidden');
+    bar.style.width = '0%';
+  }
+}
+
+function initRoot() {
+  $('root-link').addEventListener('click', function (ev) {
+    ev.preventDefault();
+    showStep('root');
+    pollPhoneState();
+  });
+  $('erase-input').addEventListener('input', function () {
+    $('root-open').disabled = this.value.trim() !== 'erase';
+  });
+  $('root-open').addEventListener('click', function () {
+    $('root-body').classList.remove('hidden');
+    $('wake-box').classList.add('hidden');
+    $('boot-btn').disabled = false;
+    // A fresh run starts at stage 1 with clean status lines. Anything left over
+    // from an earlier attempt — a red failure, a "Caught it" from last time —
+    // describes a phone that is no longer where it was.
+    stageName = null;
+    wakeShown = null;
+    shownMode = null;
+    pendingMode = null;
+    silentWake = false;
+    watching = false;
+    setStatus('boot-msg', '', '');
+    setStatus('fb-msg', '', '');
+    setStatus('phone-now', 'checking…', '');
+    $('phone-hint').textContent = '';
+    $('boot-count').textContent = '';
+    $('boot-count').classList.add('hidden');
+    $('boot-bar').classList.remove('run');
+    $('boot-bar').style.width = '0%';
+    $('boot-log').textContent = '';
+    $('boot-log').classList.add('hidden');
+    $('fb-log').textContent = '';
+    $('fb-log').classList.add('hidden');
+    setStage('catch');
+    pollPhoneState();
+    if (!phonePoller) phonePoller = setInterval(pollPhoneState, 1000);
+  });
+  $('boot-btn').addEventListener('click', function () {
+    if (!navigator.serial) {
+      setStatus('boot-msg', 'This browser cannot talk to USB serial. Use the Companion app.', 'bad');
+      return;
+    }
+    watching = true;
+    this.disabled = true;
+    setStatus('boot-msg', 'listening…', 'wait');
+    startWatchClock();
+    BOOTROM.log = makeLog('boot-log');
+    BOOTROM.boot('FASTBOOT').then(function () {
+      watching = false;
+      stopWatchClock(true);
+      setStatus('boot-msg', 'Caught the phone. It is in flashing mode.', 'ok');
+      setStage('flash');
+    }).catch(function (e) {
+      watching = false;
+      stopWatchClock(false);
+      $('boot-log').classList.remove('hidden');
+      $('boot-log').textContent += e.message + '\n';
+      if (e.message.indexOf('HARD STOP') === 0) {
+        setStatus('boot-msg', 'Stopped: the phone answered unexpectedly. Nothing was written. Do not retry.', 'bad');
+        return;
+      }
+      setStatus('boot-msg', 'Did not catch it. Try again — take the battery out and put it back in.', 'bad');
+      $('boot-btn').disabled = false;
+    });
+  });
+}
+
+// --- fastboot (erase-gated slice, step 2 after the bootrom handshake) ---
+
+function initFastboot() {
+  var log = makeLog('fb-log');
+  FASTBOOT.log = log;
+  function stage(name) {
+    ['fb-pick', 'fb-unlock', 'fb-flash', 'fb-reboot'].forEach(function (id) {
+      $(id).disabled = true;
+    });
+    $(name).disabled = false;
+  }
+  $('fb-pick').addEventListener('click', function () {
+    if (!navigator.usb) {
+      setStatus('fb-msg', 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
+      return;
+    }
+    // The factory slice points FASTBOOT.log at its own pane when it connects and
+    // nothing puts it back, so a rooting flash after a factory run would write
+    // its download and flash lines into the other slice's log.
+    FASTBOOT.log = log;
+    setStatus('fb-msg', 'connecting…', 'wait');
+    FASTBOOT.pick().then(function () {
+      return FASTBOOT.connect();
+    }).then(function () {
+      // Read the phone's identity and lock state before offering any write.
+      // The serial is shown, never assumed, so a second phone on the bus cannot
+      // be flashed by mistake.
+      return FASTBOOT.getvar('serialno').then(function (serial) {
+        var s = String(serial || '').trim();
+        log('serialno: ' + (s || '(none reported)'));
+        return FASTBOOT.getvar('unlocked').then(function (u) {
+          var unlocked = /yes/i.test(String(u || ''));
+          log('unlocked: ' + (unlocked ? 'yes' : 'no'));
+          if (unlocked) {
+            setStatus('fb-msg', 'Connected. This phone is already unlocked, so it does not need to be erased again — go straight to installing the boot image.', 'ok');
+            stage('fb-flash');
+            return;
+          }
+          setStatus('fb-msg', 'Connected. Unlock next: the phone will ask you to confirm on its keypad.', 'ok');
+          stage('fb-unlock');
+        });
+      });
+    }).catch(function (e) {
+      setStatus('fb-msg', e.message, 'bad');
+      stage('fb-pick');
+      // A timed-out command means the bootloader is still there but no longer
+      // reading. Only a power cycle clears that, so show the card that says so
+      // instead of leaving a bare error on the line.
+      if (e && e.stopped) {
+        silentWake = true;
+        showWake('silent');
+      }
+    });
+  });
+  $('fb-unlock').addEventListener('click', function () {
+    setStatus('fb-msg', 'Confirm on the phone keypad…', 'wait');
+    FASTBOOT.unlock(function (line) { log('INFO: ' + line); }).then(function () {
+      setStatus('fb-msg', 'Unlocked. The phone has been erased.', 'ok');
+      stage('fb-flash');
+    }).catch(function (e) {
+      setStatus('fb-msg', e.message, 'bad');
+    });
+  });
+  $('fb-flash').addEventListener('click', function () {
+    var neutron = VERIFIED['neutron'];
+    if (!neutron) {
+      setStatus('fb-msg', 'The boot image was not checked in the files step — go back and pick it first.', 'bad');
+      return;
+    }
+    setStatus('fb-msg', 'installing the boot image…', 'wait');
+    FASTBOOT.flashBoot(new Uint8Array(neutron), function (line) { log('INFO: ' + line); },
+      function (sent, total) { setStatus('fb-msg', 'sending ' + Math.round(sent / 1024) + ' / ' + Math.round(total / 1024) + ' KiB…', 'wait'); })
+      .then(function () {
+        setStatus('fb-msg', 'Boot image installed.', 'ok');
+        stage('fb-reboot');
+      }).catch(function (e) {
+        setStatus('fb-msg', e.message, 'bad');
+      });
+  });
+  $('fb-reboot').addEventListener('click', function () {
+    setStatus('fb-msg', 'restarting…', 'wait');
+    FASTBOOT.reboot().then(function () {
+      setStatus('fb-msg', 'Restarted.', 'ok');
+      // The phone is wiped and will not answer adb for a few minutes, so the
+      // remaining work happens on the phone itself. Show it instead of prose.
+      setStage('done');
+    }).catch(function (e) {
+      setStatus('fb-msg', e.message, 'bad');
+    });
+  });
+  stage('fb-pick');
+}
+
+// --- return-to-factory slice (factory-gated, not on the step bar) -------------
+
+// The image this slice writes is this phone's own boot partition, saved by the
+// wizard on this visit or an earlier one. It has no upstream pin, so it must
+// never satisfy the rooting path, and neutron.img must never satisfy this one.
+// Only a copy re-read off disk and re-hashed in step 2 lands in FACTORY_VERIFIED.
+var FACTORY_PICKED = null;    // the copy chosen in step 1, with its recorded hash
+var FACTORY_VERIFIED = null;  // { bytes, sha256, path } after the disk re-check
+var FACTORY_CURRENT = null;   // this phone's identity, after a fresh dump
+var FACTORY_COPIES = [];      // copies found on this computer, newest first
+var factoryStageName = null;
+
+var FACTORY_STAGES = ['backup', 'verify', 'flash', 'reboot', 'wipe', 'done'];
+
+// The 4058G boot partition is 24 MiB. The device rejects anything larger in the
+// DATA phase anyway, but refusing here keeps a wrong file off the wire entirely.
+var BOOT_PARTITION = 25165824;
+
+// The same one-thing-on-screen rule the rooting step uses, kept as its own
+// stage machine so a half-finished run in either slice cannot leak across.
+function facStage(name) {
+  factoryStageName = name;
+  FACTORY_STAGES.forEach(function (s) {
+    $('fac-stage-' + s).classList.toggle('hidden', s !== name);
+  });
+  $('fac-need-copy').classList.toggle('hidden', name !== 'flash' || !!FACTORY_VERIFIED);
+}
+
+function facWhen(iso) {
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? 'date not recorded' : d.toLocaleString();
+}
+
+// One line per saved copy: when it was taken, and off which phone.
+function facCopyLabel(c) {
+  var bits = [facWhen(c.takenAt)];
+  if (c.model) bits.push(c.model);
+  bits.push(c.serial || 'phone not recorded');
+  return bits.join(' · ') + ' — ' + Math.round(c.size / 1024) + ' KiB';
+}
+
+function factRow(box, label, value, cls) {
+  var row = document.createElement('div');
+  row.className = 'now-row';
+  var l = document.createElement('span');
+  l.className = 'now-label';
+  l.textContent = label;
+  var v = document.createElement('span');
+  v.className = 'status' + (cls ? ' ' + cls : '');
+  v.textContent = value;
+  row.appendChild(l);
+  row.appendChild(v);
+  box.appendChild(row);
+}
+
+function initFactory() {
+  // Typing the word is not enough on its own: three separate things have to be
+  // acknowledged, so nobody arrives here holding one of them and guessing.
+  function gate() {
+    var word = $('factory-input').value.trim() === 'factory';
+    var acks = $('fac-ack-copy').checked && $('fac-ack-wipe').checked && $('fac-ack-state').checked;
+    $('factory-open').disabled = !(word && acks);
+    $('factory-gate-msg').textContent = !word
+      ? 'Type the word to unlock the steps.'
+      : (acks ? '' : 'Tick all three boxes to continue.');
+  }
+
+  $('factory-link').addEventListener('click', function (ev) {
+    ev.preventDefault();
+    showStep('factory');
+    // A fresh visit starts locked at step 1 with nothing carried over from a
+    // previous run — a copy checked in a run that ended somewhere else would be
+    // a false promise about what is about to be written.
+    $('factory-body').classList.add('hidden');
+    FACTORY_PICKED = null;
+    FACTORY_VERIFIED = null;
+    FACTORY_CURRENT = null;
+    FACTORY_COPIES = [];
+    $('factory-input').value = '';
+    ['fac-ack-copy', 'fac-ack-wipe', 'fac-ack-state'].forEach(function (id) { $(id).checked = false; });
+    ['fac-backup-msg', 'fac-copies-msg', 'fac-verify-msg', 'fac-flash-msg', 'fac-reboot-msg', 'fac-check-msg']
+      .forEach(function (id) { setStatus(id, '', ''); });
+    ['fac-backup-facts', 'fac-picked', 'fac-facts'].forEach(function (id) {
+      $(id).classList.add('hidden');
+      $(id).textContent = '';
+      $(id).className = 'now hidden';
+    });
+    $('fac-copies-wrap').classList.add('hidden');
+    $('fac-copies').textContent = '';
+    $('fac-backup-next').disabled = true;
+    $('fac-verify-next').disabled = true;
+    $('fac-flash').disabled = true;
+    ['fac-verify-log', 'fac-flash-log'].forEach(function (id) {
+      $(id).textContent = '';
+      $(id).classList.add('hidden');
+    });
+    gate();
+    facStage('backup');
+  });
+
+  $('factory-input').addEventListener('input', gate);
+  ['fac-ack-copy', 'fac-ack-wipe', 'fac-ack-state'].forEach(function (id) {
+    $(id).addEventListener('change', gate);
+  });
+
+  $('factory-open').addEventListener('click', function () {
+    $('factory-body').classList.remove('hidden');
+    facStage('backup');
+  });
+
+  // Copies already on this computer, so a phone that will not start can still be
+  // restored from a copy saved on an earlier visit. Newest first.
+  function loadCopies() {
+    if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.factoryListBackups) {
+      setStatus('fac-copies-msg', 'Open this page in the Flip 2 Companion app to look for saved copies.', 'bad');
+      return Promise.resolve();
+    }
+    setStatus('fac-copies-msg', 'looking…', 'wait');
+    return window.FLIP2_NATIVE.factoryListBackups().then(function (list) {
+      FACTORY_COPIES = Array.isArray(list) ? list : [];
+      var sel = $('fac-copies');
+      sel.textContent = '';
+      FACTORY_COPIES.forEach(function (c, i) {
+        var opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = facCopyLabel(c);
+        sel.appendChild(opt);
+      });
+      $('fac-copies-wrap').classList.toggle('hidden', !FACTORY_COPIES.length);
+      setStatus('fac-copies-msg', FACTORY_COPIES.length
+        ? FACTORY_COPIES.length + (FACTORY_COPIES.length === 1 ? ' saved copy found.' : ' saved copies found.')
+        : 'No copies saved on this computer yet. Save one from the phone above.', FACTORY_COPIES.length ? 'ok' : '');
+      if (FACTORY_COPIES.length) selectCopy();
+    }).catch(function (e) {
+      setStatus('fac-copies-msg', cleanErr(e), 'bad');
+    });
+  }
+
+  function selectCopy() {
+    var c = FACTORY_COPIES[Number($('fac-copies').value || 0)];
+    if (!c) return;
+    FACTORY_PICKED = c;
+    FACTORY_VERIFIED = null;
+    $('fac-backup-next').disabled = false;
+    setStatus('fac-copies-msg', 'Chosen: ' + facWhen(c.takenAt) + ' from ' + (c.serial || 'a phone whose serial was not recorded') + '. It is checked in step 2.', 'ok');
+  }
+
+  // 1 · save the boot image the phone is running now, or choose one already on
+  // this computer. A copy is what step 3 puts back, so nothing else opens until
+  // one has been chosen.
+  $('fac-backup').addEventListener('click', function () {
+    var btn = this;
+    if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.factoryBackupBoot) {
+      setStatus('fac-backup-msg', 'Open this page in the Flip 2 Companion app — a plain browser cannot copy files off the phone.', 'bad');
+      return;
+    }
+    btn.disabled = true;
+    setStatus('fac-backup-msg', 'copying the boot image off the phone…', 'wait');
+    Promise.all([
+      window.FLIP2_NATIVE.factoryIdentity(),
+      window.FLIP2_NATIVE.factoryBackupBoot()
+    ]).then(function (r) {
+      FACTORY_CURRENT = r[0];
+      var info = r[1];
+      var box = $('fac-backup-facts');
+      box.textContent = '';
+      box.className = 'now';
+      box.classList.remove('hidden');
+      var okHeader = info.magic === 'ANDROID!';
+      factRow(box, 'Phone serial', info.serial);
+      factRow(box, 'Model', info.model || '(not reported)');
+      factRow(box, 'Build', info.fingerprint || '(not reported)');
+      factRow(box, 'Saved file', info.path);
+      factRow(box, 'Size', info.size + ' bytes');
+      factRow(box, 'SHA-256', info.sha256);
+      factRow(box, 'Header', okHeader ? 'boot image (ANDROID!)' : info.magic, okHeader ? 'ok' : 'bad');
+      factRow(box, 'Root right now', info.rooted ? 'rooted — a copy taken now comes back rooted' : 'no root');
+      if (!okHeader) {
+        setStatus('fac-backup-msg', 'That file is not a boot image, so it is not a way to bring this phone back. Nothing was written to the phone.', 'bad');
+        btn.disabled = false;
+        return;
+      }
+      FACTORY_PICKED = info;
+      FACTORY_VERIFIED = null;
+      $('fac-backup-next').disabled = false;
+      // The copy just saved belongs in the list too, so it can be chosen later
+      // even if the phone cannot be read on that visit.
+      loadCopies().catch(function () {});
+      setStatus('fac-backup-msg', 'Saved. That is the image step 3 puts back, and it stays on this computer for next time.', 'ok');
+      btn.disabled = false;
+    }).catch(function (e) {
+      setStatus('fac-backup-msg', cleanErr(e), 'bad');
+      btn.disabled = false;
+    });
+  });
+
+  $('fac-refresh').addEventListener('click', function () { loadCopies(); });
+  $('fac-copies').addEventListener('change', selectCopy);
+
+  // 1 · carry the chosen copy into step 2 and show exactly what was chosen, so
+  // the person can see the date and the phone it came off before it is checked.
+  $('fac-backup-next').addEventListener('click', function () {
+    if (!FACTORY_PICKED) {
+      setStatus('fac-copies-msg', 'Choose a copy first.', 'bad');
+      return;
+    }
+    FACTORY_VERIFIED = null;
+    $('fac-verify-next').disabled = true;
+    var box = $('fac-picked');
+    box.textContent = '';
+    box.className = 'now';
+    box.classList.remove('hidden');
+    factRow(box, 'Saved', facWhen(FACTORY_PICKED.takenAt));
+    factRow(box, 'From', FACTORY_PICKED.model || '(model not recorded)');
+    factRow(box, 'Phone serial', FACTORY_PICKED.serial || 'not recorded');
+    factRow(box, 'Build when saved', FACTORY_PICKED.fingerprint || '(not recorded)');
+    factRow(box, 'File', FACTORY_PICKED.path);
+    factRow(box, 'Size', FACTORY_PICKED.size + ' bytes');
+    factRow(box, 'Recorded SHA-256', FACTORY_PICKED.sha256);
+    factRow(box, 'Root in that copy', FACTORY_PICKED.rooted
+      ? 'yes — the phone comes back rooted'
+      : (FACTORY_PICKED.rooted === false ? 'no — the phone comes back unrooted' : 'not recorded'));
+    facStage('verify');
+  });
+
+  // 2 · read the copy off this computer again and check it. Header, size against
+  // the real boot partition, and the hash recorded when it was saved. Anything
+  // that has changed since then is refused, before fastboot exists.
+  $('fac-verify').addEventListener('click', function () {
+    $('fac-verify-log').textContent = '';
+    var log = makeLog('fac-verify-log');
+    FACTORY_VERIFIED = null;
+    $('fac-verify-next').disabled = true;
+
+    if (!FACTORY_PICKED) {
+      setStatus('fac-verify-msg', 'Choose a copy in step 1 first — without one there is nothing to put back.', 'bad');
+      return;
+    }
+    if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.factoryReadBackup) {
+      setStatus('fac-verify-msg', 'Open this page in the Flip 2 Companion app — a plain browser cannot read the copy.', 'bad');
+      return;
+    }
+
+    // A copy chosen from the list arrives with no live reading of the phone, so
+    // ask it now. A phone that will not start is expected here; that failure is
+    // reported and the build comparison is skipped rather than treated as an error.
+    var current = FACTORY_CURRENT
+      ? Promise.resolve(FACTORY_CURRENT)
+      : (window.FLIP2_NATIVE.factoryIdentity
+        ? window.FLIP2_NATIVE.factoryIdentity().catch(function () { return null; })
+        : Promise.resolve(null));
+
+    setStatus('fac-verify-msg', 'reading the copy off this computer…', 'wait');
+    Promise.all([window.FLIP2_NATIVE.factoryReadBackup(FACTORY_PICKED.path), current])
+      .then(function (r) {
+      var got = r[0];
+      var now = r[1];
+      if (now) FACTORY_CURRENT = now;
+      var bytes = new Uint8Array(got.bytes);
+      var magic = '';
+      for (var i = 0; i < 8 && i < bytes.length; i++) magic += String.fromCharCode(bytes[i]);
+      log('header: ' + (magic === 'ANDROID!' ? 'ANDROID!' : magic || '(empty file)'));
+      log('size: ' + bytes.length + ' bytes (partition holds ' + BOOT_PARTITION + ')');
+      log('sha256 now: ' + got.sha256);
+      log('sha256 when saved: ' + FACTORY_PICKED.sha256);
+      if (magic !== 'ANDROID!') {
+        throw new Error('That file does not start with a boot image header, so it cannot be installed. Nothing was written.');
+      }
+      if (bytes.length > BOOT_PARTITION) {
+        throw new Error('That file is ' + bytes.length + ' bytes, larger than the boot partition (' + BOOT_PARTITION + ' bytes). Nothing was written.');
+      }
+      if (got.sha256 !== FACTORY_PICKED.sha256) {
+        throw new Error('The file has changed since it was saved, so it is not the copy that was checked. Nothing was written.');
+      }
+      var expect = FACTORY_PICKED.fingerprint;
+      var here = (now && now['ro.build.fingerprint']) || '';
+      if (expect && here && expect !== here) {
+        log('this phone: ' + here);
+        log('copy came from: ' + expect);
+        throw new Error('That copy came from a different build, so it is refused. Nothing was written.');
+      }
+      if (expect && here) log('build: matches this phone');
+      else log('build: not compared — ' + (here
+        ? 'the copy does not record one'
+        : 'the phone cannot be read right now, which is what this is for'));
+      FACTORY_VERIFIED = { bytes: bytes, sha256: got.sha256, path: got.path };
+      setStatus('fac-verify-msg', 'Checked. This is the copy that was saved, unchanged.', 'ok');
+      $('fac-verify-next').disabled = false;
+    }).catch(function (e) {
+      log(e.message);
+      setStatus('fac-verify-msg', e.message, 'bad');
+    });
+  });
+
+  $('fac-verify-back').addEventListener('click', function () { facStage('backup'); });
+  $('fac-verify-next').addEventListener('click', function () {
+    if (!FACTORY_VERIFIED) {
+      setStatus('fac-verify-msg', 'Check the copy first.', 'bad');
+      return;
+    }
+    facStage('flash');
+  });
+
+  // 3 · connect to the bootloader and confirm it is the same phone the copy came
+  // from. Serial is read from the device, never assumed; a copy with no serial
+  // recorded cannot be compared, so that is said rather than guessed.
+  $('fac-pick').addEventListener('click', function () {
+    if (!navigator.usb) {
+      setStatus('fac-flash-msg', 'This browser has no WebUSB. Use the Flip 2 Companion app.', 'bad');
+      return;
+    }
+    var want = (FACTORY_PICKED && FACTORY_PICKED.serial) || '';
+    $('fac-flash').disabled = true;
+    setStatus('fac-flash-msg', 'connecting to the bootloader…', 'wait');
+    FASTBOOT.log = makeLog('fac-flash-log');
+    FASTBOOT.pick().then(function () {
+      return FASTBOOT.connect();
+    }).then(function () {
+      return FASTBOOT.getvar('serialno');
+    }).then(function (s) {
+      var got = String(s || '').trim();
+      FASTBOOT.log('serialno: ' + (got || '(none reported)'));
+      if (want && got !== want) {
+        throw new Error('This is a different phone (' + (got || 'no serial') + '), not the one the copy came from (' + want + '). Unplug it and connect the right one. Nothing was written.');
+      }
+      if (!want) FASTBOOT.log('the copy has no serial recorded, so there is nothing to compare it with');
+      setStatus('fac-flash-msg', 'Connected to ' + (got || 'the phone') + '. The copy can be installed now.', 'ok');
+      $('fac-flash').disabled = false;
+    }).catch(function (e) {
+      setStatus('fac-flash-msg', cleanErr(e), 'bad');
+    });
+  });
+
+  $('fac-flash').addEventListener('click', function () {
+    var btn = this;
+    if (!FACTORY_VERIFIED) {
+      setStatus('fac-flash-msg', 'The copy was not checked, so nothing is sent.', 'bad');
+      return;
+    }
+    btn.disabled = true;
+    setStatus('fac-flash-msg', 'installing the copy…', 'wait');
+    FASTBOOT.flashBoot(new Uint8Array(FACTORY_VERIFIED.bytes), function (line) {
+      FASTBOOT.log('INFO: ' + line);
+    }, function (sent, total) {
+      setStatus('fac-flash-msg', 'sending ' + Math.round(sent / 1024) + ' / ' + Math.round(total / 1024) + ' KiB…', 'wait');
+    }).then(function () {
+      setStatus('fac-flash-msg', 'The copy is installed.', 'ok');
+      facStage('reboot');
+    }).catch(function (e) {
+      setStatus('fac-flash-msg', cleanErr(e), 'bad');
+      btn.disabled = false;
+    });
+  });
+
+  $('fac-reboot').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    setStatus('fac-reboot-msg', 'restarting…', 'wait');
+    FASTBOOT.reboot().then(function () {
+      setStatus('fac-reboot-msg', 'Restarted.', 'ok');
+      facStage('wipe');
+      btn.disabled = false;
+    }).catch(function (e) {
+      setStatus('fac-reboot-msg', cleanErr(e), 'bad');
+      btn.disabled = false;
+    });
+  });
+
+  $('fac-wipe-next').addEventListener('click', function () { facStage('done'); });
+
+  // 6 · ask the phone what it is now and compare it with the copy that was put
+  // back. Root is not a separate thing to check: it lives in that image's
+  // ramdisk, so the honest question is whether the phone came back as the copy.
+  $('fac-check').addEventListener('click', function () {
+    var btn = this;
+    if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.factoryState) {
+      setStatus('fac-check-msg', 'Open this page in the Flip 2 Companion app to ask the phone what it is now.', 'bad');
+      return;
+    }
+    btn.disabled = true;
+    setStatus('fac-check-msg', 'asking the phone…', 'wait');
+    var copy = FACTORY_PICKED || {};
+    var expected = copy.fingerprint || (FACTORY_CURRENT && FACTORY_CURRENT['ro.build.fingerprint']) || '';
+    window.FLIP2_NATIVE.factoryState(expected).then(function (st) {
+      var box = $('fac-facts');
+      // A copy with no recorded root state cannot be compared, so it is not
+      // counted against the run — only a definite mismatch is a failure.
+      var rootAgrees = typeof copy.rooted !== 'boolean' || st.rooted === copy.rooted;
+      var buildAgrees = !expected || st.buildMatches;
+      var happy = rootAgrees && buildAgrees;
+      box.textContent = '';
+      box.className = 'now' + (happy ? ' caught' : ' bad');
+      box.classList.remove('hidden');
+      factRow(box, 'Phone serial', st.serial);
+      factRow(box, 'Model', st.model || '(not reported)');
+      factRow(box, 'Build', st.fingerprint || '(not reported)', buildAgrees ? 'ok' : 'bad');
+      factRow(box, 'Security patch', st.patch || '(not reported)');
+      factRow(box, 'Root', st.rooted ? 'rooted' : 'no root', rootAgrees ? 'ok' : 'bad');
+      factRow(box, 'Root in the copy', typeof copy.rooted === 'boolean'
+        ? (copy.rooted ? 'rooted' : 'no root')
+        : '(not recorded)', rootAgrees ? 'ok' : 'bad');
+      factRow(box, 'Apps installed', st.packages < 0 ? 'could not count them' : String(st.packages));
+      factRow(box, 'Bootloader', st.flashLocked === '1' ? 'locked' : 'unlocked (expected)', '');
+      factRow(box, 'Verified boot', st.verifiedBootState || '(not reported)', '');
+      setStatus('fac-check-msg', happy
+        ? 'The phone came back as the copy that was saved.'
+        : 'Not quite there — read the rows above.', happy ? 'ok' : 'bad');
+      btn.disabled = false;
+    }).catch(function (e) {
+      setStatus('fac-check-msg', cleanErr(e), 'bad');
+      btn.disabled = false;
+    });
+  });
+
+  facStage('backup');
+  gate();
+}
+
+// --- back navigation --------------------------------------------------------
+// Every step's Back button carries data-back="<previous step>". One delegated
+// handler means a step cannot be added without a way out of it.
+function initBackNav() {
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest ? ev.target.closest('[data-back]') : null;
+    if (!btn) return;
+    ev.preventDefault();
+    showStep(btn.getAttribute('data-back'));
+  });
+}
+
 // --- boot -------------------------------------------------------------------------------
 
 function init() {
@@ -538,6 +1369,9 @@ function init() {
     initUsb();
     initInstall();
     initVerify();
+    initRoot();
+    initFastboot();
+    initFactory();
     showStep('credit');
     return Promise.all([
       fetch('../device/install.sh').then(function (r) { return r.text(); }),

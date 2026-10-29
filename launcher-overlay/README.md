@@ -115,9 +115,9 @@ Stock Launcher3 on Gflip6 includes TCL-only resources:
 
 TCL’s enabled overlay is `com.android.launcher3.tct_overlay_product__` at `/product/overlay/Launcher3-overlay.apk`. Yours is `com.tim.flip2.launcheroverlay` (user install, **disabled** until root).
 
-## After Magisk is installed
+## After root (neutron + Magisk)
 
-1. Boot flash is not on this branch. It lives on `feature/rooting-slice`. Do not unlock an already-rooted Flip 2 — that erases the phone. Upstream notes: [flip2 wiki](https://github.com/neutronscott/flip2/wiki).
+1. Flash root boot per [flip2 wiki](https://github.com/neutronscott/flip2/wiki).
 2. Copy to phone: `adb push dist/flip2_launcher_overlay-magisk.zip /sdcard/Download/`
 3. Magisk → Modules → Install from storage → select zip → **reboot**.
 4. On PC: `scripts/after-root-enable.sh` (or enable in overlay list if still needed).

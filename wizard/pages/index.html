@@ -45,7 +45,9 @@
 	    <tbody>
 	      <tr><td><b>Steps 1–6</b> (install button)</td><td>No — ADB + Magisk modules only</td><td>No</td></tr>
 	      <tr><td><b>Release installer zip</b> (GitHub)</td><td>No</td><td>No — <em>recommended for first setup</em></td></tr>
-			    </tbody>
+	      <tr><td><b>Footer: erase and root</b></td><td><code>boot</code> only</td><td><b>Yes</b> (bootloader unlock)</td></tr>
+	      <tr><td><b>Footer: return to factory</b></td><td><code>boot</code> from your saved copy</td><td>Optional wipe step</td></tr>
+	    </tbody>
 	  </table>
 	  <p class="warn"><b>Brick risk</b> is mostly wrong flashes to <code>super</code>, <code>vbmeta</code>, system, or preloader — the main install path does <em>not</em> do that. Half-failed installs are retryable; verify (step 6) shows what landed. See <code>docs/SAFETY.md</code> in the flip2 repo for the full guide.</p>
 	  <h3>What the wizard will and will not do</h3>
@@ -53,8 +55,9 @@
 	    <li>It verifies every download in this page with SHA-256 before pushing anything to the phone. A mismatch stops that file.</li>
 	    <li>It pushes files into <code>/data/local/flip2/</code> and runs an install script. It does not flash any partition on the numbered steps.</li>
 	    <li>It never touches <code>super</code>, <code>vbmeta</code>, system, product, or the preloader, and never writes the EMMC_BOOT header on steps 1–6.</li>
-		  </ul>
-	  <p class="note">If the phone is already rooted (<code>su</code> works), use files → install, or the release zip.</p>
+	    <li>Footer links open separate flows that <b>can erase</b> or rewrite <code>boot</code>. They stay hidden until you finish verify once, so you cannot open them by accident mid-install.</li>
+	  </ul>
+	  <p class="note">If the phone is already rooted (<code>su</code> works), you do not need the rooting footer link — use files → install, or the release zip.</p>
   <label class="inline">Type <b>yes</b> to allow downloads: <input id="gate-input" autocomplete="off" size="6"></label>
   <p><button id="gate-btn" disabled>Continue</button>
      <span id="gate-msg" class="note"></span></p>
@@ -131,7 +134,143 @@
   <p><button class="ghost" data-back="install">Back</button></p>
 </section>
 
-</main>
+<!-- rooting slice: not linked from the step bar -->
+<section class="step" id="step-root" hidden>
+  <h2>Rooting (erases the phone)</h2>
+  <p class="danger"><b>This erases everything on the phone</b> — apps, photos, settings. Only do it on a phone you can wipe. It replaces the boot image with <code>neutron.img</code> and touches no other partition.</p>
+  <p>Type <b>erase</b> to continue:<br>
+  <label class="inline"><input id="erase-input" autocomplete="off" size="8"></label></p>
+  <p><button id="root-open" disabled>Show the steps</button></p>
+  <div id="root-body" class="hidden">
+    <div class="now bad hidden" id="wake-box">
+      <div class="now-row"><span class="now-label">Do this first</span> <span id="wake-title" class="status">Wake the phone first</span></div>
+      <ol id="wake-steps" class="wake-steps"></ol>
+      <p class="now-hint" id="wake-hint">This panel changes on its own when the phone is back.</p>
+    </div>
+    <div id="stage-catch" class="hidden">
+      <h3 class="stage-h"><span class="stage-n">1</span> Catch the phone as it starts</h3>
+      <p>The phone has a one-second startup mode before Android loads, and that is the only moment the wizard can take over. <b>Nothing shows on the phone screen</b> — read the panel below, not the phone.</p>
+      <div class="now" id="now-box">
+        <div class="now-row"><span class="now-label">Phone right now</span> <span id="phone-now" class="status">checking…</span></div>
+        <p class="now-hint" id="phone-hint"></p>
+        <div class="watchbar"><div id="boot-bar"></div></div>
+        <div id="boot-count" class="count hidden"></div>
+      </div>
+      <p><b>Do this:</b> leave the USB cable plugged in. Press <b>Start watching</b>, then take the battery out and put it back in.</p>
+      <p><button id="boot-btn">Start watching</button> <span id="boot-msg" class="status"></span></p>
+      <pre class="log hidden" id="boot-log"></pre>
+    </div>
+
+    <div id="stage-flash" class="hidden">
+      <h3 class="stage-h"><span class="stage-n">2</span> Install the new boot image</h3>
+      <p>The phone is in flashing mode, so the hard part is done. Press <b>Connect to the phone</b>. If it reports the phone is still locked, <b>Unlock</b> comes next and asks you to confirm on the keypad — that erases the phone. After the image is installed, press <b>Restart the phone</b>.</p>
+      <p id="fb-need" class="warn hidden">The boot image has not been checked yet, so there is nothing to install. Go back to the file step and let it verify <code>neutron.img</code>, then come back here.</p>
+      <p id="fb-controls">
+        <button id="fb-pick">Connect to the phone</button>
+        <button id="fb-unlock" class="ghost" disabled>Unlock (erases the phone)</button>
+        <button id="fb-flash" class="ghost" disabled>Install boot image</button>
+        <button id="fb-reboot" class="ghost" disabled>Restart the phone</button>
+        <span id="fb-msg" class="status"></span>
+      </p>
+      <pre class="log hidden" id="fb-log"></pre>
+    </div>
+    <div id="after-box" class="hidden">
+      <h3 class="stage-h"><span class="stage-n">3</span> Finish on the phone</h3>
+      <ol class="wake-steps">
+        <li>Wait for the phone to finish starting. The first start after a wipe takes a few minutes.</li>
+        <li>Magisk finishes setting itself up on the first start, and may ask to restart — let it. If root still does not work afterwards, open the phone dialer and type <code>*#*#217703#*#*</code>.</li>
+        <li>Turn USB debugging back on: <b>Settings → About phone → tap build number 7 times</b>, then <b>Developer options → USB debugging</b>.</li>
+        <li>Plug the cable back in and tap <b>Allow</b> on the prompt that appears on the phone.</li>
+        <li>Come back here and press <b>Back to the setup steps</b>.</li>
+      </ol>
+      <p><button data-back="download">Back to the setup steps</button></p>
+    </div>
+  </div>
+  <p><button class="ghost" data-back="download">Back</button></p>
+</section>
+
+<!-- return-to-factory slice: not linked from the step bar -->
+<section class="step" id="step-factory" hidden>
+  <h2>Return to factory</h2>
+  <p class="danger"><b>This erases everything on the phone</b> — apps, photos, settings — and puts its boot image back to a copy the wizard saved earlier. Nothing is downloaded, and no other partition is touched. The bootloader stays unlocked.</p>
+  <p>You do not need firmware from anywhere. The wizard keeps a copy of this phone's own boot image on this computer: step 1 saves one now, or you can use a copy saved on an earlier visit. That copy is what gets put back — which is also the only way to revive a phone that will not start.</p>
+  <p>Type <b>factory</b> to continue:<br>
+  <label class="inline"><input id="factory-input" autocomplete="off" size="10"></label></p>
+  <div id="factory-acks">
+    <label class="inline"><input type="checkbox" id="fac-ack-copy"> I understand the phone is restored from a copy of its own boot image, not from downloaded firmware.</label>
+    <label class="inline"><input type="checkbox" id="fac-ack-wipe"> I accept that every app, photo and setting on this phone is erased.</label>
+    <label class="inline"><input type="checkbox" id="fac-ack-state"> I accept that the phone comes back in whatever root state that copy was taken in.</label>
+  </div>
+  <p><button id="factory-open" disabled>Show the steps</button>
+     <span id="factory-gate-msg" class="note"></span></p>
+
+  <div id="factory-body" class="hidden">
+    <div id="fac-stage-backup">
+      <h3 class="stage-h"><span class="stage-n">1</span> Save a copy of the boot image, or choose one</h3>
+      <p>If the phone still starts, save a copy of the boot image it is running now — that is the image this step will later put back. Nothing is written to the phone. Leave it switched on and plugged in.</p>
+      <p><button id="fac-backup">Save a copy from the phone</button> <span id="fac-backup-msg" class="status"></span></p>
+      <div id="fac-backup-facts" class="now hidden"></div>
+
+      <h4 class="stage-h">Copies already on this computer</h4>
+      <p>If the phone will not start, use a copy you saved on an earlier visit. This is the only way to bring a phone that will not boot back.</p>
+      <p><button id="fac-refresh" class="ghost">Look for saved copies</button> <span id="fac-copies-msg" class="status"></span></p>
+      <label class="inline hidden" id="fac-copies-wrap">Which copy:<br><select id="fac-copies"></select></label>
+      <p><button id="fac-backup-next" class="ghost" disabled>Continue</button></p>
+    </div>
+
+    <div id="fac-stage-verify" class="hidden">
+      <h3 class="stage-h"><span class="stage-n">2</span> Check the copy before it goes near the phone</h3>
+      <p>The wizard reads the file off this computer again and checks it: that it really is a boot image, that its size fits the phone's <code>boot</code> partition, and that its SHA-256 is the one recorded when it was saved. If the file has changed since then, it is refused.</p>
+      <div id="fac-picked" class="now hidden"></div>
+      <p><button id="fac-verify">Check the copy</button> <span id="fac-verify-msg" class="status"></span></p>
+      <pre class="log hidden" id="fac-verify-log"></pre>
+      <p><button id="fac-verify-back" class="ghost">Back</button>
+         <button id="fac-verify-next" class="ghost" disabled>Continue</button></p>
+    </div>
+
+    <div id="fac-stage-flash" class="hidden">
+      <h3 class="stage-h"><span class="stage-n">3</span> Put the phone in flashing mode, then install</h3>
+      <p>Switch the phone off. Then hold <b>Volume down</b> and plug the cable in — keep holding until a black screen with small white text appears. That is the bootloader. Leave the battery in.</p>
+      <p class="note">If the screen stays black and the phone keeps restarting, it is stuck before the bootloader. Unplug it, take the battery out, put it back, then hold <b>Volume down</b> and plug in again.</p>
+      <p id="fac-need-copy" class="warn hidden">No copy has been checked yet, so there is nothing to put back. Go back to step 2 first.</p>
+      <p><button id="fac-pick">Connect to the phone</button>
+         <button id="fac-flash" class="ghost" disabled>Install the copy</button>
+         <span id="fac-flash-msg" class="status"></span></p>
+      <pre class="log hidden" id="fac-flash-log"></pre>
+    </div>
+
+    <div id="fac-stage-reboot" class="hidden">
+      <h3 class="stage-h"><span class="stage-n">4</span> Restart the phone</h3>
+      <p>The saved copy is installed. Restart the phone and let it start. It comes up on that boot image, still with all your data on it — the wipe comes next.</p>
+      <p><button id="fac-reboot">Restart the phone</button> <span id="fac-reboot-msg" class="status"></span></p>
+    </div>
+
+    <div id="fac-stage-wipe" class="hidden">
+      <h3 class="stage-h"><span class="stage-n">5</span> Wipe the phone on its own screen</h3>
+      <p>The wizard will not erase storage over the cable — that is the step most likely to leave a phone unbootable, so it stays on the phone where it is meant to happen.</p>
+      <ol class="wake-steps">
+        <li>If the phone starts, open <b>Settings → System → Reset options → Erase all data (factory reset)</b>.</li>
+        <li>If it will not start, switch it off and hold <b>Volume up + Power</b> until the recovery screen appears, then choose <b>Wipe data/factory reset</b>.</li>
+        <li>Confirm and wait. This takes a few minutes.</li>
+        <li>Let the phone finish its first start. Then turn USB debugging back on: <b>Settings → About phone → tap Build number 7 times</b>, then <b>Developer options → USB debugging</b>.</li>
+        <li>Plug the cable in and tap <b>Allow</b> on the phone's prompt.</li>
+      </ol>
+      <p><button id="fac-wipe-next" class="ghost">The phone has restarted and is plugged in</button></p>
+    </div>
+
+    <div id="fac-stage-done" class="hidden">
+      <h3 class="stage-h"><span class="stage-n">6</span> Check what the phone came back as</h3>
+      <p>This asks the phone what it is now and compares it with the copy that was put back: the same build, and root in the same state as when the copy was saved. Apps and data are only gone if you did the wipe in step 5.</p>
+      <p><button id="fac-check">Check the phone now</button> <span id="fac-check-msg" class="status"></span></p>
+      <div id="fac-facts" class="now hidden"></div>
+      <p class="note">The bootloader stays unlocked, so the phone reports <code>verifiedbootstate</code> as <code>orange</code>. That is the one non-stock fact, and it is expected. Relocking over a modified boot is the move most likely to hard-brick this phone, so this wizard never does it.</p>
+      <p><button data-back="download">Back to the setup steps</button></p>
+    </div>
+  </div>
+  <p><button class="ghost" data-back="download">Back</button></p>
+</section>
+
+	</main>
 	<div id="inst-modal" class="modal hidden" role="dialog" aria-labelledby="inst-modal-title">
 	  <div class="modal-panel">
 	    <h3 id="inst-modal-title">Before push and install</h3>
@@ -145,8 +284,14 @@
 	  </div>
 	</div>
 	<footer>
-  <p>Flip 2 wizard · step 6 checks what landed on the phone.</p>
-</footer>
+	  <p>Flip 2 wizard · step 6 checks what landed on the phone.</p>
+	  <p id="footer-advanced" class="footer-advanced hidden">
+	    <span class="footer-advanced-label">Advanced — can erase device or rewrite boot:</span>
+	    <a href="#" id="root-link">erase and root this phone</a> ·
+	    <a href="#" id="factory-link">return this phone to factory</a>
+	  </p>
+	  <p id="footer-advanced-hint" class="note">Advanced links (rooting / factory) appear after you run verify once.</p>
+	</footer>
 <script src="../fflate.js"></script>
 <script src="js/catalog.js"></script>
 <script src="js/keys.js"></script>

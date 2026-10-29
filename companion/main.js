@@ -1,7 +1,7 @@
 // Flip 2 Companion — Electron shell around the wizard pages.
-// Serves wizard/ over a custom protocol, auto-picks TCL adb on the WebUSB
-// dialog, and installs the udev rules through pkexec so step 3 is one click
-// instead of a sudo recipe.
+// Serves wizard/ over a custom protocol, chooses the phone on the WebUSB and
+// Web Serial dialogs, and installs the udev rules through pkexec so step 3
+// is one click instead of a sudo recipe.
 
 const { app, BrowserWindow, ipcMain, protocol, session, shell, net } = require('electron');
 const { execFile } = require('child_process');
