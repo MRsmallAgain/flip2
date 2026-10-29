@@ -91,7 +91,7 @@ phase runs unless the device's declared size matches the image exactly.
 Do not run the rooting slice against your current Flip 2 if it is already
 rooted — unlocking it would erase it.
 
-## Return to factory (built, not yet run)
+## Return to factory (restore path proven)
 
 A third slice goes the other way: put back a copy of this phone's own `boot`
 image that the wizard saved earlier — this visit, or one before it — then wipe
@@ -105,8 +105,10 @@ phone to the state the copy was taken in, not to virgin firmware. And it is the
 only way back for a phone that will not start, since such a phone cannot be
 dumped now.
 
-It has **never written a partition**. It is proven on a phone only when the run
-is recorded in `FACTORY-TEST.md`. See
+On 2026-10-28 a donor's `boot` partition was destroyed and restored from a saved
+copy, byte-identical, with root coming back with it — [FACTORY-TEST.md](FACTORY-TEST.md).
+That drill wrote over fastboot from the host, so the page itself, the wipe stage
+and choosing a copy on an already-dead phone are still unexercised. See
 [RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) for the gates, the stages, and why
 the boot copy is read and written on the host rather than in the page.
 

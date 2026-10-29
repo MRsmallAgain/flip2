@@ -4,10 +4,16 @@ Design for a third wizard slice that puts a Flip 2 back to the boot image it was
 last saved on, then wipes userdata, with the same "nothing happens until you
 type the word" gate the other destructive slices use.
 
-**Status: built, not yet run.** The slice exists in `wizard/pages/` and the
-companion. It has never been used to write a partition. Nothing has been
-flashed, wiped or relocked. The next step is to prove it on a phone as the
-guinea pig, then record the run in `docs/FACTORY-TEST.md`.
+**Status: built, and its restore path is proven on hardware.** The slice exists
+in `wizard/pages/` and the companion. On 2026-10-28 donor `MRV8IJJVPRYTS4UG`
+had its `boot` partition deliberately destroyed and then restored from a saved
+copy, byte-identical, with root coming back with it — see
+[FACTORY-TEST.md](FACTORY-TEST.md).
+
+What has **not** been run: the wizard page itself end to end (the drill used
+`fastboot flash boot` from the host, not `FASTBOOT.flashBoot()`), the wipe
+stage, and the path of choosing a copy on a phone that was already unbootable
+before the copy was picked. Nothing has been wiped or relocked.
 
 ## What it restores: the phone's own boot image, not downloaded firmware
 
