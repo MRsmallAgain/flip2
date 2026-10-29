@@ -157,33 +157,8 @@ log "first-boot.sh (settings + wallpaper)"
 # needs are applied here instead of being baked. Both are plain Settings writes
 # that Android re-reads at boot, so nothing has to run again afterwards.
 FB_HEAD
-  echo ""
-  echo "# --- home keys (keyshortcut_*) ---"
-  HKJSON="$ROOT/launcher-overlay/home-keys.json"
-  if [[ -f "$HKJSON" ]]; then
-    for pair in \
-      "keyshortcut_leftkey:left" \
-      "keyshortcut_rightkey:right" \
-      "keyshortcut_upkey:up" \
-      "keyshortcut_downkey:down" \
-      "keyshortcut_shortcutsbar:shortcuts_bar"; do
-      key="${pair%%:*}"
-      slot="${pair#*:}"
-      value="$(jq -r --arg k "$slot" '.[$k] // ""' "$HKJSON")"
-      [[ -n "$value" ]] || continue
-      printf "settings put global '%s' '%s'\n" "$key" "$value"
-    done
-  else
-    echo "# (launcher-overlay/home-keys.json missing at build time)"
-  fi
-  echo ""
-  echo "# --- other image-tier settings-write components (display) ---"
-  jq -r '.components[]
-    | select((.tiers | index("image")) and .artifact == "settings-write" and .name != "home_keys")
-    | .settings[]? // empty' "$MANIFEST" \
-    | while IFS=' ' read -r ns key val; do
-        printf "settings put %s '%s' '%s'\n" "$ns" "$key" "$val"
-      done
+	  echo ""
+	  "$ROOT/pipeline/deploy/emit-first-boot.sh"
   cat <<'FB_TAIL'
 
 # --- default wallpaper ------------------------------------------------------
