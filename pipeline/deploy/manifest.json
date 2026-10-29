@@ -254,5 +254,5 @@
     "full": "Tier B full / Tier C — everything, root required",
     "bundle": "Tier D — per-component zips + APKs + SHA256SUMS"
   },
-  "version": "1.1.1-flip2"
+  "version": "1.2.0-flip2"
 }
