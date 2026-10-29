@@ -58,3 +58,11 @@ pre.rules{background:#f1efe9;border:1px solid var(--line);padding:12px;border-ra
 label.inline{display:block;margin:10px 0}
 ol li,ul li{margin:6px 0}
 footer{max-width:880px;margin:0 auto;padding:0 20px 40px;color:#777;font-size:13px}
+footer p{margin:6px 0}
+.footer-advanced-label{color:#8a6d00;font-weight:600}
+table.safety-paths{font-size:14px;margin:10px 0 14px}
+table.safety-paths td:first-child{white-space:nowrap}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
+.modal-panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 20px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.modal-panel h3{margin:0 0 10px;font-size:17px}
+.modal-panel ul{margin:0 0 14px;padding-left:20px;font-size:14px}

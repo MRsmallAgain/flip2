@@ -1,5 +1,7 @@
 # Setup wizard (browser, WebUSB)
 
+**Safety first:** read [SAFETY.md](SAFETY.md) before install or any footer link (rooting / factory).
+
 `wizard/` is a click-through web page that sets the Flip 2 up from **Chrome on
 Linux** — no `flip2` CLI, no adb on the host. The page talks to the phone
 directly over USB: ADB over WebUSB for the install, Web Serial for the

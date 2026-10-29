@@ -8,6 +8,7 @@ var REACHED = { credit: true };
 var VERIFIED = {};            // catalog id -> ArrayBuffer of a hash-checked file
 var INSTALL_SH = null;        // text of ../device/install.sh
 var VERIFY_SH = null;         // text of ../device/verify.sh
+var VERIFY_RAN_ONCE = false;  // unlock footer advanced links after first verify attempt
 
 function $(id) { return document.getElementById(id); }
 
@@ -45,6 +46,56 @@ function setStatus(id, text, cls) {
   if (!el) return;
   el.textContent = text;
   el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function unlockAdvancedFooter() {
+  VERIFY_RAN_ONCE = true;
+  var adv = $('footer-advanced');
+  var hint = $('footer-advanced-hint');
+  if (adv) adv.classList.remove('hidden');
+  if (hint) hint.classList.add('hidden');
+}
+
+function probeRooted() {
+  var banner = $('usb-rooted-banner');
+  if (!banner) return;
+  ADB.shell('su -c id', function () {})
+    .then(function () {
+      banner.classList.remove('hidden');
+    })
+    .catch(function () {});
+}
+
+function runPushAndInstall() {
+  var files = {};
+  ['installer-full', 'tagdrawer', 'forkgram', 'intertune', 'bouncy',
+    'materialfiles', 'whisper-tiny', 'vosk-en', 'vosk-uk'].forEach(function (id) {
+    if (VERIFIED[id]) files[id] = new Uint8Array(VERIFIED[id]);
+  });
+  $('inst-btn').disabled = true;
+  setStatus('inst-msg', 'building push set…', 'wait');
+  var log = makeLog('inst-log');
+  var pushSet;
+  try {
+    pushSet = PIPE.buildPushSet(files);
+  } catch (e) {
+    setStatus('inst-msg', e.message, 'bad');
+    $('inst-retry').classList.remove('hidden');
+    $('inst-btn').disabled = false;
+    return;
+  }
+  setStatus('inst-msg', 'pushing ' + Object.keys(pushSet).length + ' files…', 'wait');
+  PIPE.pushAndInstall(pushSet, INSTALL_SH, log).then(function () {
+    return PIPE.cleanup(log);
+  }).then(function () {
+    setStatus('inst-msg', 'Install complete.', 'ok');
+    $('inst-next').disabled = false;
+  }).catch(function (e) {
+    setStatus('inst-msg', e.message, 'bad');
+    $('inst-retry').classList.remove('hidden');
+  }).then(function () {
+    $('inst-btn').disabled = false;
+  });
 }
 
 // Appends lines to a <pre class=log> and keeps the latest lines visible.
@@ -419,6 +470,7 @@ function initUsb() {
     }).then(function () {
       setStatus('usb-msg', 'Connected over ADB.', 'ok');
       $('usb-next').disabled = false;
+      probeRooted();
     }).catch(function (e) {
       setStatus('usb-msg', usbError(e), 'bad');
     });
@@ -429,34 +481,21 @@ function initUsb() {
 // --- 5 · install ------------------------------------------------------------------
 
 function initInstall() {
+  var modal = $('inst-modal');
   $('inst-btn').addEventListener('click', function () {
-    var files = {};
-    ['installer-full', 'tagdrawer', 'forkgram', 'intertune', 'bouncy',
-      'materialfiles', 'whisper-tiny', 'vosk-en', 'vosk-uk'].forEach(function (id) {
-      if (VERIFIED[id]) files[id] = new Uint8Array(VERIFIED[id]);
-    });
-    this.disabled = true;
-    setStatus('inst-msg', 'building push set…', 'wait');
-    var log = makeLog('inst-log');
-    var pushSet;
-    try {
-      pushSet = PIPE.buildPushSet(files);
-    } catch (e) {
-      setStatus('inst-msg', e.message, 'bad');
-      $('inst-retry').classList.remove('hidden');
-      return;
-    }
-    setStatus('inst-msg', 'pushing ' + Object.keys(pushSet).length + ' files…', 'wait');
-    PIPE.pushAndInstall(pushSet, INSTALL_SH, log).then(function () {
-      return PIPE.cleanup(log);
-    }).then(function () {
-      setStatus('inst-msg', 'Install complete.', 'ok');
-      $('inst-next').disabled = false;
-    }).catch(function (e) {
-      setStatus('inst-msg', e.message, 'bad');
-      $('inst-retry').classList.remove('hidden');
-    });
+    if (modal) modal.classList.remove('hidden');
   });
+  if ($('inst-modal-cancel')) {
+    $('inst-modal-cancel').addEventListener('click', function () {
+      if (modal) modal.classList.add('hidden');
+    });
+  }
+  if ($('inst-modal-go')) {
+    $('inst-modal-go').addEventListener('click', function () {
+      if (modal) modal.classList.add('hidden');
+      runPushAndInstall();
+    });
+  }
   $('inst-retry').addEventListener('click', function () {
     this.classList.add('hidden');
     setStatus('inst-msg', '', '');
@@ -480,6 +519,7 @@ function initVerify() {
       $('ver-recheck').classList.remove('hidden');
     }).then(function () {
       $('ver-btn').disabled = false;
+      unlockAdvancedFooter();
     });
   }
   $('ver-btn').addEventListener('click', runVerify);

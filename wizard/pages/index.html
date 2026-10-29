@@ -29,14 +29,25 @@
     <thead><tr><th>What</th><th>Author</th><th>License</th><th>Link</th></tr></thead>
     <tbody></tbody>
   </table>
-  <h3>What the wizard will and will not do</h3>
-  <ul>
-    <li>It verifies every download in this page with SHA-256 before pushing anything to the phone. A mismatch stops that file.</li>
-    <li>It pushes files into <code>/data/local/flip2/</code> and runs an install script. It does not flash any partition on this step.</li>
-    <li>It never touches <code>super</code>, <code>vbmeta</code>, system, product, or the preloader, and never writes the EMMC_BOOT header.</li>
-    <li>A separate, explicitly requested rooting step exists for a phone you are willing to wipe. This page will not take you there by accident.</li>
-  </ul>
-  <p class="note">If you already rooted this phone (Magisk dial code works, <code>su</code> answers), you can go straight to the files step — the wizard detects that and skips the rooting slice entirely.</p>
+	  <h3>Pick your path (read before you continue)</h3>
+	  <table class="safety-paths">
+	    <thead><tr><th>Path</th><th>Flashes partitions?</th><th>Wipes data?</th></tr></thead>
+	    <tbody>
+	      <tr><td><b>Steps 1–6</b> (install button)</td><td>No — ADB + Magisk modules only</td><td>No</td></tr>
+	      <tr><td><b>Release installer zip</b> (GitHub)</td><td>No</td><td>No — <em>recommended for first setup</em></td></tr>
+	      <tr><td><b>Footer: erase and root</b></td><td><code>boot</code> only</td><td><b>Yes</b> (bootloader unlock)</td></tr>
+	      <tr><td><b>Footer: return to factory</b></td><td><code>boot</code> from your saved copy</td><td>Optional wipe step</td></tr>
+	    </tbody>
+	  </table>
+	  <p class="warn"><b>Brick risk</b> is mostly wrong flashes to <code>super</code>, <code>vbmeta</code>, system, or preloader — the main install path does <em>not</em> do that. Half-failed installs are retryable; verify (step 6) shows what landed. See <code>docs/SAFETY.md</code> in the flip2 repo for the full guide.</p>
+	  <h3>What the wizard will and will not do</h3>
+	  <ul>
+	    <li>It verifies every download in this page with SHA-256 before pushing anything to the phone. A mismatch stops that file.</li>
+	    <li>It pushes files into <code>/data/local/flip2/</code> and runs an install script. It does not flash any partition on the numbered steps.</li>
+	    <li>It never touches <code>super</code>, <code>vbmeta</code>, system, product, or the preloader, and never writes the EMMC_BOOT header on steps 1–6.</li>
+	    <li>Footer links open separate flows that <b>can erase</b> or rewrite <code>boot</code>. They stay hidden until you finish verify once, so you cannot open them by accident mid-install.</li>
+	  </ul>
+	  <p class="note">If the phone is already rooted (<code>su</code> works), you do not need the rooting footer link — use files → install, or the release zip.</p>
   <label class="inline">Type <b>yes</b> to allow downloads: <input id="gate-input" autocomplete="off" size="6"></label>
   <p><button id="gate-btn" disabled>Continue</button>
      <span id="gate-msg" class="note"></span></p>
@@ -77,11 +88,12 @@
      <button id="udev-done">I did this — continue</button></p>
 </section>
 
-<!-- 4: connect -->
-<section class="step" id="step-usb">
-  <h2>Connect</h2>
-  <p>On the phone: <b>Settings → About → tap build number 7 times</b>, then <b>Developer options → USB debugging</b> on, and plug in USB. Then pick the phone below.</p>
-  <p><button id="usb-btn">Pick phone</button>
+	<!-- 4: connect -->
+	<section class="step" id="step-usb">
+	  <h2>Connect</h2>
+	  <p>On the phone: <b>Settings → About → tap build number 7 times</b>, then <b>Developer options → USB debugging</b> on, and plug in USB. Then pick the phone below.</p>
+	  <p id="usb-rooted-banner" class="warn hidden"><b>Already rooted?</b> You do not need the footer “erase and root” link — that flow wipes the phone. Continue to install (step 5) or use the release installer zip for a conservative first setup.</p>
+	  <p><button id="usb-btn">Pick phone</button>
      <span id="usb-msg" class="status"></span></p>
   <pre class="log hidden" id="usb-log"></pre>
   <p><button class="ghost" data-back="udev">Back</button>
@@ -248,10 +260,28 @@
   <p><button class="ghost" data-back="download">Back</button></p>
 </section>
 
-</main>
-<footer>
-  Flip 2 wizard · the last step checks what landed on the phone · <a href="#" id="root-link">erase and root this phone (read first)</a> · <a href="#" id="factory-link">return this phone to factory (read first)</a>
-</footer>
+	</main>
+	<div id="inst-modal" class="modal hidden" role="dialog" aria-labelledby="inst-modal-title">
+	  <div class="modal-panel">
+	    <h3 id="inst-modal-title">Before push and install</h3>
+	    <ul>
+	      <li>This step does <b>not</b> flash system, super, vbmeta, or preloader.</li>
+	      <li>It <b>requires root</b> (<code>su</code>) on the phone.</li>
+	      <li>A failed run may leave modules half-applied — use <b>Retry</b>; the release installer zip is the more conservative first-time path.</li>
+	    </ul>
+	    <p><button id="inst-modal-go">I understand — push and install</button>
+	       <button id="inst-modal-cancel" class="ghost">Cancel</button></p>
+	  </div>
+	</div>
+	<footer>
+	  <p>Flip 2 wizard · step 6 checks what landed on the phone.</p>
+	  <p id="footer-advanced" class="footer-advanced hidden">
+	    <span class="footer-advanced-label">Advanced — can erase device or rewrite boot:</span>
+	    <a href="#" id="root-link">erase and root this phone</a> ·
+	    <a href="#" id="factory-link">return this phone to factory</a>
+	  </p>
+	  <p id="footer-advanced-hint" class="note">Advanced links (rooting / factory) appear after you run verify once.</p>
+	</footer>
 <script src="../fflate.js"></script>
 <script src="js/catalog.js"></script>
 <script src="js/keys.js"></script>
