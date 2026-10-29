@@ -63,7 +63,7 @@ done
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
 
 VERSION="$(jq -r '.version // "dev"' "$MANIFEST")"
-VERSIONCODE="$(date +%Y%m%d)"
+VERSIONCODE="$(jq -r '.versionCode // "0"' "$MANIFEST")"
 [[ -n "$OUT" ]] || OUT="$DIST/installer-$FLAVOR"
 
 # Components active in this flavor, in install order.
@@ -89,13 +89,15 @@ sed -e "s/@FLAVOR@/$FLAVOR/" "$TPL/customize.sh" > "$OUT/customize.sh"
 cp "$TPL/service.sh" "$OUT/service.sh"
 
 DATA="$OUT/payload/data"
+mkdir -p "$DATA"
 printf '%s\n' "$FLAVOR" > "$DATA/flavor.txt"
-: > "$DATA/apks.txt"
 : > "$DATA/external-apks.txt"
-: > "$DATA/modules.txt"
-: > "$DATA/settings.txt"
 : > "$DATA/appops.txt"
 : > "$DATA/permissions.txt"
+
+EMIT="$ROOT/pipeline/deploy/emit.sh"
+chmod +x "$EMIT"
+"$EMIT" --flavor "$FLAVOR" --manifest "$MANIFEST" --home-keys "$HOME_KEYS" --root "$ROOT" --data "$DATA"
 
 MISSING=()
 log() { echo "==> $*"; }
@@ -110,14 +112,10 @@ while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eur
         base="$(basename "$apk")"
         if [[ -f "$ROOT/$apk" ]]; then
           cp "$ROOT/$apk" "$OUT/payload/apks/$base"
-          printf '%s %s\n' "$base" "$pkg" >> "$DATA/apks.txt"
         else
           MISSING+=("$apk")
         fi
       elif [[ -n "$eurl" || -n "$erepo" ]]; then
-        # External APK: never bundled, downloaded at install time.
-        # Line: <package>|<URL> — direct URL, or GitHub release URL built
-        # from repo/tag/asset (forkgram).
         url="$eurl"
         if [[ -z "$url" ]]; then
           url="https://github.com/$erepo/releases/download/$etag/$easset"
@@ -129,30 +127,28 @@ while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eur
       base="$(basename "$zip")"
       if [[ -f "$ROOT/$zip" ]]; then
         cp "$ROOT/$zip" "$OUT/payload/modules/$base"
-        printf '%s %s\n' "$mid" "$base" >> "$DATA/modules.txt"
       else
         MISSING+=("$zip")
       fi
       ;;
-    settings-write) : ;; # home_keys handled below from its own JSON
+    settings-write)
+      if [[ "$name" == "home_keys" ]]; then
+        for k in left right shortcuts_bar up down; do
+          v="$(jq -r --arg k "$k" '.[$k] // ""' "$HOME_KEYS")"
+          [[ -n "$v" ]] || MISSING+=("home-keys.json key: $k")
+        done
+      fi
+      ;;
     wallpaper)
-      # The default wallpaper PNG, copied into /data/system/users/0 at first
-      # boot by service.sh (this ROM has no `cmd wallpaper`).
       if [[ -n "$wpasset" && -f "$ROOT/$wpasset" ]]; then
         mkdir -p "$OUT/payload/wallpaper"
         cp "$ROOT/$wpasset" "$OUT/payload/wallpaper/flip2-wallpaper.png"
-        echo "flip2-wallpaper.png" > "$DATA/wallpaper.txt"
       else
         MISSING+=("${wpasset:-wallpaper asset} (run: flip2 wallpaper gen)")
       fi
       ;;
   esac
-  # Per-component settings/appops/permissions (array fields in the manifest).
   [[ -n "$pkg" ]] || continue
-  jq -r --arg n "$name" '.components[] | select(.name==$n) | .settings[]? // empty' "$MANIFEST" \
-    | while IFS=' ' read -r ns key val; do
-        printf "settings put %s %s '%s'\n" "$ns" "$key" "${val:-}"
-      done >> "$DATA/settings.txt"
   jq -r --arg n "$name" '.components[] | select(.name==$n) | .appops[]? // empty' "$MANIFEST" \
     | while IFS=' ' read -r op mode; do
         printf 'appops set --user 0 %s %s %s\n' "$pkg" "$op" "$mode"
@@ -162,27 +158,6 @@ while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eur
         printf 'pm grant %s %s\n' "$pkg" "$perm"
       done >> "$DATA/permissions.txt"
 done <<< "$ROWS"
-
-# home_keys: bake pre-quoted `settings put global` lines from home-keys.json
-# (mapping mirrors launcher-overlay/scripts/apply-home-keys.sh).
-if echo "$ROWS" | awk -F'|' '$2 == "home_keys" { found=1 } END { exit found ? 0 : 1 }'; then
-  declare -A HKMAP=( [left]=keyshortcut_leftkey [right]=keyshortcut_rightkey [up]=keyshortcut_upkey [down]=keyshortcut_downkey [shortcuts_bar]=keyshortcut_shortcutsbar )
-  for k in left right shortcuts_bar up down; do
-    v="$(jq -r --arg k "$k" '.[$k] // ""' "$HOME_KEYS")"
-    [[ -n "$v" ]] || MISSING+=("home-keys.json key: $k")
-    printf "settings put global '%s' '%s'\n" "${HKMAP[$k]}" "$v" >> "$DATA/settings.txt"
-  done
-fi
-
-# display: the logical size the launcher dimens and nav overlay are built for.
-# WindowManager re-reads display_size_forced at boot, so no boot script is
-# needed — the reboot the modules already require applies it.
-if echo "$ROWS" | awk -F'|' '$2 == "display" { found=1 } END { exit found ? 0 : 1 }'; then
-  jq -r '.components[] | select(.name=="display") | .settings[]? // empty' "$MANIFEST" \
-    | while IFS=' ' read -r ns key val; do
-        printf "settings put %s '%s' '%s'\n" "$ns" "$key" "$val"
-      done >> "$DATA/settings.txt"
-fi
 
 # Vosk/Whisper models: never bundled; only URLs baked in if the packer got any.
 if [ "${#VOSK_URLS[@]}" -gt 0 ]; then
