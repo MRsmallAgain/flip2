@@ -106,9 +106,12 @@ only way back for a phone that will not start, since such a phone cannot be
 dumped now.
 
 On 2026-10-28 a donor's `boot` partition was destroyed and restored from a saved
-copy, byte-identical, with root coming back with it — [FACTORY-TEST.md](FACTORY-TEST.md).
-That drill wrote over fastboot from the host, so the page itself, the wipe stage
-and choosing a copy on an already-dead phone are still unexercised. See
+copy, byte-identical, with root coming back with it, and then the whole slice —
+all six stages, write included — was driven through the page itself and ended on
+"The phone came back as the copy that was saved" —
+[FACTORY-TEST.md](FACTORY-TEST.md). Two things are still unexercised: the wipe
+stage (no userdata was erased) and choosing a copy on a phone that was already
+dead before the copy was picked. See
 [RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) for the gates, the stages, and why
 the boot copy is read and written on the host rather than in the page.
 

@@ -10,10 +10,14 @@ had its `boot` partition deliberately destroyed and then restored from a saved
 copy, byte-identical, with root coming back with it — see
 [FACTORY-TEST.md](FACTORY-TEST.md).
 
-What has **not** been run: the wizard page itself end to end (the drill used
-`fastboot flash boot` from the host, not `FASTBOOT.flashBoot()`), the wipe
-stage, and the path of choosing a copy on a phone that was already unbootable
-before the copy was picked. Nothing has been wiped or relocked.
+The page itself has since been driven all the way through, write included:
+stages 1–6 in one run, with `FASTBOOT.flashBoot()` doing the write and the phone
+coming back on the same copy. Two things still have **not** been run: the wipe
+stage (its instructions were walked, no userdata was erased), and the path of
+choosing a copy on a phone that was already unbootable before the copy was
+picked. Nothing has been wiped or relocked. The copy written back in that run
+was identical to what was already there, so it shows the write path works but is
+not itself a recovery — see [FACTORY-TEST.md](FACTORY-TEST.md).
 
 ## What it restores: the phone's own boot image, not downloaded firmware
 

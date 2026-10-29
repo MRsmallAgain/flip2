@@ -10,10 +10,18 @@ menu. The recovery steps 1–3 of [RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) w
 exercised at the fastboot level, with the same payload and the same `flash:boot`
 command the slice uses.
 
-The second half of this document is a separate run on the same phone, later the same
-night: a read-only probe that drove the wizard page itself through stages 1, 2 and 6
-and took a screenshot at each stop. The write stages are still unexercised from the
-page.
+The rest of this document is two later runs on the same phone:
+
+- a **read-only probe** that drove the wizard page through stages 1, 2 and 6 without
+  being able to reach a write;
+- a **full cycle** driven from the same page, which did reach the write stages —
+  save, choose, check, install, restart, walk the wipe instructions, confirm state.
+
+Two limits on that full cycle, stated up front so nothing below overstates it. The
+copy written back was byte-identical to what was already on the phone, so it proves
+the page's write path works end to end but was not a recovery from a destroyed
+partition. And the wipe stage was walked, not performed: no userdata was erased on
+this phone during these runs.
 
 ## Device before the test
 
@@ -138,12 +146,13 @@ Writing 'boot'                OKAY [  0.513s]
 
 ## What this does not prove
 
-- **The write stages have not been driven from the page.** The write above was
-  `fastboot flash boot` from the host, not `FASTBOOT.flashBoot()` from the page. The
-  page-level run below covers stages 1, 2 and 6; flash, reboot and wipe were reached
-  by the probe only as far as their buttons being enabled.
-- **The wipe stage was not run.** No userdata was erased; the recovery and Settings
-  routes are still untested on this hardware.
+- **This particular write was not driven from the page.** It was `fastboot flash boot`
+  from the host. The full-cycle run further down does make the page's own
+  `FASTBOOT.flashBoot()` do the write, so the page's write path is exercised — just
+  not as part of this drill.
+- **The wipe stage was not run.** The instructions were walked in the full-cycle run,
+  but no userdata was erased, so the recovery and Settings routes are still untested
+  on this hardware.
 - **The earlier-visit path was not run.** The copy used was dumped by the same
   command, so it is the same code, but the sidecar/list path was not used to reach a
   copy on a phone that was already unbootable — the phone was unbootable *after* the
@@ -216,14 +225,63 @@ distinguishable. The table above is from the second, clean run.
 
 ### What it deliberately does not reach
 
-- The flash stage: the probe never calls `FASTBOOT.flashBoot()`. A destroyed-boot
-  drill driven from the page is the next thing worth doing, on the replacement phone
-  rather than this one.
-- Reboot and the wipe: no userdata was touched, so the recovery-menu and Settings
-  routes are still untested on this hardware.
+- The flash stage: the probe never calls `FASTBOOT.flashBoot()`. The full-cycle run
+  below does, from the same page.
+- Reboot and the wipe: it does not touch either.
 - Choosing a copy on a phone that was *already* unbootable. Here the phone was healthy
-  the whole time; the earlier drill's phone only became unbootable after the copy was
-  picked.
+  the whole time; the drill above only made it unbootable after the copy was picked.
+
+## Full cycle — all six stages driven from the page
+
+Still the donor `MRV8IJJVPRYTS4UG`, after the probe run. This one goes all the way
+through, including the write, with the page doing the work rather than a host command.
+The page was driven over the Electron debug port with a throwaway script
+(`/tmp/fac-cycle.js`, not committed) that clicks the real elements, so every gate and
+handler below is the one a person touches.
+
+| stage | what the page said |
+|---|---|
+| gate | locked until the word and all three acks; then opens on stage 1 only |
+| 1 save a copy | "Saved. That is the image step 3 puts back…" |
+| — copies listed | 3, the new one chosen automatically |
+| 2 check the copy | "Checked. This is the copy that was saved, unchanged." |
+| — check log | `ANDROID!`, 25,165,824 bytes, both hashes equal, `build: matches this phone` |
+| 3 connect | "Connected to MRV8IJJVPRYTS4UG. The copy can be installed now." |
+| — flash log | `Claimed fastboot interface.` / `serialno: MRV8IJJVPRYTS4UG` / `download:01800000 (25165824 bytes)` |
+| 3 install | "The copy is installed." |
+| 4 restart | "Restarted." |
+| 5 wipe | instructions shown; the continue button was clicked, nothing erased |
+| 6 check | "The phone came back as the copy that was saved." |
+| — state rows | root `rooted`, root in the copy `rooted`, 167 apps, `unlocked (expected)`, `orange` |
+
+Before the write, the fastboot health gate was re-checked from the host: `product:
+gflip6`, `serialno: MRV8IJJVPRYTS4UG`, `partition-size:boot: 1800000`, `unlocked:
+yes`. After the reboot the phone came back on adb in about 30 seconds with `boot`
+hashing to `40ef8d56…7cedd6a5`, the same copy, `sys.boot_completed=1`, root intact and
+167 packages — so the page's write path did not damage the boot image.
+
+Screenshots: `09-stage-flash-after-run.png` and `09-stage-reboot-after-run.png` in
+[`screenshots/factory-test-2026-10-29/`](screenshots/factory-test-2026-10-29/),
+captured straight after each stage came back. Stage 6's pixels are identical to
+`08-step6-checked.png` because both runs ended with the same verdict and the same
+nine rows; that is sameness, not a stale frame.
+
+### What this run actually proves, and what it does not
+
+It proves the page's write path works end to end: the gate, the disk re-check, the
+WebUSB handshake, `FASTBOOT.flashBoot()` sending 24 MiB with the legacy `DATA` size
+header, the reboot, and the final comparison — all as a person would drive them.
+
+It does **not** prove a recovery. The copy written back was byte-identical to what
+was already on the partition, so a failure anywhere in the write would have been
+invisible in the outcome. The destructive half — writing a *different* image and
+recovering from it — was drilled at the host level earlier in this document, and the
+combination of the two (destroy from the page, restore from the page) has not been
+run. That is the remaining gap, and the replacement phone is the place to close it.
+
+No userdata was erased. The wipe stage was walked to its continue button so the
+hand-off into stage 6 could be exercised, but step 5's instructions are still
+instructions rather than something performed on this hardware.
 
 ## Artefacts
 
