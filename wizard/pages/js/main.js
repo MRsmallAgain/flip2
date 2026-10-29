@@ -810,6 +810,10 @@ function initFastboot() {
       setStatus('fb-msg', 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
       return;
     }
+    // The factory slice points FASTBOOT.log at its own pane when it connects and
+    // nothing puts it back, so a rooting flash after a factory run would write
+    // its download and flash lines into the other slice's log.
+    FASTBOOT.log = log;
     setStatus('fb-msg', 'connecting…', 'wait');
     FASTBOOT.pick().then(function () {
       return FASTBOOT.connect();
