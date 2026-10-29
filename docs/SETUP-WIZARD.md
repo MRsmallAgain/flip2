@@ -91,6 +91,13 @@ phase runs unless the device's declared size matches the image exactly.
 Do not run the rooting slice against your current Flip 2 if it is already
 rooted — unlocking it would erase it.
 
+On 2026-10-29 the flash button on that slice was pressed for the first time:
+donor `MRV8IJJVPRYTS4UG` went from a `boot` hash of `40ef8d56…` to the
+`neutron.img` pin, rebooted, and came up rooted on Magisk 27.0 — with the full
+app and module set installed and verifying 27/27 on the other side.
+[FLASH-2026-10-29.md](FLASH-2026-10-29.md) records the run, including the one
+place it fell back to host adb and why.
+
 ## Return to factory (restore path proven)
 
 A third slice goes the other way: put back a copy of this phone's own `boot`
@@ -152,6 +159,12 @@ No packaging step is provided; the app runs from the repo tree like
 
 The wizard has been run once end-to-end against a real Flip 2 from Chrome on
 Linux: all six steps passed on the phone, including install and verify. The
+2026-10-29 re-run of steps 5 and 6 got the same result but drove the install
+over host adb instead of WebUSB, because the host `adb` server held the
+interface — so the payload path is re-proven and the WebUSB ADB transport
+step 5 uses is still not. All three slices have now had their buttons pressed
+on hardware: the factory slice through all six stages, the rooting slice's
+flash, and the wipe stage walked to its continue button. The
 Electron companion has a self-check mode (`npm start -- --smoke`) that boots
 the app, loads the wizard over `flip2://`, and prints the page state as JSON:
 all nine catalog rows render, fflate loads, the native bridge answers, the
