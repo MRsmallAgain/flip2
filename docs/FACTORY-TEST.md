@@ -5,10 +5,15 @@ the donor was expendable. The point was to test the one claim the return-to-fact
 slice rests on: **a phone whose `boot` partition has been destroyed can be brought
 back from a copy the wizard saved earlier.**
 
-This is not the full factory flow. Only `boot` was written: no wipe, no recovery
-menu, no wizard UI run, no screenshots. The recovery steps 1–3 of
-[RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) were exercised at the fastboot level,
-with the same payload and the same `flash:boot` command the slice uses.
+This is not the full factory flow. Only `boot` was written: no wipe and no recovery
+menu. The recovery steps 1–3 of [RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) were
+exercised at the fastboot level, with the same payload and the same `flash:boot`
+command the slice uses.
+
+The second half of this document is a separate run on the same phone, later the same
+night: a read-only probe that drove the wizard page itself through stages 1, 2 and 6
+and took a screenshot at each stop. The write stages are still unexercised from the
+page.
 
 ## Device before the test
 
@@ -133,9 +138,10 @@ Writing 'boot'                OKAY [  0.513s]
 
 ## What this does not prove
 
-- **The wizard UI has not been driven end to end.** The write above was
+- **The write stages have not been driven from the page.** The write above was
   `fastboot flash boot` from the host, not `FASTBOOT.flashBoot()` from the page. The
-  stages, gates and status text remain unexercised in front of a person.
+  page-level run below covers stages 1, 2 and 6; flash, reboot and wipe were reached
+  by the probe only as far as their buttons being enabled.
 - **The wipe stage was not run.** No userdata was erased; the recovery and Settings
   routes are still untested on this hardware.
 - **The earlier-visit path was not run.** The copy used was dumped by the same
@@ -155,6 +161,70 @@ baseline before first boot), and the only modules snapshot on this machine
 Magisk itself is intact and `su` works, which is the part the boot image carries;
 modules live on userdata and were simply never there.
 
+## Page-level run — read-only stages 1, 2 and 6
+
+Same phone, later the same night. This one drives the real page inside the Electron
+companion, so the gate, the handlers, the companion IPC and the status text are the
+ones a person would touch. It stops before anything can be written.
+
+```
+cd ~/.local/share/flip2/companion
+npx electron . --factory-probe
+```
+
+The probe (`companion/factory-probe.js`) runs on the page's own JavaScript: it clicks
+`#factory-link`, types the word and ticks the three acknowledgements with real
+`input`/`change` events, then clicks through save → choose → check → confirm state.
+It reaches the write stages only far enough to read whether their buttons are
+enabled; `flash`, `reboot` and `wipe` are not callable from it at all.
+
+What it recorded, on the donor `MRV8IJJVPRYTS4UG`:
+
+| stop | result |
+|---|---|
+| gate, before typing | Continue is disabled |
+| gate, word + 3 acks | Continue unlocks; only `fac-stage-backup` is on screen |
+| save a copy | "Saved. That is the image step 3 puts back…" |
+| — facts shown | serial, 25,165,824 bytes, `40ef8d56…`, header `ANDROID!` |
+| — root line | "Root right now: rooted — a copy taken now comes back rooted" |
+| copies on this computer | 2 listed, the picker visible |
+| choose the copy | "Root in that copy: yes — the phone comes back rooted" |
+| check the copy | "Checked. This is the copy that was saved, unchanged." |
+| — check log | header ok, size within the partition, both hashes equal, `build: matches this phone` |
+| continue | step 3 reached (`#fac-verify-next` enabled) |
+| confirm state | "The phone came back as the copy that was saved." |
+| — state rows | root `rooted`, root in the copy `rooted`, 167 apps, bootloader `unlocked (expected)`, verified boot `orange` |
+
+Screenshots of each stop are in
+[`screenshots/factory-test-2026-10-29/`](screenshots/factory-test-2026-10-29/) —
+`01-gate.png` through `08-step6-checked.png`. They were captured with
+`webContents.capturePage()` at the window's own 1020×800.
+
+### The bug this run caught
+
+On the first pass, stage 6 reported `Root in that copy: (not recorded)` even though
+the copy had been dumped and the sidecar had `rooted: true` in it. The companion's
+`listBootBackups()` built each row without carrying `rooted` through, so the field
+was always missing when a copy came from the list rather than from a fresh dump.
+That mattered: the stage-6 verdict compares the phone's root state against the
+copy's, and a silently missing value would have made the comparison skip instead of
+pass or fail.
+
+Fixed in `companion/main.js` by passing it through as a boolean or `null` — `null`
+when there is genuinely no record, so "not recorded" and "recorded as unrooted" stay
+distinguishable. The table above is from the second, clean run.
+
+### What it deliberately does not reach
+
+- The flash stage: the probe never calls `FASTBOOT.flashBoot()`. A destroyed-boot
+  drill driven from the page is the next thing worth doing, on the replacement phone
+  rather than this one.
+- Reboot and the wipe: no userdata was touched, so the recovery-menu and Settings
+  routes are still untested on this hardware.
+- Choosing a copy on a phone that was *already* unbootable. Here the phone was healthy
+  the whole time; the earlier drill's phone only became unbootable after the copy was
+  picked.
+
 ## Artefacts
 
 Host only, never committed:
@@ -163,6 +233,9 @@ Host only, never committed:
 - `~/flip2-backups/donor-destroy-2026-10-28/` — `header-only.img`,
   `zeros-24MiB.img`, `props-before.txt`, `packages-before.txt`,
   `destruction-log.txt`.
+- `~/flip2-backups/factory-probe-2026-10-29T00-29-52-239Z/` — the probe's eight
+  screenshots and its report. The copies that matter are committed under
+  `docs/screenshots/factory-test-2026-10-29/`.
 
 **Do not flash `header-only.img` or `zeros-24MiB.img` anywhere.** They exist to
 prove the failure mode and nothing else.

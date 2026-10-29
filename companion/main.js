@@ -438,6 +438,10 @@ async function listBootBackups() {
       fingerprint: String(meta.fingerprint || ''),
       model: String(meta.model || ''),
       takenAt: String(meta.takenAt || st.mtime.toISOString()),
+      // Passed straight through, including "no record": the page only compares
+      // when this is a real boolean, so a missing value must stay missing rather
+      // than becoming false and claiming the copy restores an unrooted phone.
+      rooted: typeof meta.rooted === 'boolean' ? meta.rooted : null,
       mtime: st.mtime.toISOString(),
     });
   }
@@ -591,6 +595,26 @@ function createWindow() {
           app.quit();
         }).catch(function (e) { console.error('SMOKE-ERR ' + (e.message || e)); app.exit(1); });
       }, 500);
+    });
+  }
+  // Read-only page probe: drives stages 1, 2 and 6 of the return-to-factory
+  // slice against a phone that is plugged in. It exists because a host-level
+  // fastboot drill cannot exercise the parts that live in the page, and those
+  // are exactly the parts a person will use.
+  if (process.argv.includes('--factory-probe')) {
+    win.webContents.once('did-finish-load', function () {
+      setTimeout(function () {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const outDir = path.join(os.homedir(), 'flip2-backups', 'factory-probe-' + stamp);
+        require('./factory-probe').runFactoryProbe(win, outDir).then(function (report) {
+          report.outDir = outDir;
+          console.log('FACTORY-PROBE ' + JSON.stringify(report));
+          app.quit();
+        }).catch(function (e) {
+          console.error('FACTORY-PROBE-ERR ' + (e.stack || e.message || e));
+          app.exit(1);
+        });
+      }, 800);
     });
   }
 }
