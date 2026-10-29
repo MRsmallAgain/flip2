@@ -98,6 +98,9 @@
         "image"
       ],
       "install_order": 60,
+      "incoming": "launcher4.apk",
+      "label": "Launcher4",
+      "home_activity": "com.tim.flip2.launcher4/com.android.launcher3.Launcher",
       "post_install": "set as HOME (cmd package set-home-activity)"
     },
     {
@@ -116,6 +119,8 @@
         "image"
       ],
       "install_order": 70,
+      "incoming": "nullkeyboard.apk",
+      "label": "Null Keyboard",
       "settings": [
         "secure show_ime_with_hard_keyboard 1",
         "secure enabled_input_methods com.tim.flip2.nullkeyboard/.NullKeyboardService",
@@ -149,6 +154,8 @@
         "full"
       ],
       "install_order": 80,
+      "incoming": "forkgram-13.0.2.0-flip2-patched.apk",
+      "label": "Forkgram",
       "external": {
         "repo": "MRsmallAgain/TelegramAndroid",
         "tag": "flip2-13.0.2.0-r1",
@@ -169,10 +176,52 @@
         "full"
       ],
       "install_order": 85,
+      "incoming": "me.zhanghai.android.files_40.apk",
+      "label": "Material Files",
       "external": {
         "url": "https://f-droid.org/repo/me.zhanghai.android.files_40.apk",
         "asset": "me.zhanghai.android.files_40.apk",
         "note": "GPL-3.0; not stored in this repo - downloaded at install time"
+      }
+    },
+    {
+      "name": "intertune",
+      "artifact": "user-apk",
+      "package": "dev.skye.intertune",
+      "incoming": "intertune.apk",
+      "label": "Intertune",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "wizard"
+      ],
+      "install_order": 86,
+      "external": {
+        "url": "https://f-droid.org/repo/dev.skye.intertune_96.apk",
+        "asset": "dev.skye.intertune_96.apk",
+        "sha256": "64779316cc70046276c03964358dc7a7471dca9c7f2b24e1c4a79966745638fe"
+      }
+    },
+    {
+      "name": "bouncy",
+      "artifact": "user-apk",
+      "package": "com.dozingcatsoftware.bouncy",
+      "incoming": "bouncy.apk",
+      "label": "Bouncy Ball",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "wizard"
+      ],
+      "install_order": 87,
+      "external": {
+        "url": "https://f-droid.org/repo/com.dozingcatsoftware.bouncy_43.apk",
+        "asset": "com.dozingcatsoftware.bouncy_43.apk",
+        "sha256": "ffda0d9cb0b1b2aa58be9559dda891c4fa24391bc481d297a8e3d96c31f62721"
       }
     },
     {
