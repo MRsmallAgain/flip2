@@ -54,6 +54,8 @@ The tree contains (see its `MANIFEST.txt` + `SHA256SUMS`):
 | `system/usr/keylayout/matrix-keypad.kl` | backspace remap (no Magisk needed) |
 | `product/overlay/Flip2NavOverlay.apk` | hide the 30px nav bar |
 | `product/overlay/Flip2LauncherOverlay.apk` | stock Launcher3 menu RRO |
+| `system/media/flip2-wallpaper.png` | default wallpaper asset (copied into `/data` at first boot) |
+| `first-boot.sh` | the two settings this tree cannot express, plus the wallpaper copy - see step 5a |
 
 Notes:
 
@@ -63,6 +65,14 @@ Notes:
 - FlipMouse is **not** in the tree: it needs runtime root to read
   `/dev/input`. Forkgram is never bundled (GPL). Both arrive via the
   Tier B installer.
+- **A merge tree can only carry files.** The settings-write components
+  (`home_keys`, and `display`'s `display_size_forced`) and the wallpaper's copy
+  into `/data/system/users/0` are therefore *not* baked into the image. They
+  are emitted as **`first-boot.sh`** in the tree root, with the values already
+  filled in from the manifest and `launcher-overlay/home-keys.json`. Run it
+  once as root after Magisk is up - step 5a below. Without it the image boots
+  with stock key shortcuts, stock 240x320 logical size and no flip2 wallpaper;
+  nothing else is affected.
 
 ## 3. Merge the tree into the stock images
 
@@ -117,6 +127,28 @@ The one-shot installer installs Forkgram (downloaded at install time),
 applies IME/home-keys settings, starts FlipMouse, writes
 `/data/local/flip2/deroot.sh`, and removes itself.
 
+### 5a. Run `first-boot.sh` from the image tree
+
+The installer zip cannot cover everything the image needs: `first-boot.sh` is
+generated from *your* manifest at build time and lives in the tree, not in the
+zip. Run it once, as root, after Magisk is working:
+
+```bash
+adb push pipeline/deploy/dist/flip2-system-tree/first-boot.sh /data/local/tmp/
+adb shell su -c "sh /data/local/tmp/first-boot.sh"
+adb reboot
+```
+
+It writes the `keyshortcut_*` settings, `display_size_forced=321,428`, and
+copies `system/media/flip2-wallpaper.png` to `/data/system/users/0/wallpaper`
+(`system:system`, `600`, `wallpaper_file` label). Both settings are re-read by
+the framework at boot, so the reboot is what makes the size take effect, and
+the wallpaper shows on the same boot.
+
+The wallpaper copy is stamp-guarded with `/data/local/flip2/.wallpaper-applied`
+so re-running the script never replaces a background the user has since chosen.
+Everything else is idempotent. See [WALLPAPER.md](WALLPAPER.md).
+
 ## 6. Verification gate
 
 Before trusting the image, run the checklist in
@@ -129,6 +161,8 @@ Tier-level checks after step 5:
 - `flip2 ime status` — Null Keyboard is default, models present
 - d-pad Up opens PixelTagDrawer; ⌫ deletes in chat (keypad KL)
 - no 30px nav bar (nav overlay RRO active)
+- `flip2 wallpaper status` - `MATCH: the flip2 wallpaper is installed`
+- `flip2 display status` - `Override size: 321x428`
 
 ## Recovery: a `super` write that stalls mid-image
 

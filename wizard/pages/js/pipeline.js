@@ -50,6 +50,13 @@ var PIPE = {
     td[tdEntry] = files['tagdrawer'];
     out['flip2_pixel_tag_drawer-magisk.zip'] = fflate.zipSync(td);
 
+    // Default wallpaper, only if this installer zip carries one (older zips
+    // predate the asset; install.sh treats its absence as a NOTE).
+    var wpEntry = 'payload/wallpaper/flip2-wallpaper.png';
+    if (installer[wpEntry]) {
+      out['flip2-wallpaper.png'] = installer[wpEntry];
+    }
+
     // Browser-downloaded files, renamed to the short names install.sh wants.
     out['forkgram.apk'] = files['forkgram'];
     out['intertune.apk'] = files['intertune'];

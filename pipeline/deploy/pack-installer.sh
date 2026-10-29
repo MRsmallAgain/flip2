@@ -74,7 +74,8 @@ ROWS="$(jq -r --arg flavor "$FLAVOR" '
   | select([.tiers[]] | index($flavor))
   | [ .install_order, .name, .artifact, (.zip // ""), (.apk // ""),
       (.package // ""), (.module_id // ""), (.external.repo // ""),
-      (.external.tag // ""), (.external.asset // ""), (.external.url // "") ] | join("|")
+      (.external.tag // ""), (.external.asset // ""), (.external.url // ""),
+      (.asset // "") ] | join("|")
 ' "$MANIFEST" | sort -n)"
 
 rm -rf "$OUT"
@@ -100,7 +101,7 @@ MISSING=()
 log() { echo "==> $*"; }
 
 log "packing flip2 installer ($FLAVOR flavor, v$VERSION)"
-while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eurl; do
+while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eurl wpasset; do
   [[ -n "$name" ]] || continue
   echo "  + $name ($artifact)"
   case "$artifact" in
@@ -134,6 +135,17 @@ while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eur
       fi
       ;;
     settings-write) : ;; # home_keys handled below from its own JSON
+    wallpaper)
+      # The default wallpaper PNG, copied into /data/system/users/0 at first
+      # boot by service.sh (this ROM has no `cmd wallpaper`).
+      if [[ -n "$wpasset" && -f "$ROOT/$wpasset" ]]; then
+        mkdir -p "$OUT/payload/wallpaper"
+        cp "$ROOT/$wpasset" "$OUT/payload/wallpaper/flip2-wallpaper.png"
+        echo "flip2-wallpaper.png" > "$DATA/wallpaper.txt"
+      else
+        MISSING+=("${wpasset:-wallpaper asset} (run: flip2 wallpaper gen)")
+      fi
+      ;;
   esac
   # Per-component settings/appops/permissions (array fields in the manifest).
   [[ -n "$pkg" ]] || continue

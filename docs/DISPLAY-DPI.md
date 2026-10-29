@@ -17,6 +17,8 @@ Main panel: **240×320**, physical density **160** (`ro.sf.lcd_density`). Cover:
 
 **Bundled since 2026-10-29.** The `display` component (`install_order` 95) in `pipeline/deploy/manifest.json` writes the setting from the installer zip's boot-time `service.sh`, from the wizard's `install.sh`, and from `flip2 setup full`. `verify.sh` checks it. `flip2 display size 321x428` applies it by hand.
 
+**In the Tier A image** the setting cannot be a file, so `flip2 image build-tree` emits it into the tree's `first-boot.sh`; run that once as root after Magisk is up ([IMAGE-BUILD.md](IMAGE-BUILD.md) step 5a). Applied that way it survived a reboot on the donor: `Override size: 321x428`.
+
 **One caveat for wizard users.** `wizard/catalog.json` still pins the published installer zip at `v1.1.1-flip2` (`sha256 5511f77a…`), which predates this change. Downloading that zip through the wizard therefore does **not** install the display fix — only the repo-tree paths above carry it until the zip is repacked, released, and the catalog repinned.
 
 ## Per-app DPI (Telegram, Pixel Tag Drawer, …)

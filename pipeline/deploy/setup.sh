@@ -28,6 +28,7 @@ Run the full rooted flip2 install over adb, in the verified order:
   7. home-keys       Settings.Global keyshortcut_* from home-keys.json
   8. forkgram        release APK (download + verify + install)
   9. display         logical size override 321x428 (reboot required)
+ 10. wallpaper       default wallpaper into /data/system/users/0 (reboot required)
 
 Each step reports PASS/FAIL; a failed step does not stop the rest. Modules
 that need a reboot are listed in the summary.
@@ -104,6 +105,11 @@ step_display() {
   REBOOT_NEEDED+=("display (logical 321x428 on the next boot)")
 }
 
+step_wallpaper() {
+  "$FLIP2_BIN/flip2" wallpaper apply
+  REBOOT_NEEDED+=("wallpaper (shows on the next boot)")
+}
+
 step navoverlay  step_navoverlay
 step keypad      step_keypad
 step flipmouse   step_flipmouse
@@ -113,6 +119,7 @@ step ime         step_ime
 step home-keys   step_home_keys
 step forkgram    step_forkgram
 step display     step_display
+step wallpaper   step_wallpaper
 
 # --- status summary ---------------------------------------------------------
 echo ""

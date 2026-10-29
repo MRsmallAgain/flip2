@@ -135,6 +135,33 @@ else
   echo "could not set HOME automatically; pick Launcher4 when Android asks"
 fi
 
+# --- default wallpaper ------------------------------------------------------
+# This ROM has no `cmd wallpaper` implementation, so the wallpaper is installed
+# as the raw file the framework reads at boot. Verified on donor
+# MRV8IJJVPRYTS4UG 2026-10-29: the file survives a reboot byte-identical and
+# the system writes a `wallpaper_orig` sibling next to it. Stamp-guarded so a
+# second run never overwrites a wallpaper the user has since chosen.
+if [ -f "$MOD/payload/data/wallpaper.txt" ]; then
+  WPSRC="$MOD/payload/wallpaper/flip2-wallpaper.png"
+  WPDST=/data/system/users/0/wallpaper
+  WPSTAMP=/data/local/flip2/.wallpaper-applied
+  if [ -f "$WPSTAMP" ]; then
+    echo "wallpaper already applied"
+  elif [ -f "$WPSRC" ]; then
+    if cp "$WPSRC" "$WPDST"; then
+      chown system:system "$WPDST"
+      chmod 600 "$WPDST"
+      restorecon "$WPDST" 2>/dev/null
+      touch "$WPSTAMP"
+      echo "wallpaper installed: $WPDST"
+    else
+      echo "FAILED: could not write $WPDST"
+    fi
+  else
+    echo "no wallpaper payload; skipped"
+  fi
+fi
+
 # --- Vosk models (optional, user-supplied URLs, never bundled) -------------
 if [ -f "$MOD/payload/data/vosk-urls.txt" ]; then
   NULL_PKG=com.tim.flip2.nullkeyboard

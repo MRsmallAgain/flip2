@@ -135,6 +135,23 @@ settings put global 'display_size_forced' '321,428' \
   || fail "settings: display_size_forced"
 ok "display size 321x428 (takes effect after reboot)"
 
+# --- wallpaper: default background, copied where the framework reads it -----
+# This ROM has no `cmd wallpaper`; /data/system/users/0/wallpaper is the file
+# the wallpaper service loads at boot. Optional: the published installer zip
+# may predate the asset, so a missing file is a NOTE, not a FAIL.
+WP=/data/local/flip2/incoming/flip2-wallpaper.png
+WPDST=/data/system/users/0/wallpaper
+if [ -f "$WP" ] && [ ! -f "$STAGE/.wallpaper-applied" ]; then
+  cp "$WP" "$WPDST" || fail "wallpaper copy"
+  chown system:system "$WPDST" 2>/dev/null
+  chmod 600 "$WPDST"
+  restorecon "$WPDST" 2>/dev/null
+  touch "$STAGE/.wallpaper-applied"
+  ok "wallpaper installed (shows after reboot)"
+else
+  echo "NOTE: no flip2-wallpaper.png in incoming/; keeping the current wallpaper"
+fi
+
 # --- Home -------------------------------------------------------------------
 cmd package set-home-activity $HOME_ACT >/dev/null 2>&1 \
   || fail "could not set HOME to launcher4"

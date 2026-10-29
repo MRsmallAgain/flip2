@@ -152,6 +152,24 @@ else
   FAILS=$((FAILS + 1))
 fi
 
+# --- Wallpaper (optional: only checked when the installer shipped an asset) --
+# This ROM has no `cmd wallpaper`; the file at /data/system/users/0/wallpaper is
+# what the framework loads at boot. A phone that was installed before the asset
+# existed keeps whatever wallpaper the user has, so absence is a NOTE.
+WP_DEV=/data/system/users/0/wallpaper
+WP_HOST=/data/local/flip2/incoming/flip2-wallpaper.png
+if [ -f "$WP_HOST" ]; then
+  if [ -f "$WP_DEV" ] && cmp -s "$WP_HOST" "$WP_DEV"; then
+    echo "PASS: wallpaper is the flip2 default"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: wallpaper does not match the shipped flip2-wallpaper.png (reboot, or apply with 'flip2 wallpaper apply')"
+    FAILS=$((FAILS + 1))
+  fi
+else
+  echo "NOTE: no shipped wallpaper asset in incoming/; skipping that check"
+fi
+
 echo ""
 echo "SUMMARY: $PASS passed, $FAILS failed"
 [ "$FAILS" -eq 0 ] && exit 0

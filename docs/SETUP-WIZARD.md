@@ -60,7 +60,8 @@ For a public page, serve the `wizard/` directory from any static host
    is kept for Retry; the page cleans it up on success.
 6. **Verify.** `verify.sh` runs on the phone and prints one PASS/FAIL line
    per check (daemon, IME, home, six apps, speech models, stt_lang, the five
-   home-key shortcuts, IME settings, and `display_size_forced=321,428`).
+   home-key shortcuts, IME settings, `display_size_forced=321,428`, and the
+   default wallpaper when the installer zip carried one).
 
 The wizard never clears the home-key shortcuts, never downloads a browser
 (menu slot 7 stays `org.chromium.chrome` — Chrome is already on the phone),

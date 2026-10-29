@@ -103,6 +103,31 @@ echo "Done. Press Home and try the right soft key (Shortcuts label)."
 HK
 chmod +x "$OUT/apply-home-keys.sh"
 
+# Wallpaper component: ship the PNG + a root apply script.
+WP_ASSET="$ROOT/pipeline/wallpaper/assets/flip2-wallpaper.png"
+if [[ -f "$WP_ASSET" ]]; then
+  cp -f "$WP_ASSET" "$OUT/flip2-wallpaper.png"
+  log "packed wallpaper (flip2-wallpaper.png)"
+  cat > "$OUT/apply-wallpaper.sh" <<'WP'
+#!/usr/bin/env bash
+# Install flip2-wallpaper.png as the phone's wallpaper (needs root).
+# This ROM has no `cmd wallpaper`; the framework reads the raw file at
+# /data/system/users/0/wallpaper, so the copy is the whole operation.
+set -euo pipefail
+D="$(cd "$(dirname "$0")" && pwd)"
+SRC="$D/flip2-wallpaper.png"
+DST=/data/system/users/0/wallpaper
+[[ -f "$SRC" ]] || { echo "Missing $SRC" >&2; exit 1; }
+adb get-state >/dev/null 2>&1 || { echo "No adb device" >&2; exit 1; }
+adb push "$SRC" /data/local/tmp/flip2-wallpaper.png >/dev/null
+adb shell "su -c 'cp /data/local/tmp/flip2-wallpaper.png $DST && chown system:system $DST && chmod 600 $DST && restorecon $DST'"
+echo "Installed $DST. Reboot to see it on the home screen."
+WP
+  chmod +x "$OUT/apply-wallpaper.sh"
+else
+  MISSING+=("wallpaper: $WP_ASSET (run: flip2 wallpaper gen)")
+fi
+
 # SHA256SUMS over everything packed so far.
 (
   cd "$OUT"
@@ -125,7 +150,7 @@ MD
 
 jq -r '.components
   | sort_by(.install_order)[]
-  | "| \(.install_order) | \(.name) | \(if .name == "home_keys" then "home-keys.json + apply-home-keys.sh" elif .artifact == "settings-write" then "display_size_forced (settings)" elif .external then (if .external.url then "\(.external.asset) (download from \(.external.url))" else "\(.external.asset) (download from \(.external.repo), tag \(.external.tag))" end) else (.zip // .apk | split("/")[-1]) end) | \(.artifact) | \(.root_install) | \(.root_runtime) | \(.reboot) |"' "$MANIFEST" \
+  | "| \(.install_order) | \(.name) | \(if .name == "home_keys" then "home-keys.json + apply-home-keys.sh" elif .artifact == "wallpaper" then "flip2-wallpaper.png + apply-wallpaper.sh" elif .artifact == "settings-write" then "display_size_forced (settings)" elif .external then (if .external.url then "\(.external.asset) (download from \(.external.url))" else "\(.external.asset) (download from \(.external.repo), tag \(.external.tag))" end) else (.zip // .apk | split("/")[-1]) end) | \(.artifact) | \(.root_install) | \(.root_runtime) | \(.reboot) |"' "$MANIFEST" \
   >> "$OUT/README.md"
 
 cat >> "$OUT/README.md" <<'MD'
@@ -149,6 +174,9 @@ cat >> "$OUT/README.md" <<'MD'
 - **display**: `adb shell wm size 321x428` (what the installer bakes into
   `display_size_forced`). The override is re-read at boot, so it persists.
   Undo with `wm size reset`.
+- **wallpaper**: run `./apply-wallpaper.sh` with a rooted device connected, then
+  reboot. No `cmd wallpaper` on this ROM - the PNG is copied to
+  `/data/system/users/0/wallpaper`. Undo: pick another wallpaper in Settings.
 
 ### IME settings block (adb shell, root or adb root)
 
