@@ -2,13 +2,9 @@
 
 **Safety first:** read [SAFETY.md](SAFETY.md) before install or any footer link (rooting / factory).
 
-`wizard/` is a click-through web page that sets the Flip 2 up from **Chrome on
-Linux** — no `flip2` CLI, no adb on the host. The page talks to the phone
-directly over USB: ADB over WebUSB for the install, Web Serial for the
-optional rooting slice.
+`wizard/` is the **TCL Flip2 Manager**: Phone, Profile, Apps, and Prepare. From **Chrome on Linux** the browser path still talks to the phone over USB (ADB over WebUSB for install, Web Serial for the optional rooting slice) and does not use host adb. Flip 2 Companion is the same page with host adb for install and verify. Profiles, the Headwind pin, and device owner are in [MANAGER.md](MANAGER.md).
 
-Firefox does not work: it has no WebUSB. Windows and macOS get the same site
-later; Linux is proven first.
+Firefox does not work: it has no WebUSB. Windows and macOS get the same site later; Linux is proven first.
 
 ## Run it
 
@@ -26,22 +22,26 @@ For a public page, serve the `wizard/` directory from any static host
 
 | Path | Role |
 |------|------|
-| `pages/` | the wizard itself: one HTML page, six steps |
+| `pages/` | the manager: one HTML page. Front door is Phone, Profile, Apps, and Prepare |
 | `catalog.json` | pinned downloads: exact byte size + SHA-256 of every third-party file |
 | `device/install.sh`, `device/verify.sh` | pushed to the phone and run there |
 | `51-android-flip2-adb.rules` | udev rules the user installs once |
 | `fflate.js` | vendored unzip (UMD build of fflate 0.8.2) |
 
-## The six steps
+## Front door
+
+1. **Phone.** Status over host adb in Companion: model, root, device owner, and accounts. Refresh. USB debugging and the udev rules are linked here too. This screen does not wipe the phone.
+2. **Profile.** Base is today's install. Managed is base plus the pinned Headwind launcher. Secure is shown and cannot be selected.
+3. **Apps.** Install or remove one catalog package, remove one Magisk module, Apply the selected profile, or run verify. Device owner is separate, on Managed, after you type `manage`. Apply installs what is missing and writes settings. It does not uninstall extras and it does not wipe.
+4. **Prepare.** The sections below. Nothing downloads until you type `yes`.
+
+## Prepare sections
+
 
 1. **Credits and gate.** Who made what, with links: neutronscott's boot
    image, the Flip2 installer, Forkgram, whisper.cpp, Vosk, and the F-Droid
    apps. Nothing downloads until the user types `yes`.
-2. **Files.** The page links each pinned file; the user downloads it normally
-   (GitHub releases, F-Droid and alphacephei.com send no cross-origin
-   headers, so the page cannot fetch them itself) and picks the files in the
-   page. Every file is hashed with WebCrypto SHA-256 against
-   `catalog.json`; a mismatch stops that file.
+2. **Files.** Pinned files that have a URL are links. The user downloads those normally (GitHub releases, F-Droid, and alphacephei.com send no cross-origin headers, so the page cannot fetch them itself) and picks them in the page. The Headwind launcher has no URL. It is a local pin, and the download gate requires it only for Managed. Neutron stays on the rooting slice, not on Apply. Every picked file is hashed with WebCrypto SHA-256 against `catalog.json`; a mismatch stops that file.
 3. **udev.** One-time `sudo cp` of the rules file so the user's account can
    reach the phone (both adb modes and the MediaTek preloader).
 4. **Connect.** USB debugging on, pick the phone, ADB handshake in the page.
@@ -60,6 +60,8 @@ For a public page, serve the `wizard/` directory from any static host
    at the first failed line**, shows it, and offers Retry — it does not
    continue through failures the way `flip2 setup full` does. `incoming/`
    is kept for Retry; the page cleans it up on success.
+   Companion Apply writes `/data/local/flip2/profile.list` before the push. A missing list means full base, and Headwind is skipped. Managed Apply from a plain browser stops and asks for Flip 2 Companion. Apply does not uninstall extras and does not wipe the phone.
+
 6. **Verify.** `verify.sh` runs on the phone and prints one PASS/FAIL line
    per check (daemon, IME, home, six apps, speech models, stt_lang, the five
    home-key shortcuts, IME settings, `display_size_forced=321,428`, and the
@@ -132,22 +134,21 @@ The third-party binaries and models (neutron.img, Forkgram APK, whisper and
 Vosk models, F-Droid APKs) are **not** in this repo and are not attached to
 the flip2 release. `catalog.json` only pins their upstream URLs and hashes;
 the browser fetches them from upstream and verifies them. Chrome is not
-downloaded either.
+downloaded either. The Headwind launcher pin has no download URL. The file is `~/Downloads/com.hmdm.launcher_15400.apk` (see [MANAGER.md](MANAGER.md)). Do not substitute `hmdm-6.40-os.apk`.
 
 ## Companion app (Electron)
 
-`companion/` wraps the same wizard pages in a desktop app, so step 3 is one
-click and steps 4 and 6 skip Chrome's device chooser:
+`companion/` is the desktop shell for these pages. The window title is **TCL Flip2 Manager**. Prepare → udev is one click, and Prepare → Connect plus the rooting slice skip Chrome's device chooser:
 
 ```bash
 cd ~/.local/share/flip2
 flip2 companion        # or: cd companion && npm install && npm start
 ```
 
-- The pages are served from a private `flip2://` protocol — no HTTP server,
-  and the wizard code is otherwise unchanged. The pages feature-check
+- The pages are served from a private `flip2://` protocol — no HTTP server.
+  Install and verify inside Companion use host adb. The pages feature-check
   `window.FLIP2_NATIVE`, so they keep working in a plain browser.
-- **One-click udev.** Step 3 gains an "Install the rules for me" button:
+- **One-click udev.** Prepare → udev has an "Install the rules for me" button:
   the rules file is staged in a temp dir and copied to `/etc/udev/rules.d/`
   via `pkexec` (the system password prompt), then the rules are reloaded and
   triggered. Dismissing the prompt installs nothing.
@@ -163,15 +164,15 @@ No packaging step is provided; the app runs from the repo tree like
 
 The wizard has been run once end-to-end against a real Flip 2 from Chrome on
 Linux: all six steps passed on the phone, including install and verify. The
-2026-10-29 re-run of steps 5 and 6 got the same result but drove the install
+2026-10-29 re-run of install and verify (now under Prepare) got the same result but drove the install
 over host adb instead of WebUSB, because the host `adb` server held the
 interface — so the payload path is re-proven and the WebUSB ADB transport
-step 5 uses is still not. All three slices have now had their buttons pressed
+the install section uses is still not proven. All three slices have now had their buttons pressed
 on hardware: the factory slice through all six stages, the rooting slice's
 flash, and the wipe stage walked to its continue button. The
 Electron companion has a self-check mode (`npm start -- --smoke`) that boots
 the app, loads the wizard over `flip2://`, and prints the page state as JSON:
-all nine catalog rows render, fflate loads, the native bridge answers, the
+the title is TCL Flip2 Manager, the front door has four steps, and all eleven catalog rows render, fflate loads, the native bridge answers, the
 udev button is visible, and WebUSB + Web Serial are exposed. The one-click
 udev install and the device auto-pick still need a real phone plugged in to
 exercise; the first such run happens from the user's local terminal, not

@@ -69,3 +69,13 @@ table.safety-paths td:first-child{white-space:nowrap}
 .modal-panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 20px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.12)}
 .modal-panel h3{margin:0 0 10px;font-size:17px}
 .modal-panel ul{margin:0 0 14px;padding-left:20px;font-size:14px}
+.profile-card{display:block;width:100%;text-align:left;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:8px 0;cursor:pointer}
+.profile-card strong{display:block;font-size:16px}
+.profile-card.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.profile-card:disabled{opacity:.55;cursor:not-allowed}
+.profile-summary,.profile-warn,.profile-reason{display:block;font-weight:400;font-size:14px;margin-top:4px}
+.profile-warn{color:#8a6d00}
+.profile-reason{color:#555}
+.app-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.app-main{display:flex;flex-direction:column;gap:2px}
+.app-actions{display:flex;gap:8px;flex:none}

@@ -273,6 +273,9 @@ async function readLocal(id, index) {
 
 async function downloadFile(id) {
   const f = await catalogEntry(id);
+  if (!f.url) {
+    throw new Error(f.file + ': no download URL; match the local pin');
+  }
   const dir = downloadDir();
   await fsp.mkdir(dir, { recursive: true });
   const dst = path.join(dir, f.file);
@@ -551,6 +554,230 @@ async function wizardHostWriteRootFile(serial, destPath, content, mode) {
   await wizardHostSu(serial, cmd, 180000);
 }
 
+// profile.list is one known component id per line. The destination is fixed:
+// cleanup deletes incoming/*, and the page must not choose another path.
+const PROFILE_PATH = '/data/local/flip2/profile.list';
+const PROFILE_IDS = {
+  navoverlay: true, keypad: true, flipmouse: true, tagdrawer: true,
+  launcher_overlay: true, launcher4: true, ime: true, forkgram: true,
+  materialfiles: true, intertune: true, bouncy: true, home_keys: true,
+  display: true, wallpaper: true, whisper: true, vosk: true, headwind: true,
+};
+
+const CATALOG_APKS = {
+  'launcher4.apk': 'com.tim.flip2.launcher4',
+  'nullkeyboard.apk': 'com.tim.flip2.nullkeyboard',
+  'forkgram.apk': 'org.forkgram.classic',
+  'materialfiles.apk': 'me.zhanghai.android.files',
+  'intertune.apk': 'dev.skye.intertune',
+  'bouncy.apk': 'com.dozingcatsoftware.bouncy',
+  'headwind.apk': 'com.hmdm.launcher',
+};
+
+const CATALOG_PACKAGES = {
+  'com.tim.flip2.launcher4': true,
+  'com.tim.flip2.nullkeyboard': true,
+  'org.forkgram.classic': true,
+  'me.zhanghai.android.files': true,
+  'dev.skye.intertune': true,
+  'com.dozingcatsoftware.bouncy': true,
+  'com.hmdm.launcher': true,
+};
+
+const CATALOG_MODULES = {
+  flip2_nav_overlay: true,
+  flip2_keypad_backspace: true,
+  FlipMouse: true,
+  flip2_pixel_tag_drawer: true,
+  flip2_launcher_overlay: true,
+};
+
+const DEVICE_OWNER_COMPONENT = 'com.hmdm.launcher/.AdminReceiver';
+
+function normalizeProfileText(text) {
+  const raw = String(text == null ? '' : text).replace(/\r/g, '');
+  if (raw.length > 2048) throw new Error('profile.list rejected');
+  if (!raw.endsWith('\n')) throw new Error('profile.list must end with a newline');
+  if (raw.indexOf('..') !== -1 || raw.indexOf('/') !== -1 || raw.indexOf('\\') !== -1) {
+    throw new Error('profile.list rejected');
+  }
+  const lines = raw.split('\n');
+  lines.pop();
+  if (!lines.length) throw new Error('profile.list is empty');
+  const seen = Object.create(null);
+  for (let i = 0; i < lines.length; i++) {
+    const id = lines[i];
+    if (!PROFILE_IDS[id] || seen[id]) throw new Error('profile.list rejected');
+    seen[id] = true;
+  }
+  return lines.join('\n') + '\n';
+}
+
+async function wizardHostWriteProfile(payload) {
+  const text = normalizeProfileText(payload && payload.text);
+  const serial = await adbSerial();
+  await wizardHostWriteRootFile(serial, PROFILE_PATH, text, '644');
+  return { ok: true };
+}
+
+async function wizardHostInstallApk(payload) {
+  const name = String(payload && payload.name || '');
+  const pkg = CATALOG_APKS[name];
+  if (!pkg) throw new Error('not a catalog apk');
+  const serial = await adbSerial();
+  const src = '/data/local/flip2/incoming/' + name;
+  let out = '';
+  try {
+    out = await adbRun(
+      ['-s', serial, 'shell', 'su', '0', 'sh', '-c', 'pm install -r ' + shellQuote(src)],
+      180000);
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e), packageName: pkg };
+  }
+  if (/Failure|INSTALL_FAILED/.test(out)) {
+    return { ok: false, error: out.trim() || 'install failed', packageName: pkg };
+  }
+  if (/Success/.test(out)) return { ok: true, packageName: pkg };
+  return { ok: false, error: out.trim() || 'install failed', packageName: pkg };
+}
+
+async function wizardHostUninstallPackage(payload) {
+  const pkg = String(payload && payload.packageName || '');
+  if (!CATALOG_PACKAGES[pkg]) throw new Error('not a catalog package');
+  const serial = await adbSerial();
+  let out = '';
+  try {
+    out = await adbRun(['-s', serial, 'shell', 'pm', 'uninstall', pkg], 120000);
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    if (msg.indexOf('DELETE_FAILED_DEVICE_POLICY_MANAGER') !== -1) {
+      return { ok: false, error: 'DELETE_FAILED_DEVICE_POLICY_MANAGER' };
+    }
+    return { ok: false, error: msg };
+  }
+  if (out.indexOf('DELETE_FAILED_DEVICE_POLICY_MANAGER') !== -1) {
+    return { ok: false, error: 'DELETE_FAILED_DEVICE_POLICY_MANAGER' };
+  }
+  if (/Success/.test(out)) return { ok: true, packageName: pkg };
+  return { ok: false, error: out.trim() || 'uninstall failed' };
+}
+
+async function wizardHostRemoveModule(payload) {
+  const id = String(payload && payload.moduleId || '');
+  if (!CATALOG_MODULES[id] || id.indexOf('/') !== -1 || id.indexOf('..') !== -1) {
+    throw new Error('not a catalog module');
+  }
+  const serial = await adbSerial();
+  await wizardHostSu(serial, 'rm -rf ' + shellQuote('/data/adb/modules/' + id), 60000);
+  return {
+    ok: true,
+    moduleId: id,
+    reboot: true,
+    message: 'Module removed. Reboot the phone before expecting it to stay gone.',
+  };
+}
+
+function deviceOwnerBlock(text) {
+  const t = String(text || '').replace(/\r/g, '');
+  const re = /(^|\n)\s*Device Owner:\s*([^\n]*)/g;
+  let m;
+  let found = false;
+  while ((m = re.exec(t))) {
+    found = true;
+    const rest = m[2].trim();
+    if (rest && !/^null$/i.test(rest) && !/^none$/i.test(rest)) {
+      return { known: true, present: true, detail: rest };
+    }
+    const lines = t.slice(m.index + m[0].length).split('\n');
+    const detail = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) break;
+      if (i > 0 && !/^\s/.test(line)) break;
+      detail.push(line.trim());
+    }
+    if (/admin\s*=|package\s*=/.test(detail.join('\n'))) {
+      return { known: true, present: true, detail: detail.join('\n') };
+    }
+  }
+  if (!found) return { known: false, present: false, detail: '' };
+  return { known: true, present: false, detail: 'null' };
+}
+
+async function wizardHostSetDeviceOwner(payload) {
+  if (!payload || payload.confirm !== 'manage') {
+    return { ok: false, code: 'confirm', error: 'Type manage to set the device owner.' };
+  }
+  const serial = await adbSerial();
+  let pkgPath = '';
+  try {
+    pkgPath = await adbRun(['-s', serial, 'shell', 'pm', 'path', 'com.hmdm.launcher'], 30000);
+  } catch (e) {
+    return {
+      ok: false,
+      code: 'not-installed',
+      error: 'com.hmdm.launcher is not installed. Apply the managed profile first.',
+    };
+  }
+  if (!/^package:/m.test(String(pkgPath).replace(/\r/g, ''))) {
+    return {
+      ok: false,
+      code: 'not-installed',
+      error: 'com.hmdm.launcher is not installed. Apply the managed profile first.',
+    };
+  }
+  let policy = '';
+  try {
+    policy = await adbRun(['-s', serial, 'shell', 'dumpsys', 'device_policy'], 60000);
+  } catch (e) {
+    return { ok: false, code: 'policy', error: (e && e.message) || String(e) };
+  }
+  const owner = deviceOwnerBlock(policy);
+  if (!owner.known) {
+    return { ok: false, code: 'policy', error: 'Could not read the device owner from dumpsys device_policy.' };
+  }
+  if (owner.present) {
+    return {
+      ok: false,
+      code: 'owner',
+      error: 'A device owner is already set. This app will not replace it and will not edit device_policies.xml.',
+    };
+  }
+  let accounts = '';
+  try {
+    accounts = await adbRun(['-s', serial, 'shell', 'dumpsys', 'account'], 60000);
+  } catch (e) {
+    return { ok: false, code: 'accounts', error: (e && e.message) || String(e) };
+  }
+  if (/Account\s*\{/.test(String(accounts).replace(/\r/g, ''))) {
+    return {
+      ok: false,
+      code: 'accounts',
+      error: 'This user has accounts. Factory reset stays on the phone. Back up to ~/flip2-pre-wipe-backup, then reset on the phone before typing manage. This app never wipes userdata over USB.',
+    };
+  }
+  let out = '';
+  try {
+    out = await adbRun(
+      ['-s', serial, 'shell', 'dpm', 'set-device-owner', DEVICE_OWNER_COMPONENT],
+      60000);
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    if (/account/i.test(msg)) {
+      return {
+        ok: false,
+        code: 'accounts',
+        error: 'Device owner was refused because accounts exist. Factory reset stays on the phone. Back up to ~/flip2-pre-wipe-backup and reset on the phone. This app never wipes userdata over USB.',
+      };
+    }
+    return { ok: false, code: 'dpm', error: msg };
+  }
+  if (/error|exception|fail|not allowed/i.test(out)) {
+    return { ok: false, code: 'dpm', error: out.trim() };
+  }
+  return { ok: true, component: DEVICE_OWNER_COMPONENT, stdout: out.trim() };
+}
+
 async function wizardHostPrepare() {
   await adbSerial();
   wizardHostTmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
@@ -680,7 +907,7 @@ function createWindow() {
     width: 1020,
     height: 800,
     autoHideMenuBar: true,
-    title: 'Flip 2 Companion',
+    title: 'TCL Flip2 Manager',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -812,6 +1039,11 @@ app.whenReady().then(function () {
   ipcMain.handle('wizard-host-run-install', function (_e, payload) { return wizardHostRunInstall(payload); });
   ipcMain.handle('wizard-host-cleanup', function () { return wizardHostCleanup(); });
   ipcMain.handle('wizard-host-verify', function (_e, payload) { return wizardHostVerify(payload); });
+  ipcMain.handle('wizard-host-write-profile', function (_e, payload) { return wizardHostWriteProfile(payload); });
+  ipcMain.handle('wizard-host-install-apk', function (_e, payload) { return wizardHostInstallApk(payload); });
+  ipcMain.handle('wizard-host-uninstall-package', function (_e, payload) { return wizardHostUninstallPackage(payload); });
+  ipcMain.handle('wizard-host-remove-module', function (_e, payload) { return wizardHostRemoveModule(payload); });
+  ipcMain.handle('wizard-host-set-device-owner', function (_e, payload) { return wizardHostSetDeviceOwner(payload); });
   createWindow();
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

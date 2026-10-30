@@ -25,4 +25,9 @@ contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
   wizardHostRunInstall: function (payload) { return ipcRenderer.invoke('wizard-host-run-install', payload); },
   wizardHostCleanup: function () { return ipcRenderer.invoke('wizard-host-cleanup'); },
   wizardHostVerify: function (payload) { return ipcRenderer.invoke('wizard-host-verify', payload); },
+  wizardHostWriteProfile: function (payload) { return ipcRenderer.invoke('wizard-host-write-profile', payload); },
+  wizardHostInstallApk: function (payload) { return ipcRenderer.invoke('wizard-host-install-apk', payload); },
+  wizardHostUninstallPackage: function (payload) { return ipcRenderer.invoke('wizard-host-uninstall-package', payload); },
+  wizardHostRemoveModule: function (payload) { return ipcRenderer.invoke('wizard-host-remove-module', payload); },
+  wizardHostSetDeviceOwner: function (payload) { return ipcRenderer.invoke('wizard-host-set-device-owner', payload); },
 });

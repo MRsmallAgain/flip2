@@ -1,11 +1,11 @@
 # Flip 2 Companion
 
-Desktop shell around the [setup wizard](../docs/SETUP-WIZARD.md). Same six steps, same pages — Electron just removes the two browser-hosted frictions:
+Desktop shell around the [TCL Flip2 Manager](../docs/MANAGER.md). The window title is **TCL Flip2 Manager**. Phone, Profile, Apps, and Prepare replace the old six-step bar. Prepare still holds the credit gate, files, udev, connect, install, and verify. Electron removes the two browser-hosted frictions:
 
-- **Step 3 (udev)** becomes one click. The app stages the rules file in `/tmp` and runs the copy + `udevadm` reload through `pkexec`, so the password prompt you see is the system's own approval dialog. A dismissed prompt installs nothing.
-- **Steps 4 and the rooting slice** skip Chrome's device chooser. The app auto-picks the phone when it sees TCL adb (`1bbb:0167` / `1bbb:0c01`) or the MediaTek preloader (`0e8d:2000`); anything else still falls back to the normal picker.
+- **Prepare → udev** is one click. The app stages the rules file in `/tmp` and runs the copy + `udevadm` reload through `pkexec`, so the password prompt you see is the system's own approval dialog. A dismissed prompt installs nothing.
+- **Prepare → Connect**, and the rooting slice, skip Chrome's device chooser. The app auto-picks the phone when it sees TCL adb (`1bbb:0167` / `1bbb:0c01`) or the MediaTek preloader (`0e8d:2000`); anything else still falls back to the normal picker.
 
-Everything else — credit gate, SHA-256 verification, install with stop-on-first-FAIL, erase-gated rooting slice — is the unmodified `wizard/pages` code, served over a private `flip2://` protocol. The pages feature-check `window.FLIP2_NATIVE`, so they keep working in a plain browser with no changes needed for that.
+Install and verify in Companion use host adb. Managed Apply requires Companion, because a plain browser does not write `/data/local/flip2/profile.list`. The pages are served over a private `flip2://` protocol and feature-check `window.FLIP2_NATIVE`, so they still open in a browser. Stuck on Connect or Install: [WIZARD-FAILURES.md](../docs/WIZARD-FAILURES.md).
 
 ## Run
 

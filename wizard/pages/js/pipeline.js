@@ -19,9 +19,11 @@ var INCOMING = '/data/local/flip2/incoming/';
 var INSTALL_SH_REMOTE = '/data/local/flip2/install.sh';
 
 var PIPE = {
-  // files: map of catalog id -> Uint8Array (verified contents)
+  // files: map of catalog id -> Uint8Array (verified contents).
+  // componentIds: optional. When it lists headwind, headwind.apk is added.
+  // Omitted means today's base push (no Headwind). requiredIncoming is unchanged.
   // Returns a map remoteName -> Uint8Array ready to push.
-  buildPushSet: function (files) {
+  buildPushSet: function (files, componentIds) {
     var M = typeof PUSH_MANIFEST !== 'undefined' ? PUSH_MANIFEST : null;
     if (!M) throw new Error('PUSH_MANIFEST missing — run pipeline/wizard/gen-pipeline-js.sh');
     var installer = fflate.unzipSync(files['installer-full']);
@@ -62,6 +64,19 @@ var PIPE = {
     var need = M.requiredIncoming;
     for (i = 0; i < need.length; i++) {
       if (!out[need[i]]) throw new Error('push set incomplete: ' + need[i]);
+    }
+
+    // Headwind is not part of requiredIncoming. A base push omits it.
+    // Managed lists the headwind component and must include the pinned APK.
+    var wantHeadwind = false;
+    if (componentIds && componentIds.length) {
+      for (i = 0; i < componentIds.length; i++) {
+        if (componentIds[i] === 'headwind') wantHeadwind = true;
+      }
+    }
+    if (wantHeadwind) {
+      if (!files['headwind-launcher']) throw new Error('catalog file missing: headwind-launcher');
+      out['headwind.apk'] = files['headwind-launcher'];
     }
     return out;
   },
@@ -120,15 +135,30 @@ var PIPE = {
   },
 
   // Companion: host adb push (avoids WebUSB sync: timeout on Linux).
-  hostPushAndInstall: function (pushSet, installSh, onLog) {
+  // profileText, when set, is written to /data/local/flip2/profile.list after
+  // prepare and before any incoming file. Omitting it keeps today's base push.
+  // A missing writer is a hard stop: installing managed without the list
+  // would skip Headwind.
+  hostPushAndInstall: function (pushSet, installSh, onLog, profileText) {
     var N = window.FLIP2_NATIVE;
     if (!N || !N.wizardHostPrepare) {
       return Promise.reject(new Error('host adb install requires Flip 2 Companion'));
+    }
+    if (profileText && !N.wizardHostWriteProfile) {
+      return Promise.reject(new Error('writing the profile list requires Flip 2 Companion'));
     }
     var names = Object.keys(pushSet);
     var done = 0;
     return N.wizardHostPrepare().then(function () {
       var seq = Promise.resolve();
+      if (profileText) {
+        seq = seq.then(function () {
+          onLog('write profile.list');
+          return N.wizardHostWriteProfile({ text: profileText }).then(function () {
+            onLog('OK: wrote profile.list');
+          });
+        });
+      }
       names.forEach(function (nm) {
         seq = seq.then(function () {
           onLog('push ' + nm + ' (' + Math.round(pushSet[nm].length / 1024) + ' KiB)…');
