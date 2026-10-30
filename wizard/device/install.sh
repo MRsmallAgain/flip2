@@ -214,7 +214,9 @@ if want display; then
 # --- display size, manifest 95: logical 321x428 on the 240x320 panel --------
 settings put global 'display_size_forced' '321,428' \
   || fail "settings: display_size_forced"
-ok "display size 321x428 (takes effect after reboot)"
+wm size 321x428 >/dev/null 2>&1 \
+  || fail "wm size 321x428"
+ok "display size 321x428"
 else
   echo "NOTE: skip display"
 fi
@@ -223,13 +225,16 @@ if want wallpaper; then
 # --- wallpaper: default background, copied where the framework reads it -----
 WP=/data/local/flip2/incoming/flip2-wallpaper.png
 WPDST=/data/system/users/0/wallpaper
-if [ -f "$WP" ] && [ ! -f "$STAGE/.wallpaper-applied" ]; then
-  cp "$WP" "$WPDST" || fail "wallpaper copy"
-  chown system:system "$WPDST" 2>/dev/null
-  chmod 600 "$WPDST"
-  restorecon "$WPDST" 2>/dev/null
-  touch "$STAGE/.wallpaper-applied"
-  ok "wallpaper installed (shows after reboot)"
+if [ -f "$WP" ]; then
+  if [ -f "$WPDST" ] && cmp -s "$WP" "$WPDST" 2>/dev/null; then
+    ok "wallpaper already flip2 default (reboot if the screen still looks wrong)"
+  else
+    cp "$WP" "$WPDST" || fail "wallpaper copy"
+    chown system:system "$WPDST" 2>/dev/null
+    chmod 600 "$WPDST"
+    restorecon "$WPDST" 2>/dev/null
+    ok "wallpaper installed (reboot if it does not update on screen)"
+  fi
 else
   echo "NOTE: no flip2-wallpaper.png in incoming/; keeping the current wallpaper"
 fi

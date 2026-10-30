@@ -139,7 +139,7 @@ var PIPE = {
   // prepare and before any incoming file. Omitting it keeps today's base push.
   // A missing writer is a hard stop: installing managed without the list
   // would skip Headwind.
-  hostPushAndInstall: function (pushSet, installSh, onLog, profileText) {
+  hostPushAndInstall: function (pushSet, installSh, onLog, profileText, onPhase) {
     var N = window.FLIP2_NATIVE;
     if (!N || !N.wizardHostPrepare) {
       return Promise.reject(new Error('host adb install requires Flip 2 Companion'));
@@ -149,18 +149,23 @@ var PIPE = {
     }
     var names = Object.keys(pushSet);
     var done = 0;
+    function phase(text) {
+      if (typeof onPhase === 'function') onPhase(text);
+    }
     return N.wizardHostPrepare().then(function () {
       var seq = Promise.resolve();
       if (profileText) {
         seq = seq.then(function () {
+          phase('writing profile.list…');
           onLog('write profile.list');
           return N.wizardHostWriteProfile({ text: profileText }).then(function () {
             onLog('OK: wrote profile.list');
           });
         });
       }
-      names.forEach(function (nm) {
+      names.forEach(function (nm, i) {
         seq = seq.then(function () {
+          phase('pushing file ' + (i + 1) + ' of ' + names.length + ': ' + nm + '…');
           onLog('push ' + nm + ' (' + Math.round(pushSet[nm].length / 1024) + ' KiB)…');
           var raw = pushSet[nm];
           var bin = '';
@@ -173,6 +178,8 @@ var PIPE = {
         });
       });
       return seq.then(function () {
+        phase('running install.sh as root. Output appears when the script finishes.');
+        onLog('running install.sh as root…');
         return N.wizardHostRunInstall({ installSh: installSh });
       }).then(function (r) {
         if (r.lines) r.lines.forEach(onLog);

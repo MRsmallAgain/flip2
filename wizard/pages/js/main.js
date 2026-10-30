@@ -100,7 +100,9 @@ function maybeRecoverInstallAfterFailure(errMsg, log) {
 
 function markInstallSuccess(msg) {
   setStatus('inst-msg', msg || 'Install complete.', 'ok');
-  $('inst-next').disabled = false;
+  var next = $('inst-next');
+  next.classList.remove('hidden');
+  next.disabled = false;
   var skip = $('inst-skip-verify');
   if (skip) skip.classList.add('hidden');
 }
@@ -111,6 +113,9 @@ function runPushAndInstall() {
     if (VERIFIED[id]) files[id] = new Uint8Array(VERIFIED[id]);
   });
   $('inst-btn').disabled = true;
+  var next = $('inst-next');
+  next.disabled = true;
+  next.classList.add('hidden');
   setStatus('inst-msg', 'building push set…', 'wait');
   var log = makeLog('inst-log');
   var pushSet;
@@ -129,14 +134,14 @@ function runPushAndInstall() {
     $('inst-btn').disabled = false;
     return;
   }
-  if (useHost) {
-    setStatus('inst-msg', 'pushing via host adb (' + Object.keys(pushSet).length + ' files)…', 'wait');
-  } else {
+  if (!useHost) {
     setStatus('inst-msg', 'pushing ' + Object.keys(pushSet).length + ' files…', 'wait');
   }
   var installShText = typeof INSTALL_SH === 'string' ? INSTALL_SH : new TextDecoder().decode(INSTALL_SH);
   var pushP = useHost
-    ? PIPE.hostPushAndInstall(pushSet, installShText, log, PROFILES.profileText())
+    ? PIPE.hostPushAndInstall(pushSet, installShText, log, PROFILES.profileText(), function (text) {
+        setStatus('inst-msg', text, 'wait');
+      })
     : PIPE.pushAndInstall(pushSet, INSTALL_SH, log);
   var cleanP = useHost ? PIPE.hostCleanup(log) : PIPE.cleanup(log);
   pushP.then(function () {
@@ -638,7 +643,9 @@ function initInstall() {
     this.classList.add('hidden');
     setStatus('inst-msg', '', '');
     $('inst-btn').disabled = false;
-    $('inst-next').disabled = true;
+    var next = $('inst-next');
+    next.disabled = true;
+    next.classList.add('hidden');
     var skip = $('inst-skip-verify');
     var hint = $('inst-wipe-hint');
     if (skip) skip.classList.add('hidden');

@@ -126,7 +126,17 @@ else
   echo "NOTE: skip bouncy"
 fi
 if want tagdrawer; then
-  check "Tag Drawer installed" pm path com.iwadjp.pixeltagdrawer
+  TD_APK=/data/adb/modules/flip2_pixel_tag_drawer/system/app/PixelTagDrawer/PixelTagDrawer.apk
+  if pm path com.iwadjp.pixeltagdrawer >/dev/null 2>&1; then
+    echo "PASS: Tag Drawer installed"
+    PASS=$((PASS + 1))
+  elif [ -f "$TD_APK" ]; then
+    echo "PASS: Tag Drawer module present (reboot if D-pad Up does not open Tags)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: Tag Drawer installed"
+    FAILS=$((FAILS + 1))
+  fi
 else
   echo "NOTE: skip tagdrawer"
 fi

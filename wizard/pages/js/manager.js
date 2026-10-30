@@ -76,11 +76,24 @@ function initFrontNav() {
   }
 }
 
+function setPhoneNext(html, show) {
+  var el = $('phone-next');
+  if (!el) return;
+  if (!show) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+}
+
 function refreshPhone() {
   var box = $('phone-facts');
   if (!box) return;
   box.textContent = '';
   box.className = 'now';
+  setPhoneNext('', false);
   var N = window.FLIP2_NATIVE;
   if (!N || !N.wizardHostAdbReady) {
     factRow(box, 'Companion', 'Open this page in the Flip 2 Companion app to read the phone.', 'wait');
@@ -92,6 +105,9 @@ function refreshPhone() {
     if (!ready || !ready.ok) {
       factRow(box, 'USB', (ready && ready.message) || 'not ready', 'bad');
       setStatus('phone-msg', (ready && ready.message) || 'Phone not ready.', 'bad');
+      setPhoneNext(
+        'Plug in USB, accept the debugging prompt on the phone, then press <b>Refresh</b>. If adb still fails, open <b>USB debugging</b> or <b>USB rules</b> under Prepare.',
+        true);
       return;
     }
     factRow(box, 'Serial', ready.serial || '(unknown)', 'ok');
@@ -115,6 +131,9 @@ function refreshPhone() {
         factRow(box, 'Wipe', 'Factory reset stays on the phone. Backup ~/flip2-pre-wipe-backup.', 'wait');
       }
       setStatus('phone-msg', 'Phone ready over host adb.', 'ok');
+      setPhoneNext(
+        '<b>What to do next:</b> Open the <b>Profile</b> tab and choose <b>Base</b> (or Managed if you need Headwind). Then open <b>Prepare</b>, confirm credits with <code>yes</code>, verify downloads, and run <b>Push and install</b>. Use <b>Apps</b> to see what is already on the phone or to Apply without going through the full Prepare flow if files are verified.',
+        true);
     });
   }).catch(function (e) {
     setStatus('phone-msg', cleanErr(e), 'bad');
