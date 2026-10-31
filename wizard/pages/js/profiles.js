@@ -33,7 +33,8 @@ var COMPONENT_META = {
   wallpaper: { label: 'Wallpaper', kind: 'settings' },
   whisper: { label: 'Whisper', kind: 'settings' },
   vosk: { label: 'Vosk', kind: 'settings' },
-  headwind: { label: 'Headwind MDM', kind: 'apk', packageName: 'com.hmdm.launcher' }
+  headwind: { label: 'Headwind MDM', kind: 'apk', packageName: 'com.hmdm.launcher' },
+  where: { label: 'Where', kind: 'apk', packageName: 'net.af0.where' }
 };
 
 // Component id -> catalog file ids. installer-full covers every component that
@@ -55,7 +56,8 @@ var CATALOG_FOR = {
   bouncy: ['bouncy'],
   whisper: ['whisper-tiny'],
   vosk: ['vosk-en', 'vosk-uk'],
-  headwind: ['headwind-launcher']
+  headwind: ['headwind-launcher'],
+  where: ['where-app']
 };
 
 var PROFILES = {

@@ -1,6 +1,6 @@
 # TCL Flip2 Manager
 
-The Companion window is the manager. Phone, Profile, Apps, and Prepare replace the old six-step bar. Prepare is the credit gate, the file table, udev, connect, install, and verify.
+The Companion window is the manager. **Getting started** is the default landing tab: five workflow cards (Base setup, Check phone, Managed MDM, Reboot/power-cycle, Advanced erase/root) with jump buttons into Phone, Profile, Apps, Prepare, and the rooting slice. The pill bar is Getting started, Phone, Profile, Apps, and Prepare. Prepare is the credit gate, the file table, udev, connect, install, and verify.
 
 ## Profiles
 
@@ -42,6 +42,18 @@ Local file only. It is not stored in git.
 There is no download URL. Companion matches a file already on this PC by that SHA-256. Do not pin `hmdm-6.40-os.apk`. Do not download the pager, restarter, or helper until new hashes exist.
 
 Installing the APK does not set device owner.
+
+## Where pin
+
+Local file only (managed profile).
+
+`~/Downloads/net.af0.where_1404.apk`
+
+- size 14791436
+- sha256 `cfc1a50142d338f5f9199783943f844f184950e34ba6635f5cb89e5b9f4d9cd6`
+- catalog id `where-app`, incoming name `where.apk`, package `net.af0.where`
+
+Installed by Managed Apply with Headwind. Post-reset MDM policy: [MANAGED-MDM-SETUP.md](MANAGED-MDM-SETUP.md). Contacts/SMS after wipe: [RESTORE-CONTACTS-SMS.md](RESTORE-CONTACTS-SMS.md).
 
 ## Device owner
 

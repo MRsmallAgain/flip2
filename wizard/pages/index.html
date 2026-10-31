@@ -22,6 +22,7 @@
   </div>
 </header>
 <nav id="steps">
+  <span data-step="start">Getting started</span>
   <span data-step="phone">Phone</span>
   <span data-step="profile">Profile</span>
   <span data-step="apps">Apps</span>
@@ -29,7 +30,80 @@
 </nav>
 <main>
 
-<section class="step on" id="step-phone">
+<section class="step on" id="step-start">
+  <h2>Getting started</h2>
+  <p class="guide-intro">Common paths through <b>TCL Flip2 Manager</b> in <b>Flip 2 Companion</b>. Pick a workflow, then use the buttons to jump to the right tab. Factory reset stays on the phone; this app never erases userdata over USB.</p>
+  <div class="workflow-grid">
+    <article class="workflow-card">
+      <h3>First-time Base setup</h3>
+      <p class="workflow-audience">Rooted phone, full Flip2 stack (no Headwind).</p>
+      <ol>
+        <li><b>Profile</b> → choose <b>Base</b>.</li>
+        <li><b>Prepare</b> → type <code>yes</code> on credits, verify downloads.</li>
+        <li><b>Push and install</b>, then <b>Verify</b>.</li>
+        <li>Reboot if wallpaper, display size, or Tag Drawer still look wrong.</li>
+      </ol>
+      <p class="workflow-outcome">Modules, Launcher4, apps, 321×428, wallpaper, speech models.</p>
+      <p class="workflow-actions">
+        <button type="button" class="ghost small" data-goto-step="profile">Profile</button>
+        <button type="button" class="ghost small" data-goto-step="prepare">Prepare</button>
+      </p>
+    </article>
+    <article class="workflow-card">
+      <h3>Check the phone</h3>
+      <p class="workflow-audience">Any visit — confirm adb and readiness.</p>
+      <ol>
+        <li>Plug in USB and accept the debugging prompt on the phone.</li>
+        <li>Open <b>Phone</b> → <b>Refresh</b>.</li>
+        <li>Read serial, model, root, device owner, and accounts.</li>
+      </ol>
+      <p class="workflow-outcome">Green status means host adb is ready for Apply or verify.</p>
+      <p class="workflow-actions">
+        <button type="button" class="ghost small" data-goto-step="phone">Phone</button>
+      </p>
+    </article>
+    <article class="workflow-card">
+      <h3>Managed MDM (Headwind)</h3>
+      <p class="workflow-audience">Lab or fleet — pinned Headwind launcher + device owner.</p>
+      <ol>
+        <li><b>Profile</b> → <b>Managed</b>, then Apply (Prepare or <b>Apps</b>).</li>
+        <li><b>Phone</b> must show <b>Accounts: none</b> (factory reset on the phone if not).</li>
+        <li><b>Apps</b> → type <code>manage</code> → <b>Set device owner</b>.</li>
+        <li>Reboot, then retry server / policy updates in Headwind.</li>
+      </ol>
+      <p class="workflow-outcome">Device owner is separate from Apply; install alone is not enough for full MDM sync.</p>
+      <p class="workflow-actions">
+        <button type="button" class="ghost small" data-goto-step="profile">Profile</button>
+        <button type="button" class="ghost small" data-goto-step="apps">Apps</button>
+      </p>
+    </article>
+    <article class="workflow-card">
+      <h3>Reboot and power-cycle</h3>
+      <p class="workflow-audience">After install, stuck adb, or preloader / rooting prep.</p>
+      <img class="guide-figure" src="../assets/guide-power-cycle.svg" alt="Four panels: reboot with USB, remove USB and battery, battery only, plug USB about one second after battery" width="720" height="200">
+      <p class="note"><b>Normal reboot:</b> USB can stay connected — use the phone power menu or <code>adb reboot</code> after Magisk modules or wallpaper.</p>
+      <p class="note"><b>Flip 2 battery cycle:</b> For the MTK preloader window (rooting slice), power off, remove USB and battery, insert battery, wait, then plug USB about one second later. If the window is missed, repeat the cycle.</p>
+      <p class="workflow-actions">
+        <button type="button" class="ghost small" data-goto-step="prepare">USB debugging (Prepare)</button>
+      </p>
+    </article>
+    <article class="workflow-card workflow-card--advanced">
+      <h3>Advanced — erase and root</h3>
+      <p class="workflow-audience">Donor or wipeable phone only — not a daily driver upgrade.</p>
+      <ol>
+        <li>Erases userdata and unlocks the bootloader path.</li>
+        <li>Flashes <code>neutron.img</code> to <code>boot</code> only — no system/super flash.</li>
+        <li>Type <code>erase</code> in the flow; battery cycle may be required for preloader.</li>
+      </ol>
+      <p class="workflow-outcome">Already rooted? Skip this — use Base setup or the release installer zip.</p>
+      <p class="workflow-actions">
+        <button type="button" class="ghost small" data-goto-step="root">Open rooting flow</button>
+      </p>
+    </article>
+  </div>
+</section>
+
+<section class="step" id="step-phone">
   <h2>Phone</h2>
   <p>Status of the phone plugged in over host adb. USB debugging and the one-time udev rules stay under Prepare. They are not a one-time gate. This app never erases userdata over USB.</p>
   <div id="phone-facts" class="now"></div>
@@ -51,6 +125,7 @@
 <section class="step" id="step-apps">
   <h2>Apps</h2>
   <p>Install or remove one catalog app, apply the selected profile, or run verify. Magisk modules install with Apply. Settings rows are part of Apply. Device owner is a separate step on Managed, after you type <code>manage</code>.</p>
+  <p class="apps-toolbar"><button type="button" id="apps-verify-top" class="ghost">Run verify</button></p>
   <div id="apps-rows"></div>
   <p><button type="button" id="apps-refresh" class="ghost">Refresh</button>
      <button type="button" id="apps-apply">Apply profile</button>
@@ -153,6 +228,7 @@
   <h2>Install <span class="badge-exp">experimental</span></h2>
   <p class="warn"><b>Experimental.</b> This step pushes files and runs a root install script over adb. It has only been exercised on one device, so treat it as a test bed: a half-finished run may leave modules or settings half-applied (the installer is designed to be re-flashable, and the verify step shows what actually landed). If you need a first-time setup you can trust, use the Tier&nbsp;B installer zip from the release page instead — this page automates the same steps and inherits their risks.</p>
   <p>The page unpacks the installer zip, rebuilds the Tag Drawer module with the fresh F-Droid APK, pushes everything into <code>/data/local/flip2/incoming/</code>, and runs the install script as root. It stops at the first failed line and offers Retry instead of continuing through failures.</p>
+  <p class="note"><b>Magisk on first install:</b> After modules are placed, Magisk still has to finish its own setup the first time the phone starts. Expect brief screen flashes, Magisk or module toasts, and a prompt to restart — that is normal. If root does not work after a restart, open the dialer and type <code>*#*#217703#*#*</code>.</p>
   <p id="inst-profile-note" class="note"></p>
   <p><button id="inst-btn">Push and install</button>
      <button id="inst-retry" class="ghost hidden">Retry</button>
@@ -172,6 +248,11 @@
      <button id="ver-recheck" class="ghost hidden">Run again</button>
      <span id="ver-msg" class="status"></span></p>
   <pre class="log hidden" id="ver-log"></pre>
+  <div id="ver-finish" class="hidden">
+    <p class="note"><b>Almost done.</b> Wallpaper, Magisk module overlays, and the forced display size usually show up after one full restart. Magisk may still show a one-time “finish setup” or restart prompt on the phone — allow it.</p>
+    <p><button type="button" id="ver-reboot">Restart the phone</button>
+       <span id="ver-reboot-msg" class="status"></span></p>
+  </div>
   <p><button class="ghost" data-back="install">Back</button></p>
 </section>
 

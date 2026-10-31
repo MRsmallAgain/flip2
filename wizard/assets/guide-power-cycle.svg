@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 200" fill="none" role="img" aria-labelledby="title desc">
+<title id="title">Flip 2 reboot and power-cycle</title>
+<desc id="desc">Four steps: reboot with USB, remove USB and battery, battery only, USB one second after battery.</desc>
+<defs>
+  <linearGradient id="gPhone" x1="0" y1="0" x2="0" y2="1">
+    <stop stop-color="#a02d62"/>
+    <stop offset="1" stop-color="#f26c4f"/>
+  </linearGradient>
+</defs>
+<text x="90" y="18" text-anchor="middle" fill="#5c4a62" font-family="system-ui,sans-serif" font-size="11" font-weight="600">1 · Reboot (USB in)</text>
+<text x="270" y="18" text-anchor="middle" fill="#5c4a62" font-family="system-ui,sans-serif" font-size="11" font-weight="600">2 · USB + battery out</text>
+<text x="450" y="18" text-anchor="middle" fill="#5c4a62" font-family="system-ui,sans-serif" font-size="11" font-weight="600">3 · Battery in only</text>
+<text x="630" y="18" text-anchor="middle" fill="#5c4a62" font-family="system-ui,sans-serif" font-size="11" font-weight="600">4 · USB ~1 s later</text>
+<rect x="10" y="28" width="160" height="160" rx="12" fill="#fff" stroke="rgba(160,45,98,0.2)"/>
+<rect x="65" y="55" width="50" height="78" rx="6" fill="url(#gPhone)" opacity="0.9"/>
+<rect x="72" y="68" width="36" height="52" rx="3" fill="#fff3d0"/>
+<path d="M40 145h100" stroke="#2d8a5e" stroke-width="2" stroke-dasharray="4 3"/>
+<rect x="115" y="138" width="28" height="12" rx="3" fill="#2d8a5e" opacity="0.25"/>
+<text x="90" y="175" text-anchor="middle" fill="#7a6b80" font-family="system-ui,sans-serif" font-size="10">After install / verify</text>
+<rect x="190" y="28" width="160" height="160" rx="12" fill="#fff" stroke="rgba(160,45,98,0.2)"/>
+<rect x="245" y="55" width="50" height="78" rx="6" fill="#e8dce8" stroke="#c43d3d" stroke-width="1.5" stroke-dasharray="4 2"/>
+<rect x="252" y="68" width="36" height="52" rx="3" fill="#f3ecf4"/>
+<path d="M220 130 L260 100" stroke="#c43d3d" stroke-width="2"/>
+<text x="270" y="125" fill="#c43d3d" font-family="system-ui,sans-serif" font-size="22">×</text>
+<text x="270" y="175" text-anchor="middle" fill="#7a6b80" font-family="system-ui,sans-serif" font-size="10">Power off first</text>
+<rect x="370" y="28" width="160" height="160" rx="12" fill="#fff" stroke="rgba(160,45,98,0.2)"/>
+<rect x="425" y="55" width="50" height="78" rx="6" fill="#e8dce8"/>
+<rect x="432" y="68" width="36" height="52" rx="3" fill="#f3ecf4"/>
+<rect x="410" y="148" width="80" height="18" rx="4" fill="#fff3d0" stroke="#9a6b00" stroke-width="1"/>
+<text x="450" y="161" text-anchor="middle" fill="#9a6b00" font-family="system-ui,sans-serif" font-size="10" font-weight="600">wait</text>
+<text x="450" y="175" text-anchor="middle" fill="#7a6b80" font-family="system-ui,sans-serif" font-size="10">No cable yet</text>
+<rect x="550" y="28" width="160" height="160" rx="12" fill="#fff" stroke="rgba(160,45,98,0.2)"/>
+<rect x="605" y="55" width="50" height="78" rx="6" fill="url(#gPhone)"/>
+<rect x="612" y="68" width="36" height="52" rx="3" fill="#fff3d0"/>
+<path d="M575 145h100" stroke="#2d8a5e" stroke-width="2"/>
+<text x="630" y="175" text-anchor="middle" fill="#7a6b80" font-family="system-ui,sans-serif" font-size="10">Preloader / adb recovery</text>
+</svg>

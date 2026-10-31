@@ -13,7 +13,8 @@ var APK_INCOMING = {
   materialfiles: { name: 'materialfiles.apk', catalogId: 'materialfiles' },
   intertune: { name: 'intertune.apk', catalogId: 'intertune' },
   bouncy: { name: 'bouncy.apk', catalogId: 'bouncy' },
-  headwind: { name: 'headwind.apk', catalogId: 'headwind-launcher' }
+  headwind: { name: 'headwind.apk', catalogId: 'headwind-launcher' },
+  where: { name: 'where.apk', catalogId: 'where-app' }
 };
 
 function requiredCatalog() {
@@ -22,7 +23,7 @@ function requiredCatalog() {
   var i, id;
   for (i = 0; i < CATALOG.list.length; i++) {
     id = CATALOG.list[i].id;
-    if (id === 'neutron' || id === 'headwind-launcher') continue;
+    if (id === 'neutron' || id === 'headwind-launcher' || id === 'where-app') continue;
     ids.push(id);
   }
   return ids;
@@ -62,6 +63,9 @@ function parseDeviceOwner(text) {
     }
     return 'none';
   }
+  if (/Current Device Policy Manager state|Enabled Device Admins/i.test(String(text || ''))) {
+    return 'none';
+  }
   return 'unknown';
 }
 
@@ -74,6 +78,18 @@ function initFrontNav() {
       showStep(step === 'prepare' ? 'credit' : step);
     });
   }
+}
+
+function initGettingStarted() {
+  var box = $('step-start');
+  if (!box) return;
+  box.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-goto-step]');
+    if (!btn) return;
+    var step = btn.getAttribute('data-goto-step');
+    if (step === 'prepare') showStep('credit');
+    else showStep(step);
+  });
 }
 
 function setPhoneNext(html, show) {
@@ -481,6 +497,15 @@ function setDeviceOwner() {
   });
 }
 
+function runAppsVerify() {
+  showStep('verify');
+  if (!VERIFY_SH) {
+    setStatus('ver-msg', 'verify.sh is still loading', 'wait');
+    return;
+  }
+  $('ver-btn').click();
+}
+
 function initApps() {
   renderApps();
   $('apps-refresh').addEventListener('click', function () { refreshAppsStatus(); });
@@ -489,14 +514,9 @@ function initApps() {
     var modal = $('inst-modal');
     if (modal) modal.classList.remove('hidden');
   });
-  $('apps-verify').addEventListener('click', function () {
-    showStep('verify');
-    if (!VERIFY_SH) {
-      setStatus('ver-msg', 'verify.sh is still loading', 'wait');
-      return;
-    }
-    $('ver-btn').click();
-  });
+  $('apps-verify').addEventListener('click', runAppsVerify);
+  var verifyTop = $('apps-verify-top');
+  if (verifyTop) verifyTop.addEventListener('click', runAppsVerify);
   var input = $('apps-owner-input');
   var obtn = $('apps-owner-btn');
   input.addEventListener('input', function () {

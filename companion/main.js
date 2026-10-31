@@ -608,7 +608,7 @@ const PROFILE_IDS = {
   navoverlay: true, keypad: true, flipmouse: true, tagdrawer: true,
   launcher_overlay: true, launcher4: true, ime: true, forkgram: true,
   materialfiles: true, intertune: true, bouncy: true, home_keys: true,
-  display: true, wallpaper: true, whisper: true, vosk: true, headwind: true,
+  display: true, wallpaper: true, whisper: true, vosk: true, headwind: true, where: true,
 };
 
 const CATALOG_APKS = {
@@ -619,6 +619,7 @@ const CATALOG_APKS = {
   'intertune.apk': 'dev.skye.intertune',
   'bouncy.apk': 'com.dozingcatsoftware.bouncy',
   'headwind.apk': 'com.hmdm.launcher',
+  'where.apk': 'net.af0.where',
 };
 
 const CATALOG_PACKAGES = {
@@ -629,6 +630,7 @@ const CATALOG_PACKAGES = {
   'dev.skye.intertune': true,
   'com.dozingcatsoftware.bouncy': true,
   'com.hmdm.launcher': true,
+  'net.af0.where': true,
 };
 
 const CATALOG_MODULES = {
@@ -747,8 +749,12 @@ function deviceOwnerBlock(text) {
       return { known: true, present: true, detail: detail.join('\n') };
     }
   }
-  if (!found) return { known: false, present: false, detail: '' };
-  return { known: true, present: false, detail: 'null' };
+  if (found) return { known: true, present: false, detail: 'null' };
+  // Some ROMs (e.g. TCL 4058G) omit "Device Owner:" entirely when none is set.
+  if (/Current Device Policy Manager state|Enabled Device Admins/i.test(t)) {
+    return { known: true, present: false, detail: 'none (not reported in dumpsys)' };
+  }
+  return { known: false, present: false, detail: '' };
 }
 
 async function wizardHostSetDeviceOwner(payload) {

@@ -1,6 +1,6 @@
 # Flip 2 Companion
 
-Desktop shell around the [TCL Flip2 Manager](../docs/MANAGER.md). The window title is **TCL Flip2 Manager**. Phone, Profile, Apps, and Prepare replace the old six-step bar. Prepare still holds the credit gate, files, udev, connect, install, and verify. Electron removes the two browser-hosted frictions:
+Desktop shell around the [TCL Flip2 Manager](../docs/MANAGER.md). The window title is **TCL Flip2 Manager**. The app opens on **Getting started** (workflow cards); the pill bar is Getting started, Phone, Profile, Apps, and Prepare. Prepare still holds the credit gate, files, udev, connect, install, and verify. Electron removes the two browser-hosted frictions:
 
 - **Prepare → udev** is one click. The app stages the rules file in `/tmp` and runs the copy + `udevadm` reload through `pkexec`, so the password prompt you see is the system's own approval dialog. A dismissed prompt installs nothing.
 - **Prepare → Connect**, and the rooting slice, skip Chrome's device chooser. The app auto-picks the phone when it sees TCL adb (`1bbb:0167` / `1bbb:0c01`) or the MediaTek preloader (`0e8d:2000`); anything else still falls back to the normal picker.

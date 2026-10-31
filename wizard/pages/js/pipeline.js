@@ -18,6 +18,16 @@
 var INCOMING = '/data/local/flip2/incoming/';
 var INSTALL_SH_REMOTE = '/data/local/flip2/install.sh';
 
+function pushPayloadBytes(raw, label) {
+  if (raw == null) throw new Error('push set missing bytes for ' + (label || '(unknown)'));
+  if (raw instanceof Uint8Array) return raw;
+  if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
+  if (ArrayBuffer.isView(raw)) {
+    return new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
+  }
+  throw new Error('push set has invalid data for ' + (label || '(unknown)'));
+}
+
 var PIPE = {
   // files: map of catalog id -> Uint8Array (verified contents).
   // componentIds: optional. When it lists headwind, headwind.apk is added.
@@ -74,9 +84,23 @@ var PIPE = {
         if (componentIds[i] === 'headwind') wantHeadwind = true;
       }
     }
+    var wantWhere = false;
+    if (componentIds && componentIds.length) {
+      for (i = 0; i < componentIds.length; i++) {
+        if (componentIds[i] === 'where') wantWhere = true;
+      }
+    }
     if (wantHeadwind) {
       if (!files['headwind-launcher']) throw new Error('catalog file missing: headwind-launcher');
       out['headwind.apk'] = files['headwind-launcher'];
+    }
+    if (wantWhere) {
+      if (!files['where-app']) throw new Error('catalog file missing: where-app');
+      out['where.apk'] = files['where-app'];
+    }
+    for (name in out) {
+      if (!Object.prototype.hasOwnProperty.call(out, name)) continue;
+      out[name] = pushPayloadBytes(out[name], name);
     }
     return out;
   },
@@ -90,8 +114,9 @@ var PIPE = {
     var done = 0;
     names.forEach(function (nm) {
       seq = seq.then(function () {
-        onLog('push ' + nm + ' (' + Math.round(pushSet[nm].length / 1024) + ' KiB)…');
-        return ADB.pushFile(INCOMING + nm, '0644', pushSet[nm], null)
+        var u8 = pushPayloadBytes(pushSet[nm], nm);
+        onLog('push ' + nm + ' (' + Math.round(u8.length / 1024) + ' KiB)…');
+        return ADB.pushFile(INCOMING + nm, '0644', u8, null)
           .then(function () { done++; onLog('OK: pushed ' + nm + ' (' + done + '/' + names.length + ')'); });
       });
     });
@@ -166,8 +191,8 @@ var PIPE = {
       names.forEach(function (nm, i) {
         seq = seq.then(function () {
           phase('pushing file ' + (i + 1) + ' of ' + names.length + ': ' + nm + '…');
-          onLog('push ' + nm + ' (' + Math.round(pushSet[nm].length / 1024) + ' KiB)…');
-          var raw = pushSet[nm];
+          var raw = pushPayloadBytes(pushSet[nm], nm);
+          onLog('push ' + nm + ' (' + Math.round(raw.length / 1024) + ' KiB)…');
           var bin = '';
           for (var j = 0; j < raw.length; j++) bin += String.fromCharCode(raw[j]);
           var b64 = btoa(bin);

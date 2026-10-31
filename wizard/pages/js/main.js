@@ -5,9 +5,9 @@
 // Every module below is loaded by index.html before this one:
 //   CATALOG/loadCatalog/sha256Hex, ADBKEY, ADB, PIPE, PROFILES, BOOTROM.
 
-var ORDER = ['phone', 'profile', 'apps', 'prepare'];
+var ORDER = ['start', 'phone', 'profile', 'apps', 'prepare'];
 var PREPARE = ['credit', 'download', 'udev', 'usb', 'install', 'verify'];
-var REACHED = { phone: true };
+var REACHED = { start: true };
 var VERIFIED = {};            // catalog id -> ArrayBuffer of a hash-checked file
 var INSTALL_SH = null;        // text of ../device/install.sh
 var VERIFY_SH = null;         // text of ../device/verify.sh
@@ -108,9 +108,21 @@ function markInstallSuccess(msg) {
 }
 
 function runPushAndInstall() {
+  var needIds = PROFILES.catalogIds();
+  var missing = [];
+  needIds.forEach(function (id) {
+    if (!VERIFIED[id]) {
+      var f = CATALOG.byId[id];
+      missing.push(f && f.file ? f.file : id);
+    }
+  });
+  if (missing.length) {
+    setStatus('inst-msg', 'Verify under Prepare, Files, first: ' + missing.join(', '), 'bad');
+    return;
+  }
   var files = {};
-  PROFILES.catalogIds().forEach(function (id) {
-    if (VERIFIED[id]) files[id] = new Uint8Array(VERIFIED[id]);
+  needIds.forEach(function (id) {
+    files[id] = new Uint8Array(VERIFIED[id]);
   });
   $('inst-btn').disabled = true;
   var next = $('inst-next');
@@ -660,10 +672,24 @@ function initInstall() {
 
 // --- 6 · verify ---------------------------------------------------------------------
 
+function rebootPhone(onStatus) {
+  var N = window.FLIP2_NATIVE;
+  if (N && N.wizardHostShell) {
+    return N.wizardHostShell({ cmd: 'reboot', timeoutMs: 60000 }).then(function () {
+      if (onStatus) onStatus('Restart sent — the phone will disconnect from USB briefly.', 'ok');
+    });
+  }
+  return ADB.shell('reboot', function () {}).then(function () {
+    if (onStatus) onStatus('Restart sent — the phone will disconnect from USB briefly.', 'ok');
+  });
+}
+
 function initVerify() {
+  var finish = $('ver-finish');
   function runVerify() {
     $('ver-btn').disabled = true;
     $('ver-recheck').classList.add('hidden');
+    if (finish) finish.classList.add('hidden');
     var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostVerify;
     setStatus('ver-msg', useHost ? 'running verify.sh (host adb)…' : 'running verify.sh…', 'wait');
     var log = makeLog('ver-log');
@@ -671,6 +697,7 @@ function initVerify() {
     var verifyP = useHost ? PIPE.hostVerify(verifyShText, log) : PIPE.verify(VERIFY_SH, log);
     verifyP.then(function () {
       setStatus('ver-msg', 'All checks passed.', 'ok');
+      if (finish) finish.classList.remove('hidden');
     }).catch(function (e) {
       setStatus('ver-msg', e.message, 'bad');
       $('ver-recheck').classList.remove('hidden');
@@ -681,6 +708,18 @@ function initVerify() {
   }
   $('ver-btn').addEventListener('click', runVerify);
   $('ver-recheck').addEventListener('click', runVerify);
+  var rebootBtn = $('ver-reboot');
+  if (rebootBtn) {
+    rebootBtn.addEventListener('click', function () {
+      rebootBtn.disabled = true;
+      setStatus('ver-reboot-msg', 'Sending restart…', 'wait');
+      rebootPhone(function (msg, cls) { setStatus('ver-reboot-msg', msg, cls); })
+        .catch(function (e) {
+          setStatus('ver-reboot-msg', e.message || String(e), 'bad');
+        })
+        .then(function () { rebootBtn.disabled = false; });
+    });
+  }
 }
 
 // --- rooting slice (erase-gated, not on the step bar) ----------------------------------
@@ -1533,6 +1572,7 @@ function init() {
     initFastboot();
     initFactory();
     initFrontNav();
+    initGettingStarted();
     initPhone();
     initProfile();
     initApps();
@@ -1541,7 +1581,7 @@ function init() {
       var fw = $('footer-wipe-always');
       if (fw) fw.classList.remove('hidden');
     }
-    showStep('phone');
+    showStep('start');
     return Promise.all([
       fetch('../device/install.sh').then(function (r) { return r.text(); }),
       fetch('../device/verify.sh').then(function (r) { return r.text(); })

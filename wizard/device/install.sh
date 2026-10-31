@@ -66,7 +66,7 @@ want() {
   local comp line
   comp=$1
   if [ ! -f "$PROFILE" ]; then
-    [ "$comp" = "headwind" ] && return 1
+    [ "$comp" = "headwind" ] || [ "$comp" = "where" ] && return 1
     return 0
   fi
   while IFS= read -r line || [ -n "$line" ]; do
@@ -257,6 +257,12 @@ if want headwind; then
   install_apk headwind.apk com.hmdm.launcher
 else
   echo "NOTE: skip headwind"
+fi
+
+if want where; then
+  install_apk where.apk net.af0.where
+else
+  echo "NOTE: skip where"
 fi
 
 # --- Whisper ggml: one multilingual bin serves both lang dirs --------------

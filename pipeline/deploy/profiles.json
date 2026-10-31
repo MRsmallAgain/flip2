@@ -31,9 +31,10 @@
       "enabled": true,
       "extends": "base",
       "adds": [
-        "headwind"
+        "headwind",
+        "where"
       ],
-      "summary": "Base plus the pinned Headwind MDM launcher (com.hmdm.launcher_15400).",
+      "summary": "Base plus Headwind MDM launcher (15400) and Where (net.af0.where_1404). Apply before device owner; see docs/MANAGED-MDM-SETUP.md.",
       "warning": "Device owner is not part of Apply. It needs a user with no accounts; factory reset stays on the phone. This app never wipes userdata over USB. If accounts exist, back up to ~/flip2-pre-wipe-backup and reset on the phone before typing manage."
     },
     {

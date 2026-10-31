@@ -291,6 +291,22 @@
       ],
       "install_order": 99,
       "notes": "Pinned Headwind MDM launcher (catalog id headwind-launcher, file com.hmdm.launcher_15400.apk). Managed profile only. There is no in-repo APK and no post_install: installing the package does not set device owner. Device owner is a separate confirmed step, dpm set-device-owner com.hmdm.launcher/.AdminReceiver, after the user types manage. Keep this tier managed only so render.sh and gen-pipeline-js.sh do not emit it into the base installer."
+    },
+    {
+      "name": "where",
+      "artifact": "user-apk",
+      "package": "net.af0.where",
+      "incoming": "where.apk",
+      "label": "Where",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "managed"
+      ],
+      "install_order": 100,
+      "notes": "Where location app (catalog id where-app, net.af0.where_1404.apk). Managed profile only. Install via Flip2 Apply before device owner, or ensure Headwind cloud has no_install_apps off for MDM silent install."
     }
   ],
   "deroot_summary": {
