@@ -1,6 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-  <rect width="128" height="128" rx="24" fill="#f7f6f2"/>
-  <rect x="34" y="22" width="60" height="84" rx="8" fill="#0b62c4" stroke="#1b1f24" stroke-width="2"/>
-  <rect x="42" y="38" width="44" height="58" rx="4" fill="#fff" stroke="#d8d4ca"/>
-  <line x1="42" y1="34" x2="86" y2="34" stroke="#1b1f24" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="64" y1="0" x2="64" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#faf6f9"/>
+      <stop offset="1" stop-color="#f3ecf4"/>
+    </linearGradient>
+    <linearGradient id="phone" x1="34" y1="22" x2="94" y2="106" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#a02d62"/>
+      <stop offset="1" stop-color="#f26c4f"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="url(#bg)"/>
+  <rect x="34" y="22" width="60" height="84" rx="8" fill="url(#phone)" stroke="#1a0b1f" stroke-width="1.5" stroke-opacity="0.35"/>
+  <rect x="42" y="38" width="44" height="58" rx="4" fill="#fff3d0" fill-opacity="0.95" stroke="rgba(160,45,98,0.25)" stroke-width="1"/>
+  <line x1="42" y1="34" x2="86" y2="34" stroke="#1a0b1f" stroke-width="1.5" stroke-opacity="0.4"/>
 </svg>

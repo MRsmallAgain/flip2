@@ -1,10 +1,13 @@
-// Page wiring: step navigation, credit gate, download verification,
-// udev text, USB connect, install/verify buttons, erase-gated rooting slice.
+// Page wiring for TCL Flip2 Manager.
+// Front door (phone, profile, apps) lives in manager.js, loaded before this file.
+// Prepare still uses the credit gate, downloads, udev, USB connect, install, and verify.
+// Rooting stays behind "erase". Return to factory stays behind "factory".
 // Every module below is loaded by index.html before this one:
-//   CATALOG/loadCatalog/sha256Hex, ADBKEY, ADB, PIPE, BOOTROM.
+//   CATALOG/loadCatalog/sha256Hex, ADBKEY, ADB, PIPE, PROFILES, BOOTROM.
 
-var ORDER = ['credit', 'download', 'udev', 'usb', 'install', 'verify'];
-var REACHED = { credit: true };
+var ORDER = ['start', 'phone', 'profile', 'apps', 'prepare'];
+var PREPARE = ['credit', 'download', 'udev', 'usb', 'install', 'verify'];
+var REACHED = { start: true };
 var VERIFIED = {};            // catalog id -> ArrayBuffer of a hash-checked file
 var INSTALL_SH = null;        // text of ../device/install.sh
 var VERIFY_SH = null;         // text of ../device/verify.sh
@@ -13,21 +16,28 @@ var VERIFY_RAN_ONCE = false;  // unlock footer advanced links after first verify
 function $(id) { return document.getElementById(id); }
 
 function showStep(name) {
-  var i = ORDER.indexOf(name), n;
-  if (i >= 0) REACHED[name] = true;
-  for (n = 0; n < ORDER.length; n++) {
-    var el = $('step-' + ORDER[n]);
-    if (el) el.classList.toggle('on', ORDER[n] === name);
-  }
+  if (name === 'prepare') name = 'credit';
+  var prepare = PREPARE.indexOf(name) >= 0;
+  var pill = prepare ? 'prepare' : name;
+  var i = ORDER.indexOf(pill), n;
+  if (i >= 0) REACHED[pill] = true;
+  ORDER.forEach(function (id) {
+    var el = $('step-' + id);
+    if (el) el.classList.toggle('on', id === name);
+  });
+  PREPARE.forEach(function (id) {
+    var el = $('step-' + id);
+    if (el) el.classList.toggle('on', id === name);
+  });
   var spans = document.querySelectorAll('#steps span[data-step]');
   for (n = 0; n < spans.length; n++) {
     var step = spans[n].getAttribute('data-step');
     var idx = ORDER.indexOf(step);
-    spans[n].classList.toggle('on', step === name);
-    spans[n].classList.toggle('done', idx >= 0 && idx < i);
+    spans[n].classList.toggle('on', step === pill);
+    spans[n].classList.toggle('done', idx >= 0 && i >= 0 && idx < i);
   }
-  // Slices outside the numbered step bar (rooting, return to factory) are
-  // opened by id. Showing one must close the other, or two bodies stack.
+  // Rooting and return-to-factory stay off the pill bar. Opening one closes
+  // the other. Prepare subsections are not extra pills.
   ['root', 'factory'].forEach(function (extra) {
     var el = $('step-' + extra);
     if (!el) return;
@@ -35,6 +45,7 @@ function showStep(name) {
       el.hidden = false;
       el.classList.add('on');
     } else {
+      el.hidden = true;
       el.classList.remove('on');
     }
   });
@@ -89,23 +100,39 @@ function maybeRecoverInstallAfterFailure(errMsg, log) {
 
 function markInstallSuccess(msg) {
   setStatus('inst-msg', msg || 'Install complete.', 'ok');
-  $('inst-next').disabled = false;
+  var next = $('inst-next');
+  next.classList.remove('hidden');
+  next.disabled = false;
   var skip = $('inst-skip-verify');
   if (skip) skip.classList.add('hidden');
 }
 
 function runPushAndInstall() {
+  var needIds = PROFILES.catalogIds();
+  var missing = [];
+  needIds.forEach(function (id) {
+    if (!VERIFIED[id]) {
+      var f = CATALOG.byId[id];
+      missing.push(f && f.file ? f.file : id);
+    }
+  });
+  if (missing.length) {
+    setStatus('inst-msg', 'Verify under Prepare, Files, first: ' + missing.join(', '), 'bad');
+    return;
+  }
   var files = {};
-  ['installer-full', 'tagdrawer', 'forkgram', 'intertune', 'bouncy',
-    'materialfiles', 'whisper-tiny', 'vosk-en', 'vosk-uk'].forEach(function (id) {
-    if (VERIFIED[id]) files[id] = new Uint8Array(VERIFIED[id]);
+  needIds.forEach(function (id) {
+    files[id] = new Uint8Array(VERIFIED[id]);
   });
   $('inst-btn').disabled = true;
+  var next = $('inst-next');
+  next.disabled = true;
+  next.classList.add('hidden');
   setStatus('inst-msg', 'building push set…', 'wait');
   var log = makeLog('inst-log');
   var pushSet;
   try {
-    pushSet = PIPE.buildPushSet(files);
+    pushSet = PIPE.buildPushSet(files, PROFILES.componentIds());
   } catch (e) {
     setStatus('inst-msg', e.message, 'bad');
     $('inst-retry').classList.remove('hidden');
@@ -113,14 +140,20 @@ function runPushAndInstall() {
     return;
   }
   var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostPrepare;
-  if (useHost) {
-    setStatus('inst-msg', 'pushing via host adb (' + Object.keys(pushSet).length + ' files)…', 'wait');
-  } else {
+  if (!useHost && PROFILES.selectedId === 'managed') {
+    setStatus('inst-msg', 'managed Apply requires Flip 2 Companion', 'bad');
+    $('inst-retry').classList.remove('hidden');
+    $('inst-btn').disabled = false;
+    return;
+  }
+  if (!useHost) {
     setStatus('inst-msg', 'pushing ' + Object.keys(pushSet).length + ' files…', 'wait');
   }
   var installShText = typeof INSTALL_SH === 'string' ? INSTALL_SH : new TextDecoder().decode(INSTALL_SH);
   var pushP = useHost
-    ? PIPE.hostPushAndInstall(pushSet, installShText, log)
+    ? PIPE.hostPushAndInstall(pushSet, installShText, log, PROFILES.profileText(), function (text) {
+        setStatus('inst-msg', text, 'wait');
+      })
     : PIPE.pushAndInstall(pushSet, INSTALL_SH, log);
   var cleanP = useHost ? PIPE.hostCleanup(log) : PIPE.cleanup(log);
   pushP.then(function () {
@@ -185,12 +218,16 @@ function buildCreditTable() {
     var td2 = document.createElement('td');
     td2.textContent = f.license;
     var td3 = document.createElement('td');
-    var a = document.createElement('a');
-    a.href = f.url;
-    a.textContent = f.upstream;
-    a.target = '_blank';
-    a.rel = 'noreferrer';
-    td3.appendChild(a);
+    if (f.url) {
+      var a = document.createElement('a');
+      a.href = f.url;
+      a.textContent = f.upstream || f.url;
+      a.target = '_blank';
+      a.rel = 'noreferrer';
+      td3.appendChild(a);
+    } else {
+      td3.textContent = f.upstream || 'local pin';
+    }
     tr.appendChild(td0); tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
     tbody.appendChild(tr);
   });
@@ -222,7 +259,9 @@ function buildDownloadTable() {
     var td1 = document.createElement('td'); td1.textContent = fmtSize(f.size);
     var td2 = document.createElement('td'); td2.textContent = f.author;
     var td3 = document.createElement('td');
-    if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.downloadFile) {
+    if (!f.url) {
+      td3.textContent = f.upstream || 'local pin';
+    } else if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.downloadFile) {
       // In the app, fetch it here: the old external link did nothing useful.
       var b = document.createElement('button');
       b.className = 'small ghost';
@@ -256,12 +295,19 @@ function badLine(msg) {
 }
 
 function refreshDownloadGate() {
-  var missing = CATALOG.list.filter(function (f) { return !VERIFIED[f.id]; });
+  var ids = (typeof requiredCatalog === 'function') ? requiredCatalog() : CATALOG.list.map(function (f) { return f.id; });
+  var missing = [];
+  ids.forEach(function (id) {
+    if (!VERIFIED[id]) {
+      var f = CATALOG.byId[id];
+      missing.push(f || { id: id, file: id });
+    }
+  });
   if (missing.length === 0) {
-    setStatus('dl-msg', 'All ' + CATALOG.list.length + ' files verified.', 'ok');
+    setStatus('dl-msg', 'All ' + ids.length + ' files for this profile are verified.', 'ok');
     $('dl-next').disabled = false;
   } else {
-    setStatus('dl-msg', missing.length + ' of ' + CATALOG.list.length +
+    setStatus('dl-msg', missing.length + ' of ' + ids.length +
       ' still needed: ' + missing.map(function (f) { return f.file; }).join(', '), 'wait');
     $('dl-next').disabled = true;
   }
@@ -292,6 +338,13 @@ function cleanErr(e) {
 }
 
 function fetchOne(id, btn) {
+  var entry = CATALOG.byId[id];
+  if (!entry || !entry.url) {
+    setRow(id, 'local pin', 'wait');
+    badLine((entry && entry.file ? entry.file : id) + ': no download URL; match the local pin');
+    refreshDownloadGate();
+    return Promise.resolve({ ok: false, msg: 'no download URL' });
+  }
   if (btn) btn.disabled = true;
   if (!VERIFIED[id]) setRow(id, 'fetching…', '');
   return window.FLIP2_NATIVE.downloadFile(id).then(function (r) {
@@ -368,7 +421,7 @@ function useLocalFiles() {
 function downloadAll() {
   var btn = $('dl-fetch-btn');
   btn.disabled = true;
-  var todo = CATALOG.list.filter(function (f) { return !VERIFIED[f.id]; })
+  var todo = CATALOG.list.filter(function (f) { return f.url && !VERIFIED[f.id]; })
     .map(function (f) { return f.id; });
   if (!todo.length) {
     refreshDownloadGate();
@@ -385,8 +438,9 @@ function downloadAll() {
   });
   seq.then(function () {
     var missing = refreshDownloadGate();
-    if (missing.length) {
-      setStatus('dl-msg', missing.length + ' could not be downloaded. A server may be down — try again, or choose files you got another way.', 'bad');
+    var failed = missing.filter(function (f) { return f.url; });
+    if (failed.length) {
+      setStatus('dl-msg', failed.length + ' could not be downloaded. A server may be down — try again, or choose files you got another way.', 'bad');
     }
   }).then(function () { btn.disabled = false; });
 }
@@ -439,10 +493,11 @@ function initDownloads() {
     // Probe quietly so the user sees what is already here instead of
     // wondering whether the button will find anything.
     window.FLIP2_NATIVE.localFiles().then(function (found) {
-      var n = CATALOG.list.filter(function (f) { return found[f.id]; }).length;
+      var need = requiredCatalog();
+      var n = need.filter(function (id) { return found[id]; }).length;
       if (n > 0 && !Object.keys(VERIFIED).length) {
-        setStatus('dl-msg', n + ' of ' + CATALOG.list.length +
-          ' files are already on this PC. Press "Use files already on this PC".', 'wait');
+        setStatus('dl-msg', n + ' of ' + need.length +
+          ' files for this profile are already on this PC. Press "Use files already on this PC".', 'wait');
       }
     }).catch(function () {});
   }
@@ -600,7 +655,9 @@ function initInstall() {
     this.classList.add('hidden');
     setStatus('inst-msg', '', '');
     $('inst-btn').disabled = false;
-    $('inst-next').disabled = true;
+    var next = $('inst-next');
+    next.disabled = true;
+    next.classList.add('hidden');
     var skip = $('inst-skip-verify');
     var hint = $('inst-wipe-hint');
     if (skip) skip.classList.add('hidden');
@@ -615,10 +672,24 @@ function initInstall() {
 
 // --- 6 · verify ---------------------------------------------------------------------
 
+function rebootPhone(onStatus) {
+  var N = window.FLIP2_NATIVE;
+  if (N && N.wizardHostShell) {
+    return N.wizardHostShell({ cmd: 'reboot', timeoutMs: 60000 }).then(function () {
+      if (onStatus) onStatus('Restart sent — the phone will disconnect from USB briefly.', 'ok');
+    });
+  }
+  return ADB.shell('reboot', function () {}).then(function () {
+    if (onStatus) onStatus('Restart sent — the phone will disconnect from USB briefly.', 'ok');
+  });
+}
+
 function initVerify() {
+  var finish = $('ver-finish');
   function runVerify() {
     $('ver-btn').disabled = true;
     $('ver-recheck').classList.add('hidden');
+    if (finish) finish.classList.add('hidden');
     var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostVerify;
     setStatus('ver-msg', useHost ? 'running verify.sh (host adb)…' : 'running verify.sh…', 'wait');
     var log = makeLog('ver-log');
@@ -626,6 +697,7 @@ function initVerify() {
     var verifyP = useHost ? PIPE.hostVerify(verifyShText, log) : PIPE.verify(VERIFY_SH, log);
     verifyP.then(function () {
       setStatus('ver-msg', 'All checks passed.', 'ok');
+      if (finish) finish.classList.remove('hidden');
     }).catch(function (e) {
       setStatus('ver-msg', e.message, 'bad');
       $('ver-recheck').classList.remove('hidden');
@@ -636,6 +708,18 @@ function initVerify() {
   }
   $('ver-btn').addEventListener('click', runVerify);
   $('ver-recheck').addEventListener('click', runVerify);
+  var rebootBtn = $('ver-reboot');
+  if (rebootBtn) {
+    rebootBtn.addEventListener('click', function () {
+      rebootBtn.disabled = true;
+      setStatus('ver-reboot-msg', 'Sending restart…', 'wait');
+      rebootPhone(function (msg, cls) { setStatus('ver-reboot-msg', msg, cls); })
+        .catch(function (e) {
+          setStatus('ver-reboot-msg', e.message || String(e), 'bad');
+        })
+        .then(function () { rebootBtn.disabled = false; });
+    });
+  }
 }
 
 // --- rooting slice (erase-gated, not on the step bar) ----------------------------------
@@ -1473,6 +1557,9 @@ function initBackNav() {
 
 function init() {
   loadCatalog().then(function () {
+    return PROFILES.load();
+  }).then(function () {
+    if (typeof initFrontNav !== 'function') throw new Error('manager.js did not load');
     buildCreditTable();
     initGate();
     initBackNav();
@@ -1484,12 +1571,17 @@ function init() {
     initRoot();
     initFastboot();
     initFactory();
+    initFrontNav();
+    initGettingStarted();
+    initPhone();
+    initProfile();
+    initApps();
     if (window.FLIP2_NATIVE) {
       unlockAdvancedFooter();
       var fw = $('footer-wipe-always');
       if (fw) fw.classList.remove('hidden');
     }
-    showStep('credit');
+    showStep('start');
     return Promise.all([
       fetch('../device/install.sh').then(function (r) { return r.text(); }),
       fetch('../device/verify.sh').then(function (r) { return r.text(); })

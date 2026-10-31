@@ -1,0 +1,48 @@
+{
+  "$comment": "Flip2 manager profiles. Canonical copy; wizard/profiles.json must stay byte-identical so the page can fetch it. Component ids match pipeline/deploy/manifest.json, plus whisper and vosk (speech files, not manifest components).",
+  "profiles": [
+    {
+      "id": "base",
+      "label": "Base",
+      "enabled": true,
+      "summary": "Today's full wizard install: modules, Launcher4, Null Keyboard, Forkgram, Material Files, Intertune, Bouncy, home keys, 321\u00d7428, wallpaper, Whisper, and Vosk.",
+      "components": [
+        "navoverlay",
+        "keypad",
+        "flipmouse",
+        "tagdrawer",
+        "launcher_overlay",
+        "launcher4",
+        "ime",
+        "forkgram",
+        "materialfiles",
+        "intertune",
+        "bouncy",
+        "home_keys",
+        "display",
+        "wallpaper",
+        "whisper",
+        "vosk"
+      ]
+    },
+    {
+      "id": "managed",
+      "label": "Managed",
+      "enabled": true,
+      "extends": "base",
+      "adds": [
+        "headwind",
+        "where"
+      ],
+      "summary": "Base plus Headwind MDM launcher (15400) and Where (net.af0.where_1404). Apply before device owner; see docs/MANAGED-MDM-SETUP.md.",
+      "warning": "Device owner is not part of Apply. It needs a user with no accounts; factory reset stays on the phone. This app never wipes userdata over USB. If accounts exist, back up to ~/flip2-pre-wipe-backup and reset on the phone before typing manage."
+    },
+    {
+      "id": "secure",
+      "label": "Secure",
+      "enabled": false,
+      "summary": "Not available in this repo.",
+      "reason": "The GrapheneLite/GraphineLite branch is not in this repo."
+    }
+  ]
+}

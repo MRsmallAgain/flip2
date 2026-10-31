@@ -4,6 +4,11 @@
 # Run as root after install.sh (and after the reboot pause). Prints one
 # PASS/FAIL line per check and exits 0 only when every check passes.
 # The page shows the list; a FAIL line names the fix.
+#
+# /data/local/flip2/profile.list is one component id per line. A missing file
+# means the full base checks, and does not require Headwind. A skipped check
+# prints NOTE and does not increment FAILS. This script never calls dpm and
+# never wipes the phone.
 
 NULL_PKG=com.tim.flip2.nullkeyboard
 NULL_IME=com.tim.flip2.nullkeyboard/.NullKeyboardService
@@ -25,47 +30,118 @@ check() {  # check <label> <command...>
   fi
 }
 
+# Missing profile.list means the full base checks. Headwind is not part of
+# that default. An empty list matches nothing. Exact line match, CR stripped.
+PROFILE=/data/local/flip2/profile.list
+want() {
+  local comp line
+  comp=$1
+  if [ ! -f "$PROFILE" ]; then
+    [ "$comp" = "headwind" ] || [ "$comp" = "where" ] && return 1
+    return 0
+  fi
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=$(printf '%s' "$line" | tr -d '\r')
+    [ -n "$line" ] || continue
+    [ "$line" = "$comp" ] && return 0
+  done < "$PROFILE"
+  return 1
+}
+
 # --- FlipMouse daemon is running -------------------------------------------
-if pgrep -f 'FlipMouse/mouse' >/dev/null 2>&1; then
-  echo "PASS: FlipMouse daemon running"
-  PASS=$((PASS + 1))
+if want flipmouse; then
+  if pgrep -f 'FlipMouse/mouse' >/dev/null 2>&1; then
+    echo "PASS: FlipMouse daemon running"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: FlipMouse daemon running (reboot, or run install.sh again)"
+    FAILS=$((FAILS + 1))
+  fi
 else
-  echo "FAIL: FlipMouse daemon running (reboot, or run install.sh again)"
-  FAILS=$((FAILS + 1))
+  echo "NOTE: skip flipmouse"
 fi
 
 # --- Null Keyboard is the default IME ---------------------------------------
-IME=$(settings get secure default_input_method 2>/dev/null)
-if [ "$IME" = "$NULL_IME" ]; then
-  echo "PASS: default IME is Null Keyboard"
-  PASS=$((PASS + 1))
+if want ime; then
+  IME=$(settings get secure default_input_method 2>/dev/null)
+  if [ "$IME" = "$NULL_IME" ]; then
+    echo "PASS: default IME is Null Keyboard"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: default IME is '$IME' (expected $NULL_IME)"
+    FAILS=$((FAILS + 1))
+  fi
 else
-  echo "FAIL: default IME is '$IME' (expected $NULL_IME)"
-  FAILS=$((FAILS + 1))
+  echo "NOTE: skip ime"
 fi
 
 # --- Home is Launcher4 -------------------------------------------------------
-HOME_NOW=$(cmd package resolve-activity --brief -c android.intent.category.HOME \
-  -a android.intent.action.MAIN 2>/dev/null | tail -n 1)
-case "$HOME_NOW" in
-  com.tim.flip2.launcher4/*)
-    echo "PASS: Home is Launcher4"
-    PASS=$((PASS + 1))
-    ;;
-  *)
-    echo "FAIL: Home is '$HOME_NOW' (expected $HOME_ACT)"
-    FAILS=$((FAILS + 1))
-    ;;
-esac
+if want launcher4; then
+  HOME_NOW=$(cmd package resolve-activity --brief -c android.intent.category.HOME \
+    -a android.intent.action.MAIN 2>/dev/null | tail -n 1)
+  case "$HOME_NOW" in
+    com.tim.flip2.launcher4/*)
+      echo "PASS: Home is Launcher4"
+      PASS=$((PASS + 1))
+      ;;
+    *)
+      echo "FAIL: Home is '$HOME_NOW' (expected $HOME_ACT)"
+      FAILS=$((FAILS + 1))
+      ;;
+  esac
+else
+  echo "NOTE: skip launcher4"
+fi
 
 # BEGIN GENERATED
 # --- Apps installed (manifest full|wizard user-apk labels) ----------------
-for entry in \
-  'Launcher4 com.tim.flip2.launcher4' \n  'Null Keyboard com.tim.flip2.nullkeyboard' \n  'Forkgram org.forkgram.classic' \n  'Material Files me.zhanghai.android.files' \n  'Intertune dev.skye.intertune' \n  'Bouncy Ball com.dozingcatsoftware.bouncy' \n  'Tag Drawer com.iwadjp.pixeltagdrawer' \n  ; do
-  pkg=${entry##* }; label=${entry% *}
-  check "$label installed" pm path "$pkg"
-done
+if want launcher4; then
+  check "Launcher4 installed" pm path com.tim.flip2.launcher4
+else
+  echo "NOTE: skip launcher4"
+fi
+if want ime; then
+  check "Null Keyboard installed" pm path com.tim.flip2.nullkeyboard
+else
+  echo "NOTE: skip ime"
+fi
+if want forkgram; then
+  check "Forkgram installed" pm path org.forkgram.classic
+else
+  echo "NOTE: skip forkgram"
+fi
+if want materialfiles; then
+  check "Material Files installed" pm path me.zhanghai.android.files
+else
+  echo "NOTE: skip materialfiles"
+fi
+if want intertune; then
+  check "Intertune installed" pm path dev.skye.intertune
+else
+  echo "NOTE: skip intertune"
+fi
+if want bouncy; then
+  check "Bouncy Ball installed" pm path com.dozingcatsoftware.bouncy
+else
+  echo "NOTE: skip bouncy"
+fi
+if want tagdrawer; then
+  TD_APK=/data/adb/modules/flip2_pixel_tag_drawer/system/app/PixelTagDrawer/PixelTagDrawer.apk
+  if pm path com.iwadjp.pixeltagdrawer >/dev/null 2>&1; then
+    echo "PASS: Tag Drawer installed"
+    PASS=$((PASS + 1))
+  elif [ -f "$TD_APK" ]; then
+    echo "PASS: Tag Drawer module present (reboot if D-pad Up does not open Tags)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: Tag Drawer installed"
+    FAILS=$((FAILS + 1))
+  fi
+else
+  echo "NOTE: skip tagdrawer"
+fi
 
+if want home_keys; then
 # --- The five keyshortcuts match home-keys.json -------------------------------
 expect_leftkey='Intertune-dev.skye.intertune-com.dd3boh.outertune.MainActivity'
 expect_rightkey='Messages-com.android.mms-com.android.mms.ui.ConversationList'
@@ -88,7 +164,11 @@ for entry in \
     FAILS=$((FAILS + 1))
   fi
 done
+else
+  echo "NOTE: skip home_keys"
+fi
 
+if want display; then
 # --- Display size (logical 321x428 on the 240x320 panel) ----------------------
 SIZE=$(settings get global display_size_forced 2>/dev/null)
 if [ "$SIZE" = "321,428" ]; then
@@ -98,27 +178,55 @@ else
   echo "FAIL: display_size_forced is '$SIZE' (expected 321,428)"
   FAILS=$((FAILS + 1))
 fi
+else
+  echo "NOTE: skip display"
+fi
 # END GENERATED
 
+# Headwind is managed-only and stays outside the generator on purpose.
+if want headwind; then
+  check "Headwind MDM installed" pm path com.hmdm.launcher
+else
+  echo "NOTE: skip headwind"
+fi
+
+if want where; then
+  check "Where installed" pm path net.af0.where
+else
+  echo "NOTE: skip where"
+fi
+
 # --- Speech models exist (Whisper bin in both langs, Vosk am/conf/graph) -----
-for lang in en uk; do
-  check "whisper $lang model" test -s "/data/data/$NULL_PKG/files/whisper/$lang/model.bin"
-done
-for lang in en uk; do
-  for sub in am conf graph; do
-    check "vosk $lang/$sub" test -e "/data/data/$NULL_PKG/files/vosk/$lang/$sub"
+if want whisper; then
+  for lang in en uk; do
+    check "whisper $lang model" test -s "/data/data/$NULL_PKG/files/whisper/$lang/model.bin"
   done
-done
+else
+  echo "NOTE: skip whisper"
+fi
+if want vosk; then
+  for lang in en uk; do
+    for sub in am conf graph; do
+      check "vosk $lang/$sub" test -e "/data/data/$NULL_PKG/files/vosk/$lang/$sub"
+    done
+  done
+else
+  echo "NOTE: skip vosk"
+fi
 
 # --- stt_lang=uk --------------------------------------------------------------
-LANG_NOW=$(grep stt_lang "/data/data/$NULL_PKG/shared_prefs/flip2_null_ime.xml" 2>/dev/null \
-  | sed 's/.*>\([^<]*\)<.*/\1/')
-if [ "$LANG_NOW" = "uk" ]; then
-  echo "PASS: stt_lang=uk"
-  PASS=$((PASS + 1))
+if want ime; then
+  LANG_NOW=$(grep stt_lang "/data/data/$NULL_PKG/shared_prefs/flip2_null_ime.xml" 2>/dev/null \
+    | sed 's/.*>\([^<]*\)<.*/\1/')
+  if [ "$LANG_NOW" = "uk" ]; then
+    echo "PASS: stt_lang=uk"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: stt_lang='$LANG_NOW' (expected uk)"
+    FAILS=$((FAILS + 1))
+  fi
 else
-  echo "FAIL: stt_lang='$LANG_NOW' (expected uk)"
-  FAILS=$((FAILS + 1))
+  echo "NOTE: skip stt_lang"
 fi
 
 # --- IME-related settings ------------------------------------------------------
@@ -126,40 +234,48 @@ fi
 # system_server force-reverts it to 0 within seconds (dumpsys shows the value
 # owned by pkg:android), and pipeline/ime/ime.sh treats it as best-effort too.
 # Null Keyboard draws no soft keyboard, so the revert is cosmetic.
-for entry in \
-  'show_ime_with_hard_keyboard secure 1' \
-  'dtmf_tone system 0' \
-  'dtmf_tone_type system 0'; do
-  set -- $entry
-  key=$1; ns=$2; want=$3
-  got=$(settings get "$ns" "$key" 2>/dev/null)
-  if [ "$got" = "$want" ]; then
-    echo "PASS: $key=$want"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $key is '$got' (expected $want)"
-    FAILS=$((FAILS + 1))
-  fi
-done
-SKB=$(settings get secure accessibility_soft_keyboard_mode 2>/dev/null)
-echo "NOTE: accessibility_soft_keyboard_mode=$SKB (TCL reverts this; harmless)"
+if want ime; then
+  for entry in \
+    'show_ime_with_hard_keyboard secure 1' \
+    'dtmf_tone system 0' \
+    'dtmf_tone_type system 0'; do
+    set -- $entry
+    key=$1; ns=$2; expected=$3
+    got=$(settings get "$ns" "$key" 2>/dev/null)
+    if [ "$got" = "$expected" ]; then
+      echo "PASS: $key=$expected"
+      PASS=$((PASS + 1))
+    else
+      echo "FAIL: $key is '$got' (expected $expected)"
+      FAILS=$((FAILS + 1))
+    fi
+  done
+  SKB=$(settings get secure accessibility_soft_keyboard_mode 2>/dev/null)
+  echo "NOTE: accessibility_soft_keyboard_mode=$SKB (TCL reverts this; harmless)"
+else
+  echo "NOTE: skip ime settings"
+fi
 
 # --- Wallpaper (optional: only checked when the installer shipped an asset) --
 # This ROM has no `cmd wallpaper`; the file at /data/system/users/0/wallpaper is
 # what the framework loads at boot. A phone that was installed before the asset
 # existed keeps whatever wallpaper the user has, so absence is a NOTE.
-WP_DEV=/data/system/users/0/wallpaper
-WP_HOST=/data/local/flip2/incoming/flip2-wallpaper.png
-if [ -f "$WP_HOST" ]; then
-  if [ -f "$WP_DEV" ] && cmp -s "$WP_HOST" "$WP_DEV" ]; then
-    echo "PASS: wallpaper is the flip2 default"
-    PASS=$((PASS + 1))
+if want wallpaper; then
+  WP_DEV=/data/system/users/0/wallpaper
+  WP_HOST=/data/local/flip2/incoming/flip2-wallpaper.png
+  if [ -f "$WP_HOST" ]; then
+    if [ -f "$WP_DEV" ] && cmp -s "$WP_HOST" "$WP_DEV"; then
+      echo "PASS: wallpaper is the flip2 default"
+      PASS=$((PASS + 1))
+    else
+      echo "FAIL: wallpaper does not match the shipped flip2-wallpaper.png (reboot, or apply with 'flip2 wallpaper apply')"
+      FAILS=$((FAILS + 1))
+    fi
   else
-    echo "FAIL: wallpaper does not match the shipped flip2-wallpaper.png (reboot, or apply with 'flip2 wallpaper apply')"
-    FAILS=$((FAILS + 1))
+    echo "NOTE: no shipped wallpaper asset in incoming/; skipping that check"
   fi
 else
-  echo "NOTE: no shipped wallpaper asset in incoming/; skipping that check"
+  echo "NOTE: skip wallpaper"
 fi
 
 echo ""

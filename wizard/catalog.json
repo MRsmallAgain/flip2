@@ -112,6 +112,32 @@
       "license": "GPL-3.0",
       "author": "zhanghai (F-Droid)",
       "upstream": "f-droid.org me.zhanghai.android.files version 40"
+    },
+    {
+      "id": "headwind-launcher",
+      "file": "com.hmdm.launcher_15400.apk",
+      "purpose": "Headwind MDM launcher, versionCode 15400. Managed profile only. Installing this APK does not make it device owner; that is a separate step after the user types manage, and only when the phone has no accounts. There is no download URL: Companion matches a local file by this SHA-256. Device owner uses com.hmdm.launcher/.AdminReceiver from this build.",
+      "size": 6281971,
+      "sha256": "f674eeec9180b88af7be6fa8a696351d1931071da5bb1da0bbb4d410255c0b6e",
+      "license": "Apache-2.0",
+      "author": "h-mdm",
+      "upstream": "local pin ~/Downloads/com.hmdm.launcher_15400.apk",
+      "profiles": [
+        "managed"
+      ]
+    },
+    {
+      "id": "where-app",
+      "file": "net.af0.where_1404.apk",
+      "purpose": "Where location app, versionCode 1404. Managed profile only. Install via Flip2 Apply before device owner when using no_install_apps in Headwind. Local pin by SHA-256.",
+      "size": 14791436,
+      "sha256": "cfc1a50142d338f5f9199783943f844f184950e34ba6635f5cb89e5b9f4d9cd6",
+      "license": "See upstream",
+      "author": "af0",
+      "upstream": "local pin ~/Downloads/net.af0.where_1404.apk",
+      "profiles": [
+        "managed"
+      ]
     }
   ],
   "not_downloaded": [

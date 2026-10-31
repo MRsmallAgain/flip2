@@ -43,6 +43,10 @@ patch_between_markers() {
   mv "$out" "$file"
 }
 
+# Each CALL is wrapped in `if want <id>`. want() lives outside the markers.
+# place_module() and install_apk() stay defined even when a call is skipped.
+# Tier "managed" (Headwind) is not emitted. That block is hand-written after
+# END GENERATED so a base rebuild does not need the APK.
 gen_install() {
   cat <<'HDR'
 place_module() {
@@ -59,13 +63,19 @@ HDR
     .components[]
     | select([.tiers[]] | index("full") or index("wizard"))
     | select(.artifact == "magisk-module")
-    | [.module_id, (.zip | split("/") | last)] | @tsv
-  ' "$MANIFEST" | while IFS=$'\t' read -r mid zip; do
-    [[ -n "$mid" ]] && printf 'place_module %-30s %s\n' "$mid" "$zip"
+    | [.name, .module_id, (.zip | split("/") | last)] | @tsv
+  ' "$MANIFEST" | while IFS=$'\t' read -r name mid zip; do
+    [[ -n "$name" && -n "$mid" && -n "$zip" ]] || continue
+    printf 'if want %s; then\n' "$name"
+    printf '  place_module %-30s %s\n' "$mid" "$zip"
+    printf 'else\n'
+    printf '  echo "NOTE: skip %s"\n' "$name"
+    printf 'fi\n'
   done
 
   cat <<'FM'
 
+if want flipmouse; then
 # Nothing starts FlipMouse's daemon until Magisk service time — start it now,
 # the way installer/service.sh does.
 FM=/data/adb/modules/FlipMouse
@@ -75,6 +85,9 @@ chmod 755 "$FM/mouse" "$FM/service.sh" 2>/dev/null
 chmod 644 "$FM/module.prop" 2>/dev/null
 nohup sh "$FM/service.sh" </dev/null >/dev/null 2>&1 &
 ok "FlipMouse daemon started"
+else
+  echo "NOTE: skip flipmouse"
+fi
 
 # --- user APKs, manifest 60-80 plus the wizard's own downloads -------------
 install_apk() {
@@ -96,10 +109,16 @@ FM
   ' "$MANIFEST" | sort -t$'\t' -k3 -n | while IFS=$'\t' read -r name pkg _ord; do
     [[ -n "$name" && -n "$pkg" ]] || continue
     inc="$(wizard_incoming "$name")"
-    [[ -n "$inc" ]] && printf 'install_apk %-22s %s\n' "$inc" "$pkg"
+    [[ -n "$inc" ]] || continue
+    printf 'if want %s; then\n' "$name"
+    printf '  install_apk %-22s %s\n' "$inc" "$pkg"
+    printf 'else\n'
+    printf '  echo "NOTE: skip %s"\n' "$name"
+    printf 'fi\n'
   done
 
   echo ""
+  echo "if want ime; then"
   echo "# --- IME settings (manifest 70): values mirror payload data/settings.txt ---"
   jq -r '.components[] | select(.name=="ime") | .settings[]? // empty' "$MANIFEST" | while IFS=' ' read -r ns key val; do
     if [[ "$key" == "enabled_input_methods" || "$key" == "default_input_method" ]]; then
@@ -113,7 +132,11 @@ FM
   echo "pm grant \$NULL_PKG android.permission.RECORD_AUDIO \\"
   echo "  || fail \"pm grant: RECORD_AUDIO for \$NULL_PKG\""
   echo 'ok "IME settings applied"'
+  echo "else"
+  echo '  echo "NOTE: skip ime"'
+  echo "fi"
   echo ""
+  echo "if want home_keys; then"
   echo "# --- home keys, manifest 90: values mirror launcher-overlay/home-keys.json -"
   echo "# Quoted: & and \$ inside Label-package-component break unquoted args."
   declare -A HKMAP=( [left]=keyshortcut_leftkey [right]=keyshortcut_rightkey [up]=keyshortcut_upkey [down]=keyshortcut_downkey [shortcuts_bar]=keyshortcut_shortcutsbar )
@@ -123,14 +146,22 @@ FM
     printf '%s\n' "settings put global '$gk' '$v' \\" "  || fail \"$gk\""
   done
   echo 'ok "home keys applied"'
+  echo "else"
+  echo '  echo "NOTE: skip home_keys"'
+  echo "fi"
   echo ""
+  echo "if want display; then"
   echo "# --- display size, manifest 95: logical 321x428 on the 240x320 panel --------"
   jq -r '.components[] | select(.name=="display") | .settings[]? // empty' "$MANIFEST" | while IFS=' ' read -r ns key val; do
     printf '%s\n' "settings put $ns '$key' '$val' \\" "  || fail \"settings: $key\""
   done
   echo 'ok "display size 321x428 (takes effect after reboot)"'
+  echo "else"
+  echo '  echo "NOTE: skip display"'
+  echo "fi"
   echo ""
   cat <<'WP'
+if want wallpaper; then
 # --- wallpaper: default background, copied where the framework reads it -----
 WP=/data/local/flip2/incoming/flip2-wallpaper.png
 WPDST=/data/system/users/0/wallpaper
@@ -144,32 +175,42 @@ if [ -f "$WP" ] && [ ! -f "$STAGE/.wallpaper-applied" ]; then
 else
   echo "NOTE: no flip2-wallpaper.png in incoming/; keeping the current wallpaper"
 fi
+else
+  echo "NOTE: skip wallpaper"
+fi
 
+if want launcher4; then
 cmd package set-home-activity $HOME_ACT >/dev/null 2>&1 \
   || fail "could not set HOME to launcher4"
 ok "HOME set to launcher4"
+else
+  echo "NOTE: skip launcher4"
+fi
 WP
 }
 
 gen_verify() {
   echo "# --- Apps installed (manifest full|wizard user-apk labels) ----------------"
-  echo "for entry in \\"
-  {
-    jq -r '
-      .components[]
-      | select([.tiers[]] | index("full") or index("wizard"))
-      | select(.artifact == "user-apk" and (.label // "") != "" and (.package // "") != "")
-      | "\(.label) \(.package)"
-    ' "$MANIFEST"
-    echo "Tag Drawer com.iwadjp.pixeltagdrawer"
-  } | while read -r line; do
-    printf "  '%s' \\\n" "$line"
+  jq -r '
+    .components[]
+    | select([.tiers[]] | index("full") or index("wizard"))
+    | select(.artifact == "user-apk" and (.label // "") != "" and (.package // "") != "")
+    | [.name, .label, .package, (.install_order // 999)] | @tsv
+  ' "$MANIFEST" | sort -t$'\t' -k4 -n | while IFS=$'\t' read -r name label pkg _ord; do
+    [[ -n "$name" && -n "$pkg" ]] || continue
+    printf 'if want %s; then\n' "$name"
+    printf '  check "%s installed" pm path %s\n' "$label" "$pkg"
+    printf 'else\n'
+    printf '  echo "NOTE: skip %s"\n' "$name"
+    printf 'fi\n'
   done
-  echo "  ; do"
-  echo "  pkg=\${entry##* }; label=\${entry% *}"
-  echo '  check "$label installed" pm path "$pkg"'
-  echo "done"
+  echo 'if want tagdrawer; then'
+  echo '  check "Tag Drawer installed" pm path com.iwadjp.pixeltagdrawer'
+  echo 'else'
+  echo '  echo "NOTE: skip tagdrawer"'
+  echo 'fi'
   echo ""
+  echo "if want home_keys; then"
   echo "# --- The five keyshortcuts match home-keys.json -------------------------------"
   echo "expect_leftkey='$(jq -r '.left' "$HOME_KEYS")'"
   echo "expect_rightkey='$(jq -r '.right' "$HOME_KEYS")'"
@@ -192,8 +233,12 @@ gen_verify() {
   echo '    FAILS=$((FAILS + 1))'
   echo '  fi'
   echo "done"
+  echo "else"
+  echo '  echo "NOTE: skip home_keys"'
+  echo "fi"
   echo ""
   disp="$(jq -r '.components[] | select(.name=="display") | .settings[]? // empty' "$MANIFEST" | awk '{print $3}')"
+  echo "if want display; then"
   echo "# --- Display size (logical 321x428 on the 240x320 panel) ----------------------"
   echo "SIZE=\$(settings get global display_size_forced 2>/dev/null)"
   echo "if [ \"\$SIZE\" = \"$disp\" ]; then"
@@ -203,6 +248,9 @@ gen_verify() {
   echo "  echo \"FAIL: display_size_forced is '\$SIZE' (expected $disp)\""
   echo '  FAILS=$((FAILS + 1))'
   echo 'fi'
+  echo "else"
+  echo '  echo "NOTE: skip display"'
+  echo "fi"
 }
 
 render_install() {
