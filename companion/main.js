@@ -46,6 +46,11 @@ const USB_MODES = {
   '0e8d:0003': 'bootrom',
   '1bbb:0167': 'android',
   '1bbb:0c01': 'android',
+  // Recovery enumerates as a Nexus fastboot gadget. fastboot devices stays
+  // empty on it, so it is not a flash target.
+  '18d1:d001': 'recovery',
+  // MTP only. No adb until USB debugging is on.
+  '1bbb:0168': 'mtp',
   // TCL HID-only mode. No adb, no serial, no fastboot: the phone is sitting in
   // neither Android nor a flash mode, and needs a power cycle to move.
   '1bbb:20ff': 'stuck',
@@ -609,6 +614,7 @@ const PROFILE_IDS = {
   launcher_overlay: true, launcher4: true, ime: true, forkgram: true,
   materialfiles: true, intertune: true, bouncy: true, home_keys: true,
   display: true, wallpaper: true, whisper: true, vosk: true, headwind: true, where: true,
+  block_camera: true, enable_camera: true, block_browser: true, enable_browser: true,
 };
 
 const CATALOG_APKS = {
@@ -831,6 +837,111 @@ async function wizardHostSetDeviceOwner(payload) {
   return { ok: true, component: DEVICE_OWNER_COMPONENT, stdout: out.trim() };
 }
 
+// Same six modules as pipeline/deploy/installer/deroot.sh. Touch `remove` only.
+// Do not rm -rf, do not run that script (it also resets the IME and home keys),
+// and do not uninstall APKs. USB debugging is turned off after the marks.
+const DROP_ROOT_MODULES = [
+  'flip2_nav_overlay',
+  'flip2_keypad_backspace',
+  'FlipMouse',
+  'flip2_pixel_tag_drawer',
+  'flip2_launcher_overlay',
+  'flip2_launcher3_null_icon_fix',
+];
+
+function adbLinkDropped(err) {
+  const msg = String((err && err.message) || err || '');
+  return /error:\s*closed|device offline|no devices\/emulators|device '[^']*' not found|device not found/i.test(msg);
+}
+
+async function putGlobalSetting(serial, key, value) {
+  const cmd = 'settings put global ' + key + ' ' + value;
+  try {
+    await adbRun(['-s', serial, 'shell', 'settings', 'put', 'global', key, value], 30000);
+  } catch (e) {
+    await wizardHostSu(serial, cmd, 30000);
+  }
+}
+
+async function wizardHostDropRootAdb(payload) {
+  if (!payload || payload.confirm !== 'unroot') {
+    return { ok: false, code: 'confirm', error: 'Type unroot to remove root and turn off USB debugging.' };
+  }
+  const serial = await adbSerial();
+  if (!(await phoneRooted(serial))) {
+    return {
+      ok: false,
+      code: 'no-root',
+      error: 'su did not return uid 0. Modules were not marked and USB debugging was left on.',
+    };
+  }
+  const lines = ['set -eu', 'fail=0'];
+  DROP_ROOT_MODULES.forEach(function (id) {
+    const dir = '/data/adb/modules/' + id;
+    lines.push(
+      'if [ -d ' + shellQuote(dir) + ' ]; then ' +
+      'if touch ' + shellQuote(dir + '/remove') + '; then echo marked ' + id + '; ' +
+      'else echo failed ' + id + '; fail=1; fi; ' +
+      'else echo absent ' + id + '; fi');
+  });
+  lines.push('pkill -f ' + shellQuote('FlipMouse/service.sh') + ' >/dev/null 2>&1 || true');
+  lines.push('pkill -f ' + shellQuote('FlipMouse/mouse') + ' >/dev/null 2>&1 || true');
+  lines.push('test "$fail" = 0');
+  let markOut = '';
+  try {
+    markOut = await adbRun(
+      ['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote(lines.join('; '))],
+      60000);
+  } catch (e) {
+    return {
+      ok: false,
+      code: 'modules',
+      modulesMarked: false,
+      adbDisabled: false,
+      error: 'Module removal did not finish, so USB debugging was left on. ' + ((e && e.message) || e),
+    };
+  }
+  try {
+    await putGlobalSetting(serial, 'development_settings_enabled', '0');
+  } catch (e) {
+    return {
+      ok: false,
+      code: 'adb',
+      modulesMarked: true,
+      adbDisabled: false,
+      stdout: String(markOut || '').trim(),
+      error: 'Modules were marked for removal, but USB debugging was left on. ' + ((e && e.message) || e),
+    };
+  }
+  try {
+    await adbRun(['-s', serial, 'shell', 'settings', 'put', 'global', 'adb_enabled', '0'], 30000);
+  } catch (e) {
+    if (!adbLinkDropped(e)) {
+      try {
+        await wizardHostSu(serial, 'settings put global adb_enabled 0', 30000);
+      } catch (e2) {
+        if (!adbLinkDropped(e2)) {
+          return {
+            ok: false,
+            code: 'adb',
+            modulesMarked: true,
+            adbDisabled: false,
+            stdout: String(markOut || '').trim(),
+            error: 'Modules were marked for removal, but USB debugging was left on. ' + ((e2 && e2.message) || e2),
+          };
+        }
+      }
+    }
+  }
+  return {
+    ok: true,
+    modulesMarked: true,
+    adbDisabled: true,
+    stdout: String(markOut || '').trim(),
+    message: 'Flip2 modules were marked for removal and USB debugging was turned off. On the phone: Magisk, Uninstall, Restore Images, then reboot. This did not restore the boot image, did not uninstall apps, and did not wipe the phone. Companion can no longer talk to the phone.',
+  };
+}
+
 async function wizardHostPrepare() {
   await adbSerial();
   wizardHostTmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
@@ -964,6 +1075,442 @@ async function wizardHostVerify(payload) {
     return { ok: false, error: e.message || String(e), lines: lines };
   }
 }
+
+// Personal backups: catalog APKs, contacts, and text messages.
+// Stored in ~/flip2-personal-backup, outside the boot-backup folder, so
+// factoryReadBackup cannot read them. Contacts are version-checked and
+// byte-copied. Messages are rebuilt with personal_db.py. snapshot() runs
+// only on a disposable temp copy, never on ~/flip2-pre-wipe-backup.
+// Counts only cross IPC. This does not wipe userdata, set device owner, or drop root.
+function personalRoot() {
+  return path.join(os.homedir(), 'flip2-personal-backup');
+}
+
+const PERSONAL_DB = {
+  contacts: {
+    file: 'contacts2.db',
+    path: '/data/data/com.android.providers.contacts/databases/contacts2.db',
+    owner: 'u0_a17:u0_a17',
+    stops: [
+      'am force-stop com.android.contacts || true',
+      'am force-stop com.android.providers.contacts || true',
+      'pids=$(pidof com.android.providers.contacts || true); if [ -n "$pids" ]; then kill $pids || true; fi',
+    ],
+  },
+  messages: {
+    file: 'mmssms.db',
+    path: '/data/data/com.android.providers.telephony/databases/mmssms.db',
+    owner: 'radio:radio',
+    stops: [
+      'am force-stop com.android.mms || true',
+      'am force-stop com.android.messaging || true',
+      'am force-stop com.android.providers.telephony || true',
+      'pids=$(pidof com.android.providers.telephony || true); if [ -n "$pids" ]; then kill $pids || true; fi',
+    ],
+  },
+};
+
+function integerFields(parsed, kind) {
+  const out = { kind: kind };
+  if (!parsed || typeof parsed !== 'object') return out;
+  Object.keys(parsed).forEach(function (key) {
+    if (key === 'kind') return;
+    const value = parsed[key];
+    if (typeof value === 'number' && Number.isInteger(value)) out[key] = value;
+  });
+  return out;
+}
+
+function takeCounts(parsed, kind) {
+  if (!parsed || parsed.kind !== kind) throw new Error('personal backup helper failed');
+  return integerFields(parsed, kind);
+}
+
+function publicError(err) {
+  const msg = err && err.message ? String(err.message) : 'personal backup failed';
+  const code = msg.match(/INSTALL_FAILED_[A-Z0-9_]+/);
+  if (code) return code[0];
+  const known = [
+    'contacts backup is not version 1401',
+    'messages backup is not version 670020',
+    'message backup still has attachments',
+    'contacts backup is missing name counts',
+    'personal backup helper failed',
+    'python3 is not installed',
+    'no saved backup yet',
+    'pre-wipe backup is not on this PC',
+    'unknown backup source',
+    'could not copy the database off the phone',
+    'could not copy catalog apps',
+    'no catalog app copies saved',
+    'not a catalog package',
+    'unknown personal database',
+    'unknown backup',
+  ];
+  for (let i = 0; i < known.length; i++) {
+    if (msg.indexOf(known[i]) !== -1) return known[i];
+  }
+  if (/more than one phone/i.test(msg)) return 'more than one phone is connected over adb, unplug the others';
+  if (/no phone is ready/i.test(msg) || /unauthor/i.test(msg)) return 'Accept the USB debugging prompt on the phone.';
+  if (/permission denied/i.test(msg)) return 'permission denied while copying the backup';
+  if (/device offline/i.test(msg)) return 'the phone is offline over adb';
+  if (msg.length > 180 || (msg.match(/\d/g) || []).length >= 7) return 'personal backup failed';
+  return msg;
+}
+
+function personalGuard(fn) {
+  return function (payload) {
+    return Promise.resolve().then(function () {
+      return fn(payload);
+    }).then(function (result) {
+      return result;
+    }, function (err) {
+      return { ok: false, error: publicError(err) };
+    });
+  };
+}
+
+function runPersonalDb(args) {
+  return new Promise(function (resolve, reject) {
+    execFile('python3', [path.join(__dirname, 'personal_db.py')].concat(args), {
+      timeout: 180000,
+      maxBuffer: 1024 * 1024,
+    }, function (err, stdout) {
+      if (err && err.code === 'ENOENT') {
+        reject(new Error('python3 is not installed'));
+        return;
+      }
+      let parsed = null;
+      try { parsed = JSON.parse(String(stdout || '').trim()); } catch (e) { parsed = null; }
+      if (err || !parsed || typeof parsed.kind !== 'string') {
+        reject(new Error('personal backup helper failed'));
+        return;
+      }
+      resolve(parsed);
+    });
+  });
+}
+
+async function ensurePersonalDirs() {
+  const root = personalRoot();
+  await fsp.mkdir(path.join(root, 'apps'), { recursive: true });
+  return root;
+}
+
+async function mergeManifest(patch) {
+  const root = await ensurePersonalDirs();
+  const file = path.join(root, 'manifest.json');
+  let cur = {};
+  try { cur = JSON.parse(await fsp.readFile(file, 'utf8')); } catch (e) { cur = {}; }
+  if (!cur || typeof cur !== 'object' || Array.isArray(cur)) cur = {};
+  if (patch.contacts) cur.contacts = patch.contacts;
+  if (patch.messages) cur.messages = patch.messages;
+  const tmp = file + '.tmp';
+  await fsp.writeFile(tmp, JSON.stringify(cur));
+  await fsp.rename(tmp, file);
+}
+
+function assertContacts(counts) {
+  if (!counts || counts.userVersion !== 1401) throw new Error('contacts backup is not version 1401');
+  if (typeof counts.data !== 'number' || typeof counts.named !== 'number' || typeof counts.blankNames !== 'number') {
+    throw new Error('contacts backup is missing name counts');
+  }
+}
+
+function assertMessages(counts) {
+  if (!counts || counts.userVersion !== 670020) throw new Error('messages backup is not version 670020');
+  if (counts.pdu !== 0 || counts.part !== 0) throw new Error('message backup still has attachments');
+}
+
+function catalogApkPath(text) {
+  const lines = String(text || '').split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.indexOf('package:') !== 0) continue;
+    const remote = line.slice('package:'.length).trim();
+    if (!/^\/(data|mnt|system|product|vendor)\/[A-Za-z0-9._~+/=-]+$/.test(remote)) return '';
+    if (remote.indexOf('..') !== -1 || !/\.apk$/.test(remote)) return '';
+    return remote;
+  }
+  return '';
+}
+
+async function stagePull(serial, remotePath, localPath) {
+  const base = 'personal-' + path.basename(remotePath);
+  if (!/^personal-[A-Za-z0-9._-]+$/.test(base)) throw new Error('unknown backup');
+  const stage = WIZARD_STAGING + '/' + base;
+  const stageWal = stage + '-wal';
+  const stageShm = stage + '-shm';
+  const flag = stage + '.flag';
+  const script = [
+    'mkdir -p ' + shellQuote(WIZARD_STAGING),
+    'cp ' + shellQuote(remotePath) + ' ' + shellQuote(stage),
+    'chmod 644 ' + shellQuote(stage),
+    'rm -f ' + shellQuote(stageWal) + ' ' + shellQuote(stageShm),
+    'if [ -f ' + shellQuote(remotePath + '-wal') + ' ]; then cp ' + shellQuote(remotePath + '-wal') + ' ' + shellQuote(stageWal) + ' && chmod 644 ' + shellQuote(stageWal) + '; fi',
+    'if [ -f ' + shellQuote(remotePath + '-shm') + ' ]; then cp ' + shellQuote(remotePath + '-shm') + ' ' + shellQuote(stageShm) + ' && chmod 644 ' + shellQuote(stageShm) + '; fi',
+    'if [ -f ' + shellQuote(stageWal) + ' ]; then echo WAL_YES > ' + shellQuote(flag) + ' && chmod 644 ' + shellQuote(flag) + '; else echo WAL_NO > ' + shellQuote(flag) + ' && chmod 644 ' + shellQuote(flag) + '; fi',
+  ].join(' && ');
+  await wizardHostSu(serial, script, 120000);
+  const flagLocal = localPath + '.flag';
+  try {
+    await adbRun(['-s', serial, 'pull', stage, localPath], 180000);
+    await adbRun(['-s', serial, 'pull', flag, flagLocal], 30000);
+    const marker = String(await fsp.readFile(flagLocal, 'utf8')).trim();
+    if (marker === 'WAL_YES') {
+      await adbRun(['-s', serial, 'pull', stageWal, localPath + '-wal'], 180000);
+      await adbRun(['-s', serial, 'pull', stageShm, localPath + '-shm'], 60000).catch(function () {});
+    } else if (marker !== 'WAL_NO') {
+      throw new Error('could not copy the database off the phone');
+    }
+  } finally {
+    await adbRun(['-s', serial, 'shell', 'rm', '-f', stage, stageWal, stageShm, flag], 30000).catch(function () {});
+  }
+}
+
+async function flattenDisposable(src, dest) {
+  await fsp.rm(dest, { force: true });
+  try {
+    await fsp.access(src + '-wal');
+  } catch (e) {
+    await fsp.copyFile(src, dest);
+    return;
+  }
+  await runPersonalDb(['snapshot', src, dest]);
+}
+
+async function savedDatabase(fileName) {
+  if (fileName !== 'contacts2.db' && fileName !== 'mmssms.db') throw new Error('unknown backup');
+  const root = personalRoot();
+  const file = path.join(root, fileName);
+  if (!fs.existsSync(file)) throw new Error('no saved backup yet');
+  const realRoot = await fsp.realpath(root);
+  const real = await fsp.realpath(file);
+  if (real.indexOf(realRoot + path.sep) !== 0) throw new Error('unknown backup');
+  return real;
+}
+
+function prewipeDatabase(fileName) {
+  if (fileName !== 'contacts2.db' && fileName !== 'mmssms.db') throw new Error('unknown backup');
+  const file = path.join(os.homedir(), 'flip2-pre-wipe-backup', 'readable', fileName);
+  if (!fs.existsSync(file)) throw new Error('pre-wipe backup is not on this PC');
+  return file;
+}
+
+async function databaseSource(payload, fileName) {
+  const which = String(payload && payload.source || 'saved');
+  if (which === 'saved') return savedDatabase(fileName);
+  if (which === 'prewipe') return prewipeDatabase(fileName);
+  throw new Error('unknown backup source');
+}
+
+async function installPersonalDb(serial, localPath, kind) {
+  const spec = PERSONAL_DB[kind];
+  if (!spec) throw new Error('unknown personal database');
+  const stage = WIZARD_STAGING + '/' + spec.file;
+  await wizardHostSu(serial, 'mkdir -p ' + shellQuote(WIZARD_STAGING), 60000);
+  await adbRun(['-s', serial, 'push', localPath, stage], 180000);
+  const script = ['set -e'].concat(spec.stops).concat([
+    'sleep 1',
+    'install -m 660 ' + shellQuote(stage) + ' ' + shellQuote(spec.path),
+    'chown ' + spec.owner + ' ' + shellQuote(spec.path),
+    'restorecon ' + shellQuote(spec.path) + ' || true',
+    'rm -f ' + shellQuote(spec.path + '-journal') + ' ' + shellQuote(spec.path + '-wal') + ' ' + shellQuote(spec.path + '-shm'),
+    'rm -f ' + shellQuote(stage),
+  ]).join('\n');
+  try {
+    await wizardHostSu(serial, script, 180000);
+  } catch (e) {
+    await adbRun(['-s', serial, 'shell', 'rm', '-f', stage], 30000).catch(function () {});
+    throw e;
+  }
+}
+
+async function personalBackupInfo() {
+  const root = personalRoot();
+  const contactsPath = path.join(root, 'contacts2.db');
+  const messagesPath = path.join(root, 'mmssms.db');
+  let contacts = null;
+  if (fs.existsSync(contactsPath)) {
+    try {
+      contacts = takeCounts(await runPersonalDb(['check-contacts', contactsPath]), 'contacts');
+    } catch (e) {
+      contacts = null;
+    }
+  }
+  let manifest = {};
+  try { manifest = JSON.parse(await fsp.readFile(path.join(root, 'manifest.json'), 'utf8')); } catch (e) { manifest = {}; }
+  let messages = null;
+  if (fs.existsSync(messagesPath) && manifest && manifest.messages && manifest.messages.userVersion === 670020) {
+    messages = integerFields(manifest.messages, 'messages');
+  }
+  let apps = 0;
+  Object.keys(CATALOG_PACKAGES).forEach(function (pkg) {
+    if (fs.existsSync(path.join(root, 'apps', pkg + '.apk'))) apps += 1;
+  });
+  const prewipeDir = path.join(os.homedir(), 'flip2-pre-wipe-backup', 'readable');
+  const prewipe = fs.existsSync(path.join(prewipeDir, 'contacts2.db')) && fs.existsSync(path.join(prewipeDir, 'mmssms.db'));
+  return { ok: true, contacts: contacts, messages: messages, apps: apps, prewipe: prewipe };
+}
+
+async function personalBackupContacts() {
+  const serial = await adbSerial();
+  const root = await ensurePersonalDirs();
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-personal-'));
+  try {
+    const pulled = path.join(tmp, 'contacts2.db');
+    await stagePull(serial, PERSONAL_DB.contacts.path, pulled);
+    const flat = path.join(tmp, 'flat.db');
+    await flattenDisposable(pulled, flat);
+    const counts = takeCounts(await runPersonalDb(['check-contacts', flat]), 'contacts');
+    assertContacts(counts);
+    await fsp.copyFile(flat, path.join(root, 'contacts2.db'));
+    await mergeManifest({ contacts: counts });
+    return { ok: true, contacts: counts };
+  } finally {
+    await fsp.rm(tmp, { recursive: true, force: true });
+  }
+}
+
+async function personalRestoreContacts(payload) {
+  const source = await databaseSource(payload, 'contacts2.db');
+  const counts = takeCounts(await runPersonalDb(['check-contacts', source]), 'contacts');
+  assertContacts(counts);
+  const serial = await adbSerial();
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-personal-'));
+  try {
+    const copy = path.join(tmp, 'contacts2.db');
+    await fsp.copyFile(source, copy);
+    await installPersonalDb(serial, copy, 'contacts');
+  } finally {
+    await fsp.rm(tmp, { recursive: true, force: true });
+  }
+  return { ok: true, contacts: counts };
+}
+
+async function personalBackupMessages() {
+  const serial = await adbSerial();
+  const root = await ensurePersonalDirs();
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-personal-'));
+  try {
+    const pulled = path.join(tmp, 'mmssms.db');
+    await stagePull(serial, PERSONAL_DB.messages.path, pulled);
+    const flat = path.join(tmp, 'flat.db');
+    await flattenDisposable(pulled, flat);
+    const built = path.join(tmp, 'built.db');
+    const counts = takeCounts(await runPersonalDb(['build-messages', flat, built]), 'messages');
+    assertMessages(counts);
+    await fsp.copyFile(built, path.join(root, 'mmssms.db'));
+    await mergeManifest({ messages: counts });
+    return { ok: true, messages: counts };
+  } finally {
+    await fsp.rm(tmp, { recursive: true, force: true });
+  }
+}
+
+async function personalRestoreMessages(payload) {
+  const source = await databaseSource(payload, 'mmssms.db');
+  const serial = await adbSerial();
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-personal-'));
+  try {
+    const src = path.join(tmp, 'src.db');
+    const built = path.join(tmp, 'built.db');
+    await fsp.copyFile(source, src);
+    const counts = takeCounts(await runPersonalDb(['build-messages', src, built]), 'messages');
+    assertMessages(counts);
+    await installPersonalDb(serial, built, 'messages');
+    return { ok: true, messages: counts };
+  } finally {
+    await fsp.rm(tmp, { recursive: true, force: true });
+  }
+}
+
+async function personalBackupApps() {
+  const serial = await adbSerial();
+  const root = await ensurePersonalDirs();
+  const names = Object.keys(CATALOG_PACKAGES);
+  let found = 0;
+  const saved = [];
+  for (let i = 0; i < names.length; i++) {
+    const pkg = names[i];
+    const stage = WIZARD_STAGING + '/catalog-backup.apk';
+    try {
+      const listed = await adbRun(['-s', serial, 'shell', 'pm', 'path', pkg], 60000);
+      const remote = catalogApkPath(listed);
+      if (!remote) continue;
+      found += 1;
+      await wizardHostSu(serial,
+        'mkdir -p ' + shellQuote(WIZARD_STAGING) +
+        ' && cp ' + shellQuote(remote) + ' ' + shellQuote(stage) +
+        ' && chmod 644 ' + shellQuote(stage),
+        120000);
+      const local = path.join(root, 'apps', pkg + '.apk');
+      await adbRun(['-s', serial, 'pull', stage, local], 180000);
+      const st = await fsp.stat(local);
+      if (!st.size) {
+        await fsp.rm(local, { force: true });
+        continue;
+      }
+      saved.push(pkg);
+    } catch (e) {
+      // One missing package should not drop the rest of the catalog.
+    } finally {
+      await adbRun(['-s', serial, 'shell', 'rm', '-f', stage], 30000).catch(function () {});
+    }
+  }
+  if (found && !saved.length) throw new Error('could not copy catalog apps');
+  return { ok: true, apps: saved.length };
+}
+
+async function personalRestoreApps() {
+  const serial = await adbSerial();
+  const appDir = path.join(personalRoot(), 'apps');
+  if (!fs.existsSync(appDir)) throw new Error('no catalog app copies saved');
+  const realRoot = await fsp.realpath(appDir);
+  const names = Object.keys(CATALOG_PACKAGES);
+  let installed = 0;
+  let present = 0;
+  const failed = [];
+  for (let i = 0; i < names.length; i++) {
+    const pkg = names[i];
+    const local = path.join(appDir, pkg + '.apk');
+    if (!fs.existsSync(local)) continue;
+    const real = await fsp.realpath(local);
+    if (real.indexOf(realRoot + path.sep) !== 0) continue;
+    present += 1;
+    const stage = WIZARD_STAGING + '/catalog-restore.apk';
+    let error = 'install failed';
+    try {
+      await wizardHostSu(serial, 'mkdir -p ' + shellQuote(WIZARD_STAGING), 60000);
+      await adbRun(['-s', serial, 'push', real, stage], 180000);
+      const out = await adbRun(
+        ['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote('pm install -r ' + shellQuote(stage))],
+        180000);
+      if (/Success/.test(out)) {
+        installed += 1;
+        continue;
+      }
+      const code = String(out).match(/INSTALL_FAILED_[A-Z0-9_]+/);
+      error = code ? code[0] : 'install failed';
+    } catch (e) {
+      const safe = publicError(e);
+      error = /INSTALL_FAILED_[A-Z0-9_]+/.test(safe) ? safe : 'install failed';
+    } finally {
+      await adbRun(['-s', serial, 'shell', 'rm', '-f', stage], 30000).catch(function () {});
+    }
+    failed.push({ packageName: pkg, error: error });
+  }
+  if (!present) throw new Error('no catalog app copies saved');
+  return { ok: failed.length === 0, installed: installed, failed: failed, apps: present };
+}
+
+ipcMain.handle('personal-backup-info', function () { return personalGuard(personalBackupInfo)(); });
+ipcMain.handle('personal-backup-contacts', function () { return personalGuard(personalBackupContacts)(); });
+ipcMain.handle('personal-backup-messages', function () { return personalGuard(personalBackupMessages)(); });
+ipcMain.handle('personal-backup-apps', function () { return personalGuard(personalBackupApps)(); });
+ipcMain.handle('personal-restore-contacts', function (_e, payload) { return personalGuard(personalRestoreContacts)(payload); });
+ipcMain.handle('personal-restore-messages', function (_e, payload) { return personalGuard(personalRestoreMessages)(payload); });
+ipcMain.handle('personal-restore-apps', function () { return personalGuard(personalRestoreApps)(); });
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -1107,6 +1654,7 @@ app.whenReady().then(function () {
   ipcMain.handle('wizard-host-uninstall-package', function (_e, payload) { return wizardHostUninstallPackage(payload); });
   ipcMain.handle('wizard-host-remove-module', function (_e, payload) { return wizardHostRemoveModule(payload); });
   ipcMain.handle('wizard-host-set-device-owner', function (_e, payload) { return wizardHostSetDeviceOwner(payload); });
+  ipcMain.handle('wizard-host-drop-root-adb', function (_e, payload) { return wizardHostDropRootAdb(payload); });
   createWindow();
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

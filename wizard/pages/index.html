@@ -28,6 +28,24 @@
   <span data-step="apps">Apps</span>
   <span data-step="prepare">Prepare</span>
 </nav>
+<div id="live-strip" class="now live" aria-live="polite">
+  <div class="now-row">
+    <span class="now-label">Phone</span>
+    <span id="strip-phone" class="status wait">Checking USB…</span>
+  </div>
+  <p id="strip-hint" class="now-hint">This bar stays on every page.</p>
+  <div id="strip-install-row" class="now-row hidden">
+    <span class="now-label">Install</span>
+    <span id="strip-install" class="status"></span>
+  </div>
+  <div id="strip-prepare" class="hidden">
+    <div class="now-row">
+      <span class="now-label">Prepare</span>
+      <span id="strip-prepare-label" class="status"></span>
+    </div>
+    <div class="watchbar"><div id="strip-prepare-bar"></div></div>
+  </div>
+</div>
 <main>
 
 <section class="step on" id="step-start">
@@ -70,8 +88,9 @@
         <li><b>Phone</b> must show <b>Accounts: none</b> (factory reset on the phone if not).</li>
         <li><b>Apps</b> → type <code>manage</code> → <b>Set device owner</b>.</li>
         <li>Reboot, then retry server / policy updates in Headwind.</li>
+        <li>Optional, last: <b>Apps</b> → type <code>unroot</code> to mark root modules and turn off USB debugging.</li>
       </ol>
-      <p class="workflow-outcome">Device owner is separate from Apply; install alone is not enough for full MDM sync.</p>
+      <p class="workflow-outcome">Device owner is separate from Apply. Removing root is last and ends the USB debugging connection.</p>
       <p class="workflow-actions">
         <button type="button" class="ghost small" data-goto-step="profile">Profile</button>
         <button type="button" class="ghost small" data-goto-step="apps">Apps</button>
@@ -117,14 +136,14 @@
 
 <section class="step" id="step-profile">
   <h2>Profile</h2>
-  <p>Base is the current install. Managed adds the pinned Headwind launcher. Secure is shown and cannot be selected. Apply installs what the profile lists. It does not remove extras and it does not wipe the phone.</p>
+  <p>Base is the current install. Managed adds the pinned Headwind launcher and Where, plus camera and browser flags. Secure is shown and cannot be selected. Apply installs what the profile lists. It does not remove extras and it does not wipe the phone.</p>
   <div id="profile-list"></div>
   <p id="profile-msg" class="status"></p>
 </section>
 
 <section class="step" id="step-apps">
   <h2>Apps</h2>
-  <p>Install or remove one catalog app, apply the selected profile, or run verify. Magisk modules install with Apply. Settings rows are part of Apply. Device owner is a separate step on Managed, after you type <code>manage</code>.</p>
+  <p>Install or remove one catalog app, apply the selected profile, or run verify. Magisk modules install with Apply. Settings rows are part of Apply. Device owner is a separate step on Managed, after you type <code>manage</code>. Removing root and turning off USB debugging is a separate last step on Base or Managed, after you type <code>unroot</code>.</p>
   <p class="apps-toolbar"><button type="button" id="apps-verify-top" class="ghost">Run verify</button></p>
   <div id="apps-rows"></div>
   <p><button type="button" id="apps-refresh" class="ghost">Refresh</button>
@@ -139,6 +158,29 @@
     <label class="inline">Type <b>manage</b>: <input id="apps-owner-input" autocomplete="off" size="8"></label>
     <p><button type="button" id="apps-owner-btn" disabled>Set device owner</button>
        <span id="apps-owner-msg" class="status"></span></p>
+  </div>
+  <div id="apps-unroot">
+    <h3>Remove root and USB debugging</h3>
+    <p class="warn">Last step. Apply and device owner still need root and USB debugging, so do this only when you are done managing the phone. This does not uninstall apps, does not wipe the phone, and does not restore the Magisk boot image.</p>
+    <p>Type <b>unroot</b> to mark the six Flip2 Magisk modules for removal and stop FlipMouse, then turn off USB debugging. On the phone afterward: Magisk, Uninstall, Restore Images, then reboot. Companion cannot turn USB debugging back on.</p>
+    <label class="inline">Type <b>unroot</b>: <input id="apps-unroot-input" autocomplete="off" size="8"></label>
+    <p><button type="button" id="apps-unroot-btn" disabled>Remove root and turn off USB debugging</button>
+       <span id="apps-unroot-msg" class="status"></span></p>
+  </div>
+  <div id="apps-backup">
+    <h3>Backup apps, contacts, and messages</h3>
+    <p>Saves catalog apps, contacts, and messages on this PC in <code>~/flip2-personal-backup</code>. Do this before removing root. Backup and restore need USB debugging and root. This does not wipe the phone, does not set device owner, and does not remove root. Messages are rebuilt without attachments. The call log is not included.</p>
+    <p id="apps-backup-info" class="note">No saved backup read yet.</p>
+    <p><button type="button" id="apps-backup-refresh" class="ghost">Refresh saved backup</button>
+       <button type="button" id="apps-backup-contacts">Backup contacts</button>
+       <button type="button" id="apps-backup-messages">Backup messages</button>
+       <button type="button" id="apps-backup-apps">Backup apps</button></p>
+    <p><button type="button" id="apps-restore-contacts">Restore saved contacts</button>
+       <button type="button" id="apps-restore-messages">Restore saved messages</button>
+       <button type="button" id="apps-restore-apps">Restore saved apps</button></p>
+    <p><button type="button" id="apps-restore-prewipe-contacts" class="ghost">Restore pre-wipe contacts</button>
+       <button type="button" id="apps-restore-prewipe-messages" class="ghost">Restore pre-wipe messages</button></p>
+    <p><span id="apps-backup-msg" class="status"></span></p>
   </div>
 </section>
 

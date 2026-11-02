@@ -9,7 +9,7 @@ Place these on the PC before **Managed → Apply** (Companion matches SHA-256):
 | Catalog id | File | Package |
 |------------|------|---------|
 | `headwind-launcher` | `~/Downloads/com.hmdm.launcher_15400.apk` | `com.hmdm.launcher` |
-| `where-app` | `~/Downloads/net.af0.where_1404.apk` | `net.af0.where` |
+| `where-app` | `~/Downloads/net.af0.where_1471.apk` | `net.af0.where` |
 
 Do **not** use `hmdm-6.40-os.apk` or cloud `hmdm-6.40-master.apk` over the pinned **15400** launcher.
 
@@ -21,6 +21,7 @@ Do **not** use `hmdm-6.40-os.apk` or cloud `hmdm-6.40-master.apk` over the pinne
 4. Reboot once if modules were placed.
 5. Apps → type **`manage`** → device owner (`com.hmdm.launcher/.AdminReceiver`). Only when **no accounts** on the device.
 6. Enroll in Headwind (QR / device id). Publish configuration from cloud.
+7. Optional, last: **Apps** → type **`unroot`**. This marks the six Flip2 Magisk modules for removal, stops FlipMouse, and turns off USB debugging. It does not uninstall apps, does not wipe the phone, and does not restore the Magisk boot image. Do this only when you are done managing the phone. After USB debugging is off, Headwind recovery over adb is gone. The same stage applies to Base. See [MANAGER.md](MANAGER.md).
 
 ## Headwind cloud — required for MDM installs
 
@@ -44,11 +45,17 @@ After Flip2 Apply installs Where, you may **omit** duplicate Where push from clo
 
 ## Browser / camera
 
-- **Headwind**: hide or block `org.chromium.chrome`, `com.mediatek.op07.browser`, `com.tcl.camera` in Applications.
-- **Flip2 Apply** does not disable stock apps; cloud policy or one-off `pm disable-user` as root if needed before DO.
+On the Profile tab, with **Managed** selected, two flags default on:
+
+- **Disable camera** — `pm disable-user --user 0 com.tcl.camera`
+- **Disable browsers** — the same for `org.chromium.chrome` and `com.mediatek.op07.browser`
+
+Apply writes `block_camera` / `block_browser` into `/data/local/flip2/profile.list`. Unchecking a flag writes `enable_camera` or `enable_browser` and the next Apply runs `pm enable`. The packages stay installed. Headwind cloud can still hide the same apps later; these flags are the local Apply path and do not set device owner.
 
 ## Lockout recovery
 
 MDM password lockout with **adb unauthorized**: factory reset from recovery (**Volume up + Power** → Wipe data). See [RESTORE-CONTACTS-SMS.md](RESTORE-CONTACTS-SMS.md) after reset.
 
 Break-glass without wipe (root): [HEADWIND-MDM-RECOVERY.md](HEADWIND-MDM-RECOVERY.md).
+
+After **Apps → unroot**, USB debugging is off and that adb path is gone. Lockout recovery is then a factory reset on the phone.

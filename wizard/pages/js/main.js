@@ -15,8 +15,35 @@ var VERIFY_RAN_ONCE = false;  // unlock footer advanced links after first verify
 
 function $(id) { return document.getElementById(id); }
 
+var shownStep = null;
+
+var PREPARE_LABELS = {
+  credit: 'Credits',
+  download: 'Files',
+  udev: 'USB rules',
+  usb: 'USB debugging',
+  install: 'Install',
+  verify: 'Verify'
+};
+
+function updatePrepareStrip(name) {
+  var row = $('strip-prepare');
+  var bar = $('strip-prepare-bar');
+  if (!row || !bar) return;
+  var idx = PREPARE.indexOf(name);
+  if (idx < 0) {
+    row.classList.add('hidden');
+    return;
+  }
+  row.classList.remove('hidden');
+  setStatus('strip-prepare-label',
+    (idx + 1) + ' of ' + PREPARE.length + ' - ' + (PREPARE_LABELS[name] || name), '');
+  bar.style.width = Math.round(((idx + 1) / PREPARE.length) * 100) + '%';
+}
+
 function showStep(name) {
   if (name === 'prepare') name = 'credit';
+  var prev = shownStep;
   var prepare = PREPARE.indexOf(name) >= 0;
   var pill = prepare ? 'prepare' : name;
   var i = ORDER.indexOf(pill), n;
@@ -49,7 +76,11 @@ function showStep(name) {
       el.classList.remove('on');
     }
   });
-  window.scrollTo(0, 0);
+  shownStep = name;
+  updatePrepareStrip(name);
+  // Prepare is one flow. Jumping to the top on every subsection is what made
+  // the page feel like a new screen with the wrong instructions.
+  if (!(prepare && prev && PREPARE.indexOf(prev) >= 0)) window.scrollTo(0, 0);
 }
 
 function setStatus(id, text, cls) {
@@ -86,7 +117,17 @@ function isBenignInstallError(msg) {
   return false;
 }
 
+function setStripInstall(text, cls) {
+  var row = $('strip-install-row');
+  if (row) row.classList.remove('hidden');
+  setStatus('strip-install', text, cls);
+}
+
 function maybeRecoverInstallAfterFailure(errMsg, log) {
+  // A real install.sh failure, including an ABI mismatch or a nonzero adb
+  // exit that does not say FAIL:, is the answer. Verify would only append
+  // unrelated speech-model lines under that error.
+  if (!isBenignInstallError(errMsg)) return Promise.resolve(false);
   var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostVerify;
   if (!useHost || !VERIFY_SH) return Promise.resolve(false);
   log('checking whether install actually succeeded (verify probe)…');
@@ -99,12 +140,16 @@ function maybeRecoverInstallAfterFailure(errMsg, log) {
 }
 
 function markInstallSuccess(msg) {
-  setStatus('inst-msg', msg || 'Install complete.', 'ok');
+  var text = msg || 'Install complete.';
+  setStatus('inst-msg', text, 'ok');
   var next = $('inst-next');
   next.classList.remove('hidden');
   next.disabled = false;
   var skip = $('inst-skip-verify');
   if (skip) skip.classList.add('hidden');
+  var hint = $('inst-wipe-hint');
+  if (hint) hint.classList.add('hidden');
+  setStripInstall(text, 'ok');
 }
 
 function runPushAndInstall() {
@@ -117,7 +162,9 @@ function runPushAndInstall() {
     }
   });
   if (missing.length) {
-    setStatus('inst-msg', 'Verify under Prepare, Files, first: ' + missing.join(', '), 'bad');
+    var missingMsg = 'Verify under Prepare, Files, first: ' + missing.join(', ');
+    setStatus('inst-msg', missingMsg, 'bad');
+    setStripInstall(missingMsg, 'bad');
     return;
   }
   var files = {};
@@ -128,13 +175,17 @@ function runPushAndInstall() {
   var next = $('inst-next');
   next.disabled = true;
   next.classList.add('hidden');
+  var wipeHint = $('inst-wipe-hint');
+  if (wipeHint) wipeHint.classList.add('hidden');
   setStatus('inst-msg', 'building push set…', 'wait');
+  setStripInstall('Install running', 'wait');
   var log = makeLog('inst-log');
   var pushSet;
   try {
     pushSet = PIPE.buildPushSet(files, PROFILES.componentIds());
   } catch (e) {
     setStatus('inst-msg', e.message, 'bad');
+    setStripInstall(e.message, 'bad');
     $('inst-retry').classList.remove('hidden');
     $('inst-btn').disabled = false;
     return;
@@ -142,17 +193,20 @@ function runPushAndInstall() {
   var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostPrepare;
   if (!useHost && PROFILES.selectedId === 'managed') {
     setStatus('inst-msg', 'managed Apply requires Flip 2 Companion', 'bad');
+    setStripInstall('managed Apply requires Flip 2 Companion', 'bad');
     $('inst-retry').classList.remove('hidden');
     $('inst-btn').disabled = false;
     return;
   }
   if (!useHost) {
     setStatus('inst-msg', 'pushing ' + Object.keys(pushSet).length + ' files…', 'wait');
+    setStripInstall('Install running', 'wait');
   }
   var installShText = typeof INSTALL_SH === 'string' ? INSTALL_SH : new TextDecoder().decode(INSTALL_SH);
   var pushP = useHost
     ? PIPE.hostPushAndInstall(pushSet, installShText, log, PROFILES.profileText(), function (text) {
         setStatus('inst-msg', text, 'wait');
+        setStripInstall(text, 'wait');
       })
     : PIPE.pushAndInstall(pushSet, INSTALL_SH, log);
   var cleanP = useHost ? PIPE.hostCleanup(log) : PIPE.cleanup(log);
@@ -162,19 +216,21 @@ function runPushAndInstall() {
     markInstallSuccess('Install complete.');
   }).catch(function (e) {
     var errMsg = e.message || String(e);
+    var benign = isBenignInstallError(errMsg);
     setStatus('inst-msg', errMsg, 'bad');
+    setStripInstall(errMsg, 'bad');
     $('inst-retry').classList.remove('hidden');
     var skip = $('inst-skip-verify');
     var hint = $('inst-wipe-hint');
-    if (skip) skip.classList.remove('hidden');
-    if (hint) hint.classList.remove('hidden');
+    if (skip) skip.classList.toggle('hidden', !benign);
+    if (hint) hint.classList.add('hidden');
     return maybeRecoverInstallAfterFailure(errMsg, log).then(function (recovered) {
       if (recovered) {
         markInstallSuccess('Install reported an error, but verify passed — continuing.');
         unlockAdvancedFooter();
         return;
       }
-      if (isBenignInstallError(errMsg)) {
+      if (benign) {
         log('note: this error is often harmless after a successful install — use Continue to verify anyway');
       }
     });
@@ -749,6 +805,10 @@ var PHONE_VIEW = {
               hint: 'Hold the power button for about 10 seconds until it restarts, then let Android come up.' },
   conflict: { box: 'bad',    cls: 'bad',  label: 'two phone modes at once',
               hint: 'Unplug any other phone, then wait for this panel to settle.' },
+  recovery: { box: 'bad',    cls: 'bad',  label: 'recovery, not a flash mode',
+              hint: 'Reboot the phone to Android. Do not flash from this screen.' },
+  mtp:      { box: 'live',   cls: 'wait', label: 'file transfer only',
+              hint: 'Switch the USB mode or turn on USB debugging. This is not a flash mode.' },
   unknown:  { box: 'bad',    cls: 'bad',  label: 'cannot read USB',
               hint: 'The companion could not list USB devices.' }
 };
@@ -932,6 +992,136 @@ function pollPhoneState() {
 
 var watchTimer = null;
 var phonePoller = null;
+var stripPoller = null;
+var stripGen = 0;
+var stripShownMode = null;
+var stripPendingMode = null;
+var stripPendingSince = 0;
+var stripReadyInFlight = false;
+var stripLastReady = null;
+var STRIP_SETTLE_MS = 900;
+
+// Everyday copy. The rooting panel still owns the battery-pull wording.
+var STRIP_COPY = {
+  absent: { box: 'live', cls: 'wait', label: 'no Flip2 on USB',
+    hint: 'Plug the phone in. This bar stays on every page.' },
+  recovery: { box: 'bad', cls: 'bad', label: 'recovery',
+    hint: 'Reboot the phone to Android. Do not flash from this screen.' },
+  mtp: { box: 'live', cls: 'wait', label: 'file transfer only',
+    hint: 'Switch the USB mode or turn on USB debugging. This is not a flash mode.' },
+  preloader: { box: 'bad', cls: 'bad', label: 'preloader',
+    hint: 'The phone is in the preloader. Power it back to Android. Do not flash from this screen.' },
+  fastboot: { box: 'bad', cls: 'bad', label: 'fastboot',
+    hint: 'The phone is in fastboot. Reboot it to Android. Do not flash from this screen.' },
+  bootrom: { box: 'bad', cls: 'bad', label: 'bootrom',
+    hint: 'The phone is in the bootrom. Power it back to Android. Do not flash from this screen.' },
+  stuck: { box: 'bad', cls: 'bad', label: 'not in Android',
+    hint: 'Power-cycle the phone back to Android. Do not flash from this screen.' },
+  conflict: { box: 'bad', cls: 'bad', label: 'more than one phone',
+    hint: 'Unplug the other phone so only one Flip2 is on USB.' },
+  unknown: { box: 'live', cls: 'wait', label: 'USB not recognized',
+    hint: 'Companion could not match this USB device.' }
+};
+
+function setStripBox(box) {
+  var strip = $('live-strip');
+  if (!strip) return;
+  strip.classList.remove('live', 'caught', 'bad');
+  strip.classList.add(box || 'live');
+}
+
+function paintStripPhone(mode, ready) {
+  var copy = STRIP_COPY[mode] || STRIP_COPY.unknown;
+  var label = copy.label;
+  var hint = copy.hint;
+  var cls = copy.cls;
+  var box = copy.box;
+  if (mode === 'android') {
+    if (ready && ready.ok) {
+      label = 'phone ready';
+      hint = 'USB debugging is allowed. Phone, Profile, Apps, and Prepare stay available. This bar stays on every page.';
+      cls = 'ok';
+      box = 'caught';
+    } else if (ready && ready.checking) {
+      label = 'checking USB debugging';
+      hint = 'Android is on USB. Companion is checking whether debugging is allowed. This is not a wipe.';
+      cls = 'wait';
+      box = 'live';
+    } else {
+      label = 'accept the debugging prompt';
+      hint = 'Android is on USB, but adb is not allowed yet. Accept the prompt on the phone. This is not a wipe.';
+      cls = 'wait';
+      box = 'live';
+    }
+  }
+  setStatus('strip-phone', label, cls);
+  var hintEl = $('strip-hint');
+  if (hintEl) hintEl.textContent = hint;
+  setStripBox(box);
+}
+
+function pollStripPhone() {
+  var N = window.FLIP2_NATIVE;
+  if (!N || !N.phoneState) {
+    setStatus('strip-phone', 'needs Flip 2 Companion', 'wait');
+    var plain = $('strip-hint');
+    if (plain) plain.textContent = 'Open this page in Flip 2 Companion to see the live phone status.';
+    setStripBox('live');
+    return;
+  }
+  var gen = ++stripGen;
+  N.phoneState().then(function (state) {
+    if (gen !== stripGen) return;
+    var mode = (state && state.mode) || 'unknown';
+    var now = Date.now();
+    if (mode !== stripShownMode) {
+      if (mode !== stripPendingMode) {
+        stripPendingMode = mode;
+        stripPendingSince = now;
+      }
+      if (stripShownMode && (now - stripPendingSince) < STRIP_SETTLE_MS) return;
+    }
+    stripShownMode = mode;
+    stripPendingMode = mode;
+    if (mode !== 'android') {
+      stripLastReady = null;
+      paintStripPhone(mode, null);
+      return;
+    }
+    if (!N.wizardHostAdbReady) {
+      paintStripPhone('android', { ok: false });
+      return;
+    }
+    // A one-second tick must not cancel an adb check that is still running,
+    // and it must not paint "phone ready" from the USB mode alone.
+    paintStripPhone('android', stripLastReady || { checking: true });
+    if (stripReadyInFlight) return;
+    stripReadyInFlight = true;
+    N.wizardHostAdbReady().then(function (ready) {
+      stripReadyInFlight = false;
+      if (stripShownMode !== 'android') return;
+      stripLastReady = (ready && ready.ok) ? { ok: true } : { ok: false };
+      paintStripPhone('android', stripLastReady);
+    }).catch(function () {
+      stripReadyInFlight = false;
+      if (stripShownMode !== 'android') return;
+      stripLastReady = { ok: false };
+      paintStripPhone('android', stripLastReady);
+    });
+  }).catch(function () {
+    if (gen !== stripGen) return;
+    setStatus('strip-phone', 'cannot read USB', 'bad');
+    var hintEl = $('strip-hint');
+    if (hintEl) hintEl.textContent = 'Companion could not list USB devices.';
+    setStripBox('bad');
+  });
+}
+
+function startStripPoller() {
+  pollStripPhone();
+  if (stripPoller) clearInterval(stripPoller);
+  stripPoller = setInterval(pollStripPhone, 1000);
+}
 
 function startWatchClock() {
   var started = Date.now();
@@ -1576,6 +1766,8 @@ function init() {
     initPhone();
     initProfile();
     initApps();
+    if (typeof initPersonalBackup === 'function') initPersonalBackup();
+    startStripPoller();
     if (window.FLIP2_NATIVE) {
       unlockAdvancedFooter();
       var fw = $('footer-wipe-always');

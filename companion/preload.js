@@ -30,4 +30,12 @@ contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
   wizardHostUninstallPackage: function (payload) { return ipcRenderer.invoke('wizard-host-uninstall-package', payload); },
   wizardHostRemoveModule: function (payload) { return ipcRenderer.invoke('wizard-host-remove-module', payload); },
   wizardHostSetDeviceOwner: function (payload) { return ipcRenderer.invoke('wizard-host-set-device-owner', payload); },
+  wizardHostDropRootAdb: function (payload) { return ipcRenderer.invoke('wizard-host-drop-root-adb', payload); },
+  personalBackupInfo: function () { return ipcRenderer.invoke('personal-backup-info'); },
+  personalBackupContacts: function () { return ipcRenderer.invoke('personal-backup-contacts'); },
+  personalBackupMessages: function () { return ipcRenderer.invoke('personal-backup-messages'); },
+  personalBackupApps: function () { return ipcRenderer.invoke('personal-backup-apps'); },
+  personalRestoreContacts: function (payload) { return ipcRenderer.invoke('personal-restore-contacts', payload); },
+  personalRestoreMessages: function (payload) { return ipcRenderer.invoke('personal-restore-messages', payload); },
+  personalRestoreApps: function () { return ipcRenderer.invoke('personal-restore-apps'); },
 });

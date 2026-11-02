@@ -37,7 +37,9 @@ want() {
   local comp line
   comp=$1
   if [ ! -f "$PROFILE" ]; then
-    [ "$comp" = "headwind" ] || [ "$comp" = "where" ] && return 1
+    case "$comp" in
+      headwind|where|block_camera|enable_camera|block_browser|enable_browser) return 1 ;;
+    esac
     return 0
   fi
   while IFS= read -r line || [ -n "$line" ]; do
@@ -194,6 +196,59 @@ if want where; then
   check "Where installed" pm path net.af0.where
 else
   echo "NOTE: skip where"
+fi
+
+# enabled=3 is disabled for the user. enabled=0/1 is on.
+pkg_user_disabled() {
+  dumpsys package "$1" 2>/dev/null | grep -q 'enabled=3'
+}
+
+if want block_camera; then
+  if pm path com.tcl.camera >/dev/null 2>&1 && pkg_user_disabled com.tcl.camera; then
+    echo "PASS: camera disabled"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: camera disabled"
+    FAILS=$((FAILS + 1))
+  fi
+elif want enable_camera; then
+  if pm path com.tcl.camera >/dev/null 2>&1 && ! pkg_user_disabled com.tcl.camera; then
+    echo "PASS: camera enabled"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: camera enabled"
+    FAILS=$((FAILS + 1))
+  fi
+else
+  echo "NOTE: skip camera"
+fi
+
+if want block_browser; then
+  for pkg in org.chromium.chrome com.mediatek.op07.browser; do
+    if pm path "$pkg" >/dev/null 2>&1 && pkg_user_disabled "$pkg"; then
+      echo "PASS: $pkg disabled"
+      PASS=$((PASS + 1))
+    elif ! pm path "$pkg" >/dev/null 2>&1; then
+      echo "NOTE: $pkg not installed"
+    else
+      echo "FAIL: $pkg disabled"
+      FAILS=$((FAILS + 1))
+    fi
+  done
+elif want enable_browser; then
+  for pkg in org.chromium.chrome com.mediatek.op07.browser; do
+    if pm path "$pkg" >/dev/null 2>&1 && ! pkg_user_disabled "$pkg"; then
+      echo "PASS: $pkg enabled"
+      PASS=$((PASS + 1))
+    elif ! pm path "$pkg" >/dev/null 2>&1; then
+      echo "NOTE: $pkg not installed"
+    else
+      echo "FAIL: $pkg enabled"
+      FAILS=$((FAILS + 1))
+    fi
+  done
+else
+  echo "NOTE: skip browser"
 fi
 
 # --- Speech models exist (Whisper bin in both langs, Vosk am/conf/graph) -----

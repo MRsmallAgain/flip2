@@ -104,6 +104,95 @@ function setPhoneNext(html, show) {
   el.classList.remove('hidden');
 }
 
+function phoneNotReadyCopy(mode) {
+  if (mode === 'recovery') {
+    return {
+      fact: 'recovery',
+      cls: 'bad',
+      status: 'The phone is in recovery.',
+      next: 'Reboot the phone to Android. Do not flash from this screen.'
+    };
+  }
+  if (mode === 'mtp') {
+    return {
+      fact: 'file transfer only',
+      cls: 'wait',
+      status: 'USB is file transfer only.',
+      next: 'Switch the USB mode or turn on USB debugging. This is not a flash mode.'
+    };
+  }
+  if (mode === 'android') {
+    return {
+      fact: 'accept the debugging prompt',
+      cls: 'wait',
+      status: 'Accept the USB debugging prompt on the phone.',
+      next: 'Android is on USB, but adb is not allowed yet. Accept the prompt on the phone, then press <b>Refresh</b>. This is not a wipe.'
+    };
+  }
+  if (mode === 'preloader') {
+    return {
+      fact: 'preloader',
+      cls: 'bad',
+      status: 'The phone is in the preloader.',
+      next: 'Power the phone back to Android. Do not flash from this screen.'
+    };
+  }
+  if (mode === 'fastboot') {
+    return {
+      fact: 'fastboot',
+      cls: 'bad',
+      status: 'The phone is in fastboot.',
+      next: 'Reboot the phone to Android. Do not flash from this screen.'
+    };
+  }
+  if (mode === 'bootrom') {
+    return {
+      fact: 'bootrom',
+      cls: 'bad',
+      status: 'The phone is in the bootrom.',
+      next: 'Power the phone back to Android. Do not flash from this screen.'
+    };
+  }
+  if (mode === 'stuck') {
+    return {
+      fact: 'not in Android',
+      cls: 'bad',
+      status: 'The phone is not in Android.',
+      next: 'Power-cycle the phone back to Android. Do not flash from this screen.'
+    };
+  }
+  if (mode === 'conflict') {
+    return {
+      fact: 'more than one phone',
+      cls: 'bad',
+      status: 'More than one phone is on USB.',
+      next: 'Unplug the other phone so only one Flip2 is on USB.'
+    };
+  }
+  if (mode === 'absent') {
+    return {
+      fact: 'no Flip2 on USB',
+      cls: 'wait',
+      status: 'No Flip2 on USB.',
+      next: 'Plug the phone in, then press <b>Refresh</b>.'
+    };
+  }
+  if (mode === 'unknown') {
+    return {
+      fact: 'USB not recognized',
+      cls: 'wait',
+      status: 'Companion could not match this USB device.',
+      next: 'Companion could not match this USB device.'
+    };
+  }
+  return {
+    fact: 'not ready',
+    cls: 'bad',
+    status: 'Phone not ready.',
+    next: 'Plug in USB, accept the debugging prompt on the phone, then press <b>Refresh</b>. If adb still fails, open <b>USB debugging</b> or <b>USB rules</b> under Prepare.'
+  };
+}
+
 function refreshPhone() {
   var box = $('phone-facts');
   if (!box) return;
@@ -119,12 +208,17 @@ function refreshPhone() {
   setStatus('phone-msg', 'reading the phone\u2026', 'wait');
   N.wizardHostAdbReady().then(function (ready) {
     if (!ready || !ready.ok) {
-      factRow(box, 'USB', (ready && ready.message) || 'not ready', 'bad');
-      setStatus('phone-msg', (ready && ready.message) || 'Phone not ready.', 'bad');
-      setPhoneNext(
-        'Plug in USB, accept the debugging prompt on the phone, then press <b>Refresh</b>. If adb still fails, open <b>USB debugging</b> or <b>USB rules</b> under Prepare.',
-        true);
-      return;
+      var describe = (N.phoneState ? N.phoneState() : Promise.resolve(null)).then(function (state) {
+        return (state && state.mode) || 'unknown';
+      }, function () {
+        return 'unknown';
+      });
+      return describe.then(function (mode) {
+        var copy = phoneNotReadyCopy(mode);
+        factRow(box, 'USB', copy.fact, copy.cls);
+        setStatus('phone-msg', copy.status, copy.cls);
+        setPhoneNext(copy.next, true);
+      });
     }
     factRow(box, 'Serial', ready.serial || '(unknown)', 'ok');
     return Promise.all([
@@ -209,6 +303,38 @@ function renderProfiles() {
     box.appendChild(card);
   });
   var cur = PROFILES.selected();
+  if (cur && cur.flags && cur.flags.length && cur.enabled !== false) {
+    var flags = document.createElement('div');
+    flags.className = 'profile-flags';
+    var heading = document.createElement('p');
+    heading.className = 'note';
+    heading.textContent = 'Managed Apply writes these choices into profile.list. Checked disables the package for this user. Unchecked enables it again. The APK stays installed.';
+    flags.appendChild(heading);
+    cur.flags.forEach(function (f) {
+      var lab = document.createElement('label');
+      lab.className = 'profile-flag';
+      var input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = PROFILES.flagState[f.id] !== false;
+      input.addEventListener('change', function () {
+        PROFILES.setFlag(f.id, input.checked);
+      });
+      lab.appendChild(input);
+      var text = document.createElement('span');
+      var strong = document.createElement('strong');
+      strong.textContent = f.label || f.id;
+      text.appendChild(strong);
+      if (f.detail) {
+        var detail = document.createElement('span');
+        detail.className = 'profile-flag-detail';
+        detail.textContent = f.detail;
+        text.appendChild(detail);
+      }
+      lab.appendChild(text);
+      flags.appendChild(lab);
+    });
+    box.appendChild(flags);
+  }
   var label = cur ? profileLabel(cur) : PROFILES.selectedId;
   var note = $('inst-profile-note');
   if (note) {
@@ -497,6 +623,31 @@ function setDeviceOwner() {
   });
 }
 
+function dropRootAdb() {
+  var N = window.FLIP2_NATIVE;
+  var btn = $('apps-unroot-btn');
+  if (!N || !N.wizardHostDropRootAdb) {
+    setStatus('apps-unroot-msg', 'removing root requires Flip 2 Companion', 'bad');
+    return;
+  }
+  if ($('apps-unroot-input').value.trim() !== 'unroot') return;
+  if (!appsLock()) return;
+  btn.disabled = true;
+  setStatus('apps-unroot-msg', 'removing root and turning off USB debugging\u2026', 'wait');
+  N.wizardHostDropRootAdb({ confirm: 'unroot' }).then(function (r) {
+    if (!r || r.ok === false) {
+      setStatus('apps-unroot-msg', (r && r.error) || 'root was not removed', 'bad');
+      return;
+    }
+    setStatus('apps-unroot-msg', r.message || 'Root modules were marked and USB debugging was turned off.', 'ok');
+  }).catch(function (e) {
+    setStatus('apps-unroot-msg', cleanErr(e), 'bad');
+  }).then(function () {
+    appsUnlock();
+    btn.disabled = $('apps-unroot-input').value.trim() !== 'unroot';
+  });
+}
+
 function runAppsVerify() {
   showStep('verify');
   if (!VERIFY_SH) {
@@ -523,5 +674,197 @@ function initApps() {
     obtn.disabled = input.value.trim() !== 'manage';
   });
   obtn.addEventListener('click', setDeviceOwner);
+  var unrootInput = $('apps-unroot-input');
+  var unrootBtn = $('apps-unroot-btn');
+  unrootInput.addEventListener('input', function () {
+    unrootBtn.disabled = unrootInput.value.trim() !== 'unroot';
+  });
+  unrootBtn.addEventListener('click', dropRootAdb);
   refreshAppsStatus();
+}
+
+function initPersonalBackup() {
+  var N = window.FLIP2_NATIVE || {};
+  var savedInfoGen = 0;
+
+  function ntext(n) {
+    return (typeof n === 'number' && isFinite(n) && Math.floor(n) === n) ? String(n) : '?';
+  }
+
+  function contactsCounts(c) {
+    if (!c) return 'none saved';
+    return ntext(c.named) + ' named, ' + ntext(c.blankNames) + ' blank, ' + ntext(c.data) + ' data';
+  }
+
+  function messagesCounts(m) {
+    if (!m) return 'none saved';
+    return ntext(m.sms) + ' sms, ' + ntext(m.threads) + ' threads, ' + ntext(m.inbox) + ' inbox, ' + ntext(m.sent) + ' sent';
+  }
+
+  function say(text, cls) {
+    setStatus('apps-backup-msg', text, cls);
+  }
+
+  function failText(r) {
+    var parts = [];
+    var i;
+    if (r && typeof r.error === 'string' && r.error) parts.push(r.error);
+    if (r && typeof r.installed === 'number' && r.failed && r.failed.length) {
+      parts.push(ntext(r.installed) + ' installed');
+    }
+    if (r && r.failed && r.failed.length) {
+      for (i = 0; i < r.failed.length; i++) {
+        var item = r.failed[i] || {};
+        var name = (typeof item.packageName === 'string' && item.packageName) ? item.packageName : 'package';
+        var err = (typeof item.error === 'string' && item.error) ? item.error : 'install failed';
+        parts.push(name + ': ' + err);
+      }
+    }
+    return parts.length ? parts.join('. ') : 'personal backup failed';
+  }
+
+  function paintBackupInfo(r) {
+    var info = $('apps-backup-info');
+    if (!info) return;
+    if (!r || r.ok === false) {
+      info.textContent = (r && typeof r.error === 'string' && r.error) ? r.error : 'No saved backup read yet.';
+      return;
+    }
+    info.textContent = 'Contacts: ' + contactsCounts(r.contacts) +
+      '. Messages: ' + messagesCounts(r.messages) +
+      '. Apps: ' + ntext(r.apps) +
+      '. Pre-wipe readable backup: ' + (r.prewipe ? 'yes' : 'no') + '.';
+  }
+
+  function refreshSaved(fromClick) {
+    var info = $('apps-backup-info');
+    if (typeof N.personalBackupInfo !== 'function') {
+      if (info) info.textContent = 'Open this page in Flip 2 Companion. Relaunch Companion if this window was already open.';
+      return;
+    }
+    var gen = ++savedInfoGen;
+    if (fromClick && !appsBusy) say('Reading the saved backup\u2026', 'wait');
+    N.personalBackupInfo().then(function (r) {
+      if (gen !== savedInfoGen) return;
+      paintBackupInfo(r);
+      if (!fromClick || appsBusy) return;
+      if (!r || r.ok === false) say(failText(r), 'bad');
+      else say('Saved backup updated.', 'ok');
+    }).catch(function (e) {
+      if (gen !== savedInfoGen) return;
+      var msg = cleanErr(e);
+      if (info) info.textContent = msg;
+      if (fromClick && !appsBusy) say(msg, 'bad');
+    });
+  }
+
+  function arm(id, methodName) {
+    var btn = $(id);
+    if (!btn) return null;
+    if (typeof N[methodName] !== 'function') {
+      btn.disabled = true;
+      return null;
+    }
+    return btn;
+  }
+
+  function runPersonal(btn, waitText, call, okText) {
+    if (!btn || btn.disabled) return;
+    if (!appsLock()) {
+      say('Another Apps action is still running.', 'wait');
+      return;
+    }
+    btn.disabled = true;
+    say(waitText, 'wait');
+    Promise.resolve().then(call).then(function (r) {
+      if (!r || r.ok === false) {
+        say(failText(r), 'bad');
+        return;
+      }
+      say(okText(r), 'ok');
+    }).catch(function (e) {
+      say(cleanErr(e), 'bad');
+    }).then(function () {
+      appsUnlock();
+      btn.disabled = false;
+      refreshSaved(false);
+    });
+  }
+
+  var refreshBtn = arm('apps-backup-refresh', 'personalBackupInfo');
+  if (refreshBtn) refreshBtn.addEventListener('click', function () { refreshSaved(true); });
+
+  var backupContacts = arm('apps-backup-contacts', 'personalBackupContacts');
+  if (backupContacts) backupContacts.addEventListener('click', function () {
+    runPersonal(backupContacts, 'Backing up contacts\u2026', function () {
+      return N.personalBackupContacts();
+    }, function (r) {
+      return 'Contacts saved. ' + contactsCounts(r.contacts) + '.';
+    });
+  });
+
+  var backupMessages = arm('apps-backup-messages', 'personalBackupMessages');
+  if (backupMessages) backupMessages.addEventListener('click', function () {
+    runPersonal(backupMessages, 'Backing up messages\u2026', function () {
+      return N.personalBackupMessages();
+    }, function (r) {
+      return 'Messages saved. ' + messagesCounts(r.messages) + '.';
+    });
+  });
+
+  var backupApps = arm('apps-backup-apps', 'personalBackupApps');
+  if (backupApps) backupApps.addEventListener('click', function () {
+    runPersonal(backupApps, 'Backing up apps\u2026', function () {
+      return N.personalBackupApps();
+    }, function (r) {
+      return 'Apps saved: ' + ntext(r.apps) + '.';
+    });
+  });
+
+  var restoreContacts = arm('apps-restore-contacts', 'personalRestoreContacts');
+  if (restoreContacts) restoreContacts.addEventListener('click', function () {
+    runPersonal(restoreContacts, 'Restoring saved contacts\u2026', function () {
+      return N.personalRestoreContacts({ source: 'saved' });
+    }, function (r) {
+      return 'Contacts restored. ' + contactsCounts(r.contacts) + '.';
+    });
+  });
+
+  var restoreMessages = arm('apps-restore-messages', 'personalRestoreMessages');
+  if (restoreMessages) restoreMessages.addEventListener('click', function () {
+    runPersonal(restoreMessages, 'Restoring saved messages\u2026', function () {
+      return N.personalRestoreMessages({ source: 'saved' });
+    }, function (r) {
+      return 'Messages restored. ' + messagesCounts(r.messages) + '.';
+    });
+  });
+
+  var restoreApps = arm('apps-restore-apps', 'personalRestoreApps');
+  if (restoreApps) restoreApps.addEventListener('click', function () {
+    runPersonal(restoreApps, 'Restoring saved apps\u2026', function () {
+      return N.personalRestoreApps();
+    }, function (r) {
+      return 'Apps restored. ' + ntext(r.installed) + ' installed.';
+    });
+  });
+
+  var prewipeContacts = arm('apps-restore-prewipe-contacts', 'personalRestoreContacts');
+  if (prewipeContacts) prewipeContacts.addEventListener('click', function () {
+    runPersonal(prewipeContacts, 'Restoring pre-wipe contacts\u2026', function () {
+      return N.personalRestoreContacts({ source: 'prewipe' });
+    }, function (r) {
+      return 'Pre-wipe contacts restored. ' + contactsCounts(r.contacts) + '.';
+    });
+  });
+
+  var prewipeMessages = arm('apps-restore-prewipe-messages', 'personalRestoreMessages');
+  if (prewipeMessages) prewipeMessages.addEventListener('click', function () {
+    runPersonal(prewipeMessages, 'Restoring pre-wipe messages\u2026', function () {
+      return N.personalRestoreMessages({ source: 'prewipe' });
+    }, function (r) {
+      return 'Pre-wipe messages restored. ' + messagesCounts(r.messages) + '.';
+    });
+  });
+
+  refreshSaved(false);
 }

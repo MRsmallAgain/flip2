@@ -66,7 +66,9 @@ want() {
   local comp line
   comp=$1
   if [ ! -f "$PROFILE" ]; then
-    [ "$comp" = "headwind" ] || [ "$comp" = "where" ] && return 1
+    case "$comp" in
+      headwind|where|block_camera|enable_camera|block_browser|enable_browser) return 1 ;;
+    esac
     return 0
   fi
   while IFS= read -r line || [ -n "$line" ]; do
@@ -263,6 +265,41 @@ if want where; then
   install_apk where.apk net.af0.where
 else
   echo "NOTE: skip where"
+fi
+
+# Managed flags. A missing line does nothing. block_* disables the user copy;
+# enable_* turns it back on. Packages stay installed either way.
+set_user_pkg() {
+  pkg=$1; mode=$2
+  if ! pm path "$pkg" >/dev/null 2>&1; then
+    echo "NOTE: $pkg not installed"
+    return 0
+  fi
+  if [ "$mode" = disable ]; then
+    pm disable-user --user 0 "$pkg" >/dev/null 2>&1 || fail "could not disable $pkg"
+    ok "disabled $pkg"
+  else
+    pm enable "$pkg" >/dev/null 2>&1 || fail "could not enable $pkg"
+    ok "enabled $pkg"
+  fi
+}
+
+if want block_camera; then
+  set_user_pkg com.tcl.camera disable
+elif want enable_camera; then
+  set_user_pkg com.tcl.camera enable
+else
+  echo "NOTE: skip camera"
+fi
+
+if want block_browser; then
+  set_user_pkg org.chromium.chrome disable
+  set_user_pkg com.mediatek.op07.browser disable
+elif want enable_browser; then
+  set_user_pkg org.chromium.chrome enable
+  set_user_pkg com.mediatek.op07.browser enable
+else
+  echo "NOTE: skip browser"
 fi
 
 # --- Whisper ggml: one multilingual bin serves both lang dirs --------------
