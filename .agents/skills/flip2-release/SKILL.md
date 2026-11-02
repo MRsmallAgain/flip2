@@ -19,17 +19,21 @@ Do this only after the device tree you intend to ship is committed. Skills and d
 ```bash
 flip2 installer pack --flavor full
 flip2 installer pack --flavor clean
+flip2 installer pack --flavor image-post
 flip2 pack-all
 flip2 image build-tree
 ```
 
-`pack-all` writes `pipeline/deploy/dist/flip2-packages-<version>/` plus an inner `SHA256SUMS`. `image build-tree` writes `pipeline/deploy/dist/flip2-system-tree/`. Zip those two directories yourself (`flip2-packages-<version>.zip`, `flip2-system-tree-<version>.zip`). The installer zips are already `flip2-installer-full-magisk.zip` and `flip2-installer-clean-magisk.zip`.
+Optional before `image build-tree` for system FlipMouse: `flip2 flipmouse build-system` (see docs/FLIPMOUSE-SYSTEM.md).
 
-Outer checksum file, same four names as the GitHub assets:
+`pack-all` writes `pipeline/deploy/dist/flip2-packages-<version>/` plus an inner `SHA256SUMS`. `image build-tree` writes `pipeline/deploy/dist/flip2-system-tree/`. Zip those two directories yourself (`flip2-packages-<version>.zip`, `flip2-system-tree-<version>.zip`). Installer zips: `flip2-installer-full-magisk.zip`, `flip2-installer-clean-magisk.zip`, `flip2-installer-image-post-magisk.zip`.
+
+Outer checksum file:
 
 ```bash
 cd pipeline/deploy/dist
 sha256sum flip2-installer-clean-magisk.zip flip2-installer-full-magisk.zip \
+  flip2-installer-image-post-magisk.zip \
   flip2-packages-<version>.zip flip2-system-tree-<version>.zip > SHA256SUMS
 sha256sum -c SHA256SUMS
 (cd flip2-packages-<version> && sha256sum -c SHA256SUMS)

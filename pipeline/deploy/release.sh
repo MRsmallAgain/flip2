@@ -12,11 +12,12 @@ Usage: flip2 release [--dry-run] [--notes FILE]
 Create github.com/MRsmallAgain/flip2 release v<manifest.version> from:
   flip2-installer-clean-magisk.zip
   flip2-installer-full-magisk.zip
+  flip2-installer-image-post-magisk.zip
   flip2-packages-<version>.zip (zip dist/flip2-packages-<version>/ first)
   flip2-system-tree-<version>.zip (zip dist/flip2-system-tree/ first)
   SHA256SUMS in dist/
 
-Pack first: flip2 installer pack --flavor clean|full; flip2 pack-all; flip2 image build-tree
+Pack first: flip2 installer pack --flavor clean|full|image-post; flip2 pack-all; flip2 image build-tree
 
   --dry-run   Print gh release create command only
   --notes     Release notes markdown file (required unless --dry-run)
@@ -44,6 +45,7 @@ TAG="v$VERSION"
 ASSETS=(
   "$DIST/flip2-installer-clean-magisk.zip"
   "$DIST/flip2-installer-full-magisk.zip"
+  "$DIST/flip2-installer-image-post-magisk.zip"
   "$DIST/flip2-packages-$VERSION.zip"
   "$DIST/flip2-system-tree-$VERSION.zip"
   "$DIST/SHA256SUMS"

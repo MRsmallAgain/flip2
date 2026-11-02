@@ -33,6 +33,15 @@ Use this checklist before baking Flip2 launcher work into a **device image** (AO
 - [ ] **Shortcuts** opens `home-keys.json` **right** — no reload
 - [ ] Stock Launcher3 remains fallback HOME
 
+### After Tier A flash + provisioning (see [IMAGE-BUILD.md](IMAGE-BUILD.md))
+
+- [ ] `first-boot.sh` ran; `/data/local/flip2/.image-tier` exists
+- [ ] `image-post` installer completed (`/cache/flip2-installer.log`, flavor line)
+- [ ] Forkgram / Material Files installed or retry scripts in `/data/local/flip2/`
+- [ ] `flip2 deroot` (optional): with stamp, `keyshortcut_*` kept; system APKs not removed with `--uninstall-apks`
+- [ ] After Magisk Restore Images: nav overlay, keypad ⌫, tag drawer, Launcher4, IME still work
+- [ ] System FlipMouse (if `build-system` staged): [FLIPMOUSE-SYSTEM.md](FLIPMOUSE-SYSTEM.md) donor spike before trusting
+
 ## Porting Launcher4 into an image tree
 
 1. Vendor `launcher4/` scripts; CI runs `flip2 launcher4 build` with pinned stock APK.
