@@ -19,8 +19,8 @@
 # Only components whose manifest tiers include "image" are included. The
 # output tree is meant to be merged into the system/product partitions of the
 # user's own stock firmware and flashed via fastbootd — see docs/IMAGE-BUILD.md.
-# FlipMouse is NOT image-bakeable (it needs runtime root to read /dev/input)
-# and Forkgram is never bundled (GPL) — both stay in Tier B.
+# System-domain FlipMouse: run `flip2 flipmouse build-system` before build-tree
+# (see docs/FLIPMOUSE-SYSTEM.md). Forkgram is never bundled (GPL) — image-post zip.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=/dev/null
@@ -132,6 +132,20 @@ else
   MISSING+=("pipeline/wallpaper/assets/flip2-wallpaper.png (run: flip2 wallpaper gen)")
 fi
 
+# System-domain FlipMouse (optional until flip2 flipmouse build-system)
+FM_SYS="$ROOT/pipeline/flipmouse/system"
+if [[ -f "$FM_SYS/bin/flip2-mouse" ]]; then
+  log "system bin: flip2-mouse"
+  mkdir -p "$OUT/system/bin" "$OUT/system/etc/init"
+  cp "$FM_SYS/bin/flip2-mouse" "$OUT/system/bin/flip2-mouse"
+  chmod 755 "$OUT/system/bin/flip2-mouse"
+  if [[ -f "$FM_SYS/etc/init/flip2-mouse.rc" ]]; then
+    cp "$FM_SYS/etc/init/flip2-mouse.rc" "$OUT/system/etc/init/flip2-mouse.rc"
+  fi
+else
+  log "skip flip2-mouse (run: flip2 flipmouse build-system)"
+fi
+
 if [ "${#MISSING[@]}" -gt 0 ]; then
   echo "Missing artifacts (build them first):" >&2
   printf ' - %s\n' "${MISSING[@]}" >&2
@@ -187,10 +201,16 @@ else
   echo "no $WP_SRC in this tree; wallpaper skipped"
 fi
 
+# --- image-tier stamp (deroot + wizard) ---------------------------------------
+mkdir -p /data/local/flip2
+echo "@VERSION@" > /data/local/flip2/.image-tier
+echo "image-tier stamp: /data/local/flip2/.image-tier"
+
 echo "first-boot done. Reboot to apply the logical display size."
 FB_TAIL
-} > "$OUT/first-boot.sh"
-chmod 755 "$OUT/first-boot.sh"
+	} > "$OUT/first-boot.sh"
+	sed -i "s/@VERSION@/$VERSION/g" "$OUT/first-boot.sh"
+	chmod 755 "$OUT/first-boot.sh"
 
 # --- manifest of contents + checksums ---------------------------------------
 # Plain-text record of what went into the tree, for IMAGE-BUILD verification.
@@ -206,5 +226,5 @@ chmod 755 "$OUT/first-boot.sh"
 
 log "built $OUT"
 echo "    Merge into your stock firmware system/product partitions, then flash"
-echo "    with fastbootd (docs/IMAGE-BUILD.md). FlipMouse and Forkgram are NOT"
-echo "    image-bakeable — run the Tier B full installer after first boot."
+echo "    with fastbootd (docs/IMAGE-BUILD.md). Then first-boot.sh +"
+echo "    flip2 installer pack --flavor image-post (see docs/IMAGE-BUILD.md)."

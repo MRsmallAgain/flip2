@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<EOF
-Usage: emit.sh --flavor clean|full --manifest PATH --home-keys PATH --root PATH --data DIR
+Usage: emit.sh --flavor clean|full|image-post --manifest PATH --home-keys PATH --root PATH --data DIR
 
 Write payload/data settings.txt, wallpaper.txt, modules.txt, and apks.txt for the selected flavor.
 EOF
@@ -31,7 +31,7 @@ done
 [[ -n "$FLAVOR" && -n "$MANIFEST" && -n "$HOME_KEYS" && -n "$ROOT" && -n "$DATA" ]] || {
   usage >&2; exit 1
 }
-case "$FLAVOR" in clean|full) ;; *) echo "--flavor must be clean or full" >&2; exit 1 ;; esac
+case "$FLAVOR" in clean|full|image-post) ;; *) echo "--flavor must be clean, full, or image-post" >&2; exit 1 ;; esac
 
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
 
@@ -64,8 +64,16 @@ while IFS='|' read -r _order name artifact zip apk pkg mid _erepo _etag _easset 
   case "$artifact" in
     user-apk)
       if [[ -n "$apk" && -n "$pkg" ]]; then
-        base="$(basename "$apk")"
-        printf '%s %s\n' "$base" "$pkg" >> "$DATA/apks.txt"
+        skip_apk=0
+        if [[ "$FLAVOR" == "image-post" ]]; then
+          if jq -e --arg n "$name" '.components[] | select(.name==$n) | .tiers | index("image")' "$MANIFEST" >/dev/null; then
+            skip_apk=1
+          fi
+        fi
+        if [[ "$skip_apk" -eq 0 ]]; then
+          base="$(basename "$apk")"
+          printf '%s %s\n' "$base" "$pkg" >> "$DATA/apks.txt"
+        fi
       fi
       ;;
     magisk-module)

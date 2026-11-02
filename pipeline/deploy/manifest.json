@@ -45,9 +45,11 @@
       "rootless_survives_deroot": false,
       "reboot": false,
       "tiers": [
-        "full"
+        "full",
+        "image"
       ],
-      "install_order": 30
+      "install_order": 30,
+      "notes": "Tier A: system/bin + init.rc + sepolicy in build-tree (rootless after boot restore). full tier: Magisk module only."
     },
     {
       "name": "tagdrawer",
@@ -116,10 +118,12 @@
       "tiers": [
         "clean",
         "full",
-        "image"
+        "image",
+        "image-post"
       ],
       "install_order": 70,
       "incoming": "nullkeyboard.apk",
+      "notes": "image-post: settings/appops/perms only (APK preloaded in Tier A tree).",
       "label": "Null Keyboard",
       "settings": [
         "secure show_ime_with_hard_keyboard 1",
@@ -151,7 +155,8 @@
       "reboot": false,
       "tiers": [
         "clean",
-        "full"
+        "full",
+        "image-post"
       ],
       "install_order": 80,
       "incoming": "forkgram-13.0.2.0-flip2-patched.apk",
@@ -173,7 +178,8 @@
       "reboot": false,
       "tiers": [
         "clean",
-        "full"
+        "full",
+        "image-post"
       ],
       "install_order": 85,
       "incoming": "me.zhanghai.android.files_40.apk",
@@ -322,15 +328,27 @@
       "default IME"
     ],
     "dies": [
-      "flipmouse (reads /dev/input)",
-      "keypad KL remap",
-      "navoverlay (30px bar returns)",
-      "tagdrawer system placement",
+      "flipmouse Magisk module (Tier A system init FlipMouse survives boot restore)",
+      "keypad KL remap (survives if baked in image)",
+      "navoverlay (survives if baked in image)",
+      "tagdrawer system placement (survives if baked in image)",
       "launcher_overlay RRO (menu survives via launcher4 baked slots)"
+    ],
+    "image_tier_survives_after_boot_restore": [
+      "system FlipMouse (init service)",
+      "keypad KL",
+      "nav overlay",
+      "tagdrawer",
+      "launcher4",
+      "null keyboard",
+      "home_keys (if .image-tier stamp; deroot keeps keyshortcut_*)",
+      "display",
+      "wallpaper"
     ]
   },
   "tiers": {
-    "image": "Tier A — system tree for base-image builds (system/app + product/overlay)",
+    "image": "Tier A — system tree for base-image builds (system/app + product/overlay + system FlipMouse)",
+    "image-post": "Tier B after Tier A flash — GPL sideloads + IME settings + deroot helper; no duplicate modules/APKs",
     "clean": "Tier B clean — user APKs + settings only; installer self-removes; de-root friendly",
     "full": "Tier B full / Tier C — everything, root required",
     "bundle": "Tier D — per-component zips + APKs + SHA256SUMS"

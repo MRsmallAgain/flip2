@@ -1,0 +1,7 @@
+# System-domain FlipMouse (Tier A). Requires matching sepolicy on device — see docs/FLIPMOUSE-SYSTEM.md.
+service flip2-mouse /system/bin/flip2-mouse
+    class late_start
+    user root
+    group root input
+    seclabel u:r:flip2_mouse:s0
+    oneshot

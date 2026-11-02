@@ -14,7 +14,15 @@ KEYS="keyshortcut_leftkey keyshortcut_rightkey keyshortcut_upkey keyshortcut_dow
 UNINSTALL=0
 case "$1" in --uninstall-apks|-u) UNINSTALL=1 ;; esac
 
+IMAGE_TIER=0
+[ -f /data/local/flip2/.image-tier ] && IMAGE_TIER=1
+
+is_system_pkg() {
+  pm path "$1" 2>/dev/null | grep -q '/system/'
+}
+
 echo "== flip2 deroot =="
+[ "$IMAGE_TIER" = 1 ] && echo "-- image-tier stamp present (.image-tier)"
 
 if su -c true 2>/dev/null; then
   echo "-- rooted: marking flip2 modules for removal"
@@ -36,16 +44,24 @@ echo "-- restoring stock IME ($KIME)"
 ime enable "$KIME" >/dev/null 2>&1
 ime set "$KIME" >/dev/null 2>&1 || settings put secure default_input_method "$KIME"
 
-echo "-- clearing flip2 settings overrides (back to stock defaults)"
-settings delete secure accessibility_soft_keyboard_mode >/dev/null 2>&1
-settings delete secure show_ime_with_hard_keyboard >/dev/null 2>&1
-for k in $KEYS; do settings delete global "$k" >/dev/null 2>&1; done
-appops reset com.tim.flip2.nullkeyboard >/dev/null 2>&1
+if [ "$IMAGE_TIER" = 1 ]; then
+  echo "-- image-tier: keeping keyshortcut_* globals"
+else
+  echo "-- clearing flip2 settings overrides (back to stock defaults)"
+  settings delete secure accessibility_soft_keyboard_mode >/dev/null 2>&1
+  settings delete secure show_ime_with_hard_keyboard >/dev/null 2>&1
+  for k in $KEYS; do settings delete global "$k" >/dev/null 2>&1; done
+  appops reset com.tim.flip2.nullkeyboard >/dev/null 2>&1
+fi
 
 if [ "$UNINSTALL" = 1 ]; then
   echo "-- uninstalling user APKs"
   ime disable "$NULL_IME" >/dev/null 2>&1
   for p in $APKS; do
+    if [ "$IMAGE_TIER" = 1 ] && is_system_pkg "$p"; then
+      echo "   skip system preload: $p"
+      continue
+    fi
     if pm uninstall --user 0 "$p" >/dev/null 2>&1; then
       echo "   removed $p"
     else

@@ -170,8 +170,9 @@ case "$cmd" in
     sub="${1:-help}"
     shift || true
     case "$sub" in
-      build)    exec "$FLIP2_ROOT/pipeline/flipmouse/build.sh" "$@" ;;
-      install)  exec "$FLIP2_ROOT/pipeline/flipmouse/install.sh" ;;
+      build)         exec "$FLIP2_ROOT/pipeline/flipmouse/build.sh" "$@" ;;
+      build-system)  exec "$FLIP2_ROOT/pipeline/flipmouse/build-system.sh" "$@" ;;
+      install)       exec "$FLIP2_ROOT/pipeline/flipmouse/install.sh" ;;
       status)   exec "$FLIP2_ROOT/pipeline/flipmouse/status.sh" ;;
       rollback) exec "$FLIP2_ROOT/pipeline/flipmouse/rollback.sh" ;;
       help|-h|--help)
@@ -264,9 +265,9 @@ case "$cmd" in
     case "$sub" in
       pack) exec "$FLIP2_ROOT/pipeline/deploy/pack-installer.sh" "$@" ;;
       help|-h|--help)
-        echo "Usage: flip2 installer pack [--flavor clean|full] [--no-zip]"
+        echo "Usage: flip2 installer pack [--flavor clean|full|image-post] [--no-zip]"
         echo "  Single-shot Magisk installer zip. clean = user APKs + settings only,"
-        echo "  self-removing, de-root friendly. full = full rooted set."
+        echo "  de-root friendly. full = full rooted set. image-post = after Tier A flash."
         ;;
       *) echo "Unknown installer subcommand: $sub" >&2; exit 1 ;;
     esac

@@ -29,23 +29,29 @@ until pm list packages >/dev/null 2>&1; do
   sleep 2
 done
 
-# --- user APKs -------------------------------------------------------------
-# pm cannot read files under /data/adb — copy to /data/local/tmp first.
-if [ -f "$MOD/payload/data/apks.txt" ]; then
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    f=${line%% *}
-    pkg=${line#* }
-    cp "$MOD/payload/apks/$f" "$STAGE/$f"
-    chmod 644 "$STAGE/$f"
-    if pm install -r "$STAGE/$f" >/dev/null 2>&1; then
-      echo "installed: $pkg"
-    else
-      echo "FAILED to install: $pkg ($f)"
-    fi
-    rm -f "$STAGE/$f"
-  done < "$MOD/payload/data/apks.txt"
-fi
+	# --- user APKs -------------------------------------------------------------
+	# pm cannot read files under /data/adb — copy to /data/local/tmp first.
+	if [ -f "$MOD/payload/data/apks.txt" ]; then
+	  while IFS= read -r line; do
+	    [ -n "$line" ] || continue
+	    f=${line%% *}
+	    pkg=${line#* }
+	    if [ "$FLAVOR" = image-post ]; then
+	      pm path "$pkg" 2>/dev/null | grep -q '/system/' && {
+	        echo "skip user apk (system preload): $pkg"
+	        continue
+	      }
+	    fi
+	    cp "$MOD/payload/apks/$f" "$STAGE/$f"
+	    chmod 644 "$STAGE/$f"
+	    if pm install -r "$STAGE/$f" >/dev/null 2>&1; then
+	      echo "installed: $pkg"
+	    else
+	      echo "FAILED to install: $pkg ($f)"
+	    fi
+	    rm -f "$STAGE/$f"
+	  done < "$MOD/payload/data/apks.txt"
+	fi
 
 # --- External APKs: downloaded at install time, never bundled ---------------
 # forkgram (GitHub release) and Material Files (F-Droid direct URL) bake into
@@ -225,6 +231,10 @@ echo "De-root later with: sh $STAGE/deroot.sh [--uninstall-apks]"
 if [ "$FLAVOR" = clean ]; then
   echo "clean flavor: nothing root-dependent was installed; once Magisk is"
   echo "removed (app -> Uninstall -> Restore Images) everything here stays."
+fi
+if [ "$FLAVOR" = image-post ]; then
+  echo "image-post: Tier A preloads assumed; run first-boot.sh before this zip if not done."
+  echo "De-root: sh $STAGE/deroot.sh (image-aware if .image-tier stamp exists)."
 fi
 
 # --- stamp done + self-remove ---------------------------------------------

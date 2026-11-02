@@ -40,7 +40,7 @@ All tiers consume **`manifest.json`** (components, artifact types, root needs, t
 
 | Script | Tier | Command |
 |--------|------|---------|
-| `pack-installer.sh` | B | `flip2 installer pack [--flavor clean\|full] [--vosk-url name=url]` → self-removing Magisk installer zip |
+| `pack-installer.sh` | B | `flip2 installer pack [--flavor clean\|full\|image-post] [--vosk-url name=url]` → self-removing Magisk installer zip |
 | `setup.sh` | C | `flip2 setup full` → runs per-component installs over adb with a PASS/FAIL summary |
 | `pack-all.sh` | D | `flip2 pack-all` → `dist/flip2-packages-<version>/` bundle |
 | `deroot.sh` | — | `flip2 deroot` → pushes + runs the on-device de-root helper (also embedded in the installer zip) |

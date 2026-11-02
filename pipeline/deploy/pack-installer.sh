@@ -16,7 +16,7 @@ HOME_KEYS="$ROOT/launcher-overlay/home-keys.json"
 
 usage() {
   cat <<EOF
-Usage: flip2 installer pack [--flavor clean|full] [--vosk-url name=url]\
+Usage: flip2 installer pack [--flavor clean|full|image-post] [--vosk-url name=url]\
                         [--whisper-url name=url] [--out DIR] [--no-zip]
 
 Build the single-shot flip2 Magisk installer zip. The zip is a real Magisk
@@ -24,8 +24,10 @@ module whose one-shot service.sh runs at first boot as root: installs the
 bundled user APKs, unpacks the flip2 modules (full flavor), applies baked
 settings, writes /data/local/flip2/deroot.sh, then removes itself.
 
-  --flavor clean|full   clean = root-independent set only (launcher4, IME,
-                        forkgram, home-keys), de-root friendly (default: full)
+  --flavor clean|full|image-post
+                        clean = root-independent user APKs + settings (de-root friendly)
+                        full = modules + everything (default)
+                        image-post = after Tier A flash: GPL sideloads + IME settings only
   --vosk-url name=URL   fetch a Vosk model at install time (repeatable; models
                         are never bundled). Example: --vosk-url en=https://...
   --whisper-url name=URL  fetch a ggml Whisper model at install time
@@ -52,7 +54,7 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
 done
-case "$FLAVOR" in clean|full) ;; *) echo "--flavor must be clean or full" >&2; exit 1 ;; esac
+case "$FLAVOR" in clean|full|image-post) ;; *) echo "--flavor must be clean, full, or image-post" >&2; exit 1 ;; esac
 for u in "${VOSK_URLS[@]}"; do
   [[ "$u" == *=* ]] || { echo "--vosk-url wants name=url, got: $u" >&2; exit 1; }
 done

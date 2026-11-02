@@ -106,28 +106,13 @@ First boot takes longer than usual (odex/dexopt of the preloaded apps).
 If boot loops: reflash the stock `super` from your backup and debug via the
 emergency notes — do **not** reflash EMMC_BOOT.
 
-## 5. Complete Magisk, then run the Tier B installer
+## 5. Complete Magisk, `first-boot.sh`, then **image-post** installer
 
 The neutronscott boot image leaves Magisk partially installed. On the
 device, dial `*#*#217703#*#*` to trigger the full Magisk download/setup,
 reboot, and confirm the Magisk app shows installed.
 
-Then push the installer zip and flash it in the Magisk app
-(Install from storage), or sideload:
-
-```bash
-flip2 installer pack --flavor full
-adb push pipeline/deploy/dist/flip2-installer-full-magisk.zip /sdcard/Download/
-# Magisk app -> Install -> /sdcard/Download/flip2-installer-full-magisk.zip
-# reboot
-adb logcat -b all -d | grep -i flip2 || adb shell cat /cache/flip2-installer.log
-```
-
-The one-shot installer installs Forkgram (downloaded at install time),
-applies IME/home-keys settings, starts FlipMouse, writes
-`/data/local/flip2/deroot.sh`, and removes itself.
-
-### 5a. Run `first-boot.sh` from the image tree
+### 5a. Run `first-boot.sh` from the image tree (before the installer zip)
 
 The installer zip cannot cover everything the image needs: `first-boot.sh` is
 generated from *your* manifest at build time and lives in the tree, not in the
@@ -148,6 +133,35 @@ the wallpaper shows on the same boot.
 The wallpaper copy is stamp-guarded with `/data/local/flip2/.wallpaper-applied`
 so re-running the script never replaces a background the user has since chosen.
 Everything else is idempotent. See [WALLPAPER.md](WALLPAPER.md).
+
+`first-boot.sh` also writes `/data/local/flip2/.image-tier` with the manifest
+version. That stamp tells `deroot.sh` to keep `keyshortcut_*` settings and to
+skip uninstalling system-preloaded APKs.
+
+### 5b. Flash the **image-post** installer (not `full`)
+
+After `first-boot.sh` and a reboot, use the slim one-shot zip so you do not
+re-install Magisk modules or user APKs already on `system/`:
+
+```bash
+flip2 installer pack --flavor image-post
+adb push pipeline/deploy/dist/flip2-installer-image-post-magisk.zip /sdcard/Download/
+# Magisk app -> Install -> flip2-installer-image-post-magisk.zip
+# reboot
+adb shell cat /cache/flip2-installer.log
+```
+
+The **image-post** flavor downloads Forkgram and Material Files (Wi‑Fi),
+applies Null Keyboard settings/appops, sets Launcher4 as HOME, writes
+`/data/local/flip2/deroot.sh`, and self-removes. It does **not** unpack
+nav/keypad/tagdrawer/FlipMouse modules or reinstall Launcher4/IME APKs.
+
+For a **Magisk-only** device (no custom `super`), use `--flavor full` or
+`clean` instead.
+
+System-domain FlipMouse (init service, survives boot restore) is documented in
+[FLIPMOUSE-SYSTEM.md](FLIPMOUSE-SYSTEM.md) and copied into the tree when
+`flip2 flipmouse build-system` has been run before `flip2 image build-tree`.
 
 ## 6. Verification gate
 
