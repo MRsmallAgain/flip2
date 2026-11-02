@@ -170,6 +170,26 @@ if want bouncy; then
 else
   echo "NOTE: skip bouncy"
 fi
+if want appshelf; then
+  install_apk appshelf.apk           io.github.xtratter.appshelf
+else
+  echo "NOTE: skip appshelf"
+fi
+if want fdroid_basic; then
+  install_apk fdroid-basic.apk       org.fdroid.basic
+else
+  echo "NOTE: skip fdroid_basic"
+fi
+if want newpipe; then
+  install_apk newpipe.apk            org.schabi.newpipe
+else
+  echo "NOTE: skip newpipe"
+fi
+if want just_player; then
+  install_apk just-player.apk        com.brouken.player
+else
+  echo "NOTE: skip just_player"
+fi
 
 if want ime; then
 # --- IME settings (manifest 70): values mirror payload data/settings.txt ---
@@ -216,9 +236,7 @@ if want display; then
 # --- display size, manifest 95: logical 321x428 on the 240x320 panel --------
 settings put global 'display_size_forced' '321,428' \
   || fail "settings: display_size_forced"
-wm size 321x428 >/dev/null 2>&1 \
-  || fail "wm size 321x428"
-ok "display size 321x428"
+ok "display size 321x428 (takes effect after reboot)"
 else
   echo "NOTE: skip display"
 fi
@@ -227,16 +245,13 @@ if want wallpaper; then
 # --- wallpaper: default background, copied where the framework reads it -----
 WP=/data/local/flip2/incoming/flip2-wallpaper.png
 WPDST=/data/system/users/0/wallpaper
-if [ -f "$WP" ]; then
-  if [ -f "$WPDST" ] && cmp -s "$WP" "$WPDST" 2>/dev/null; then
-    ok "wallpaper already flip2 default (reboot if the screen still looks wrong)"
-  else
-    cp "$WP" "$WPDST" || fail "wallpaper copy"
-    chown system:system "$WPDST" 2>/dev/null
-    chmod 600 "$WPDST"
-    restorecon "$WPDST" 2>/dev/null
-    ok "wallpaper installed (reboot if it does not update on screen)"
-  fi
+if [ -f "$WP" ] && [ ! -f "$STAGE/.wallpaper-applied" ]; then
+  cp "$WP" "$WPDST" || fail "wallpaper copy"
+  chown system:system "$WPDST" 2>/dev/null
+  chmod 600 "$WPDST"
+  restorecon "$WPDST" 2>/dev/null
+  touch "$STAGE/.wallpaper-applied"
+  ok "wallpaper installed (shows after reboot)"
 else
   echo "NOTE: no flip2-wallpaper.png in incoming/; keeping the current wallpaper"
 fi

@@ -67,11 +67,53 @@
       "url": "https://f-droid.org/repo/dev.skye.intertune_96.apk"
     },
     {
+      "id": "appshelf",
+      "file": "io.github.xtratter.appshelf_90.apk",
+      "sha256": "755caa9ea46f2364313a604e9793e2856421454d08e4012b5c9776468a3442a9",
+      "size": 234809,
+      "url": "https://f-droid.org/repo/io.github.xtratter.appshelf_90.apk"
+    },
+    {
+      "id": "fdroid-basic",
+      "file": "org.fdroid.basic_2000052.apk",
+      "sha256": "bbc4a34a7f65b200f9e40c4c74af4745de5cdbff45752ac0172916deb9f3c97d",
+      "size": 8753583,
+      "url": "https://f-droid.org/repo/org.fdroid.basic_2000052.apk"
+    },
+    {
+      "id": "newpipe",
+      "file": "org.schabi.newpipe_1015.apk",
+      "sha256": "1d66d19eedbab969b1be2e44e0ea35f5f8921cbe83b5c5ac810767ca1a84b7e8",
+      "size": 11507122,
+      "url": "https://f-droid.org/repo/org.schabi.newpipe_1015.apk"
+    },
+    {
+      "id": "just-player",
+      "file": "com.brouken.player_2174.apk",
+      "sha256": "89e459ee69f2350f5006fb514d7a7e7f2f9b4e590c3b03b1f4e66c0ffc16d1a2",
+      "size": 13050016,
+      "url": "https://f-droid.org/repo/com.brouken.player_2174.apk"
+    },
+    {
       "id": "materialfiles",
       "file": "me.zhanghai.android.files_40.apk",
       "sha256": "2fe900bf43d725b655008d438f5ca46d0da0f301e3784403b5b96c3fc2df6e8a",
       "size": 10944578,
       "url": "https://f-droid.org/repo/me.zhanghai.android.files_40.apk"
+    },
+    {
+      "id": "headwind-launcher",
+      "file": "com.hmdm.launcher_15400.apk",
+      "sha256": "f674eeec9180b88af7be6fa8a696351d1931071da5bb1da0bbb4d410255c0b6e",
+      "size": 6281971,
+      "url": null
+    },
+    {
+      "id": "where-app",
+      "file": "net.af0.where_1471.apk",
+      "sha256": "1cd385c35b23248a0f439c9cd1efe4d2027c0b4f6f77050cb456d2ffe25f410c",
+      "size": 11443012,
+      "url": null
     }
   ]
 }

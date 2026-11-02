@@ -127,18 +127,28 @@ if want bouncy; then
 else
   echo "NOTE: skip bouncy"
 fi
+if want appshelf; then
+  check "AppShelf installed" pm path io.github.xtratter.appshelf
+else
+  echo "NOTE: skip appshelf"
+fi
+if want fdroid_basic; then
+  check "F-Droid Basic installed" pm path org.fdroid.basic
+else
+  echo "NOTE: skip fdroid_basic"
+fi
+if want newpipe; then
+  check "NewPipe installed" pm path org.schabi.newpipe
+else
+  echo "NOTE: skip newpipe"
+fi
+if want just_player; then
+  check "Just Player installed" pm path com.brouken.player
+else
+  echo "NOTE: skip just_player"
+fi
 if want tagdrawer; then
-  TD_APK=/data/adb/modules/flip2_pixel_tag_drawer/system/app/PixelTagDrawer/PixelTagDrawer.apk
-  if pm path com.iwadjp.pixeltagdrawer >/dev/null 2>&1; then
-    echo "PASS: Tag Drawer installed"
-    PASS=$((PASS + 1))
-  elif [ -f "$TD_APK" ]; then
-    echo "PASS: Tag Drawer module present (reboot if D-pad Up does not open Tags)"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: Tag Drawer installed"
-    FAILS=$((FAILS + 1))
-  fi
+  check "Tag Drawer installed" pm path com.iwadjp.pixeltagdrawer
 else
   echo "NOTE: skip tagdrawer"
 fi

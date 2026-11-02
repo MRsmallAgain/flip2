@@ -43,10 +43,10 @@ function updatePrepareStrip(name) {
 
 function showStep(name) {
   if (name === 'prepare') name = 'credit';
-  var prev = shownStep;
   var prepare = PREPARE.indexOf(name) >= 0;
   var pill = prepare ? 'prepare' : name;
   var i = ORDER.indexOf(pill), n;
+  var first = !shownStep;
   if (i >= 0) REACHED[pill] = true;
   ORDER.forEach(function (id) {
     var el = $('step-' + id);
@@ -62,9 +62,9 @@ function showStep(name) {
     var idx = ORDER.indexOf(step);
     spans[n].classList.toggle('on', step === pill);
     spans[n].classList.toggle('done', idx >= 0 && i >= 0 && idx < i);
-  }
-  // Rooting and return-to-factory stay off the pill bar. Opening one closes
-  // the other. Prepare subsections are not extra pills.
+  });
+  // Rooting and return-to-factory stay off the main scroll. Opening one
+  // closes the other. Prepare subsections are not extra pills.
   ['root', 'factory'].forEach(function (extra) {
     var el = $('step-' + extra);
     if (!el) return;
@@ -78,9 +78,15 @@ function showStep(name) {
   });
   shownStep = name;
   updatePrepareStrip(name);
-  // Prepare is one flow. Jumping to the top on every subsection is what made
-  // the page feel like a new screen with the wrong instructions.
-  if (!(prepare && prev && PREPARE.indexOf(prev) >= 0)) window.scrollTo(0, 0);
+  // The first call is the page load. Later calls jump to that section
+  // without hiding the rest of the page.
+  if (!first) {
+    var target = $('step-' + name);
+    if (name === 'start') window.scrollTo({ top: 0, behavior: 'smooth' });
+    else if (target && !target.hidden) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 }
 
 function setStatus(id, text, cls) {
@@ -293,11 +299,37 @@ function initGate() {
   var input = $('gate-input'), btn = $('gate-btn');
   input.addEventListener('input', function () {
     btn.disabled = input.value.trim().toLowerCase() !== 'yes';
+    applyDownloadLock();
   });
   btn.addEventListener('click', function () {
     setStatus('gate-msg', 'Downloads allowed. Go to Files.', 'ok');
     showStep('download');
   });
+}
+
+function downloadsAllowed() {
+  var input = $('gate-input');
+  return !!(input && input.value.trim().toLowerCase() === 'yes');
+}
+
+// Files is on the same page as the credit box, so yes has to lock the
+// buttons itself. Continue only scrolls there.
+function applyDownloadLock() {
+  var allowed = downloadsAllowed();
+  ['dl-local-btn', 'dl-fetch-btn', 'dl-pick-btn'].forEach(function (id) {
+    var el = $(id);
+    if (el) el.disabled = !allowed;
+  });
+  var table = $('dl-table');
+  if (!table) return;
+  var buttons = table.querySelectorAll('button');
+  var i;
+  for (i = 0; i < buttons.length; i++) buttons[i].disabled = !allowed;
+  var links = table.querySelectorAll('a');
+  for (i = 0; i < links.length; i++) {
+    if (allowed) links[i].removeAttribute('aria-disabled');
+    else links[i].setAttribute('aria-disabled', 'true');
+  }
 }
 
 // --- 2 · downloads -----------------------------------------------------------

@@ -72,6 +72,10 @@ jq -n \
       "intertune": "intertune.apk",
       "bouncy": "bouncy.apk",
       "materialfiles": "materialfiles.apk",
+      "appshelf": "appshelf.apk",
+      "fdroid-basic": "fdroid-basic.apk",
+      "newpipe": "newpipe.apk",
+      "just-player": "just-player.apk",
       "whisper-tiny": "ggml-tiny-q5_1.bin",
       "vosk-en": "vosk-model-small-en-us-0.15.zip",
       "vosk-uk": "vosk-model-small-uk-v3-nano.zip"

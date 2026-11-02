@@ -231,6 +231,100 @@
       }
     },
     {
+      "name": "appshelf",
+      "artifact": "user-apk",
+      "package": "io.github.xtratter.appshelf",
+      "incoming": "appshelf.apk",
+      "label": "AppShelf",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "clean",
+        "full",
+        "wizard",
+        "image-post"
+      ],
+      "install_order": 88,
+      "external": {
+        "url": "https://f-droid.org/repo/io.github.xtratter.appshelf_90.apk",
+        "asset": "io.github.xtratter.appshelf_90.apk",
+        "sha256": "755caa9ea46f2364313a604e9793e2856421454d08e4012b5c9776468a3442a9"
+      }
+    },
+    {
+      "name": "fdroid_basic",
+      "artifact": "user-apk",
+      "package": "org.fdroid.basic",
+      "incoming": "fdroid-basic.apk",
+      "label": "F-Droid Basic",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "clean",
+        "full",
+        "wizard",
+        "image-post"
+      ],
+      "install_order": 89,
+      "notes": "Minimal F-Droid client (replaces full F-Droid in the build kit).",
+      "external": {
+        "url": "https://f-droid.org/repo/org.fdroid.basic_2000052.apk",
+        "asset": "org.fdroid.basic_2000052.apk",
+        "sha256": "bbc4a34a7f65b200f9e40c4c74af4745de5cdbff45752ac0172916deb9f3c97d"
+      }
+    },
+    {
+      "name": "newpipe",
+      "artifact": "user-apk",
+      "package": "org.schabi.newpipe",
+      "incoming": "newpipe.apk",
+      "label": "NewPipe",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "clean",
+        "full",
+        "wizard",
+        "image-post"
+      ],
+      "install_order": 91,
+      "external": {
+        "url": "https://f-droid.org/repo/org.schabi.newpipe_1015.apk",
+        "asset": "org.schabi.newpipe_1015.apk",
+        "sha256": "1d66d19eedbab969b1be2e44e0ea35f5f8921cbe83b5c5ac810767ca1a84b7e8"
+      }
+    },
+    {
+      "name": "just_player",
+      "artifact": "user-apk",
+      "package": "com.brouken.player",
+      "incoming": "just-player.apk",
+      "label": "Just Player",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "clean",
+        "full",
+        "wizard",
+        "image-post"
+      ],
+      "install_order": 92,
+      "notes": "F-Droid builds since ~0.180 ship arm64-v8a native libs only; INSTALL_FAILED_NO_MATCHING_ABIS on 4058G (armeabi-v7a). Pin an older v7a APK when available or sideload a 32-bit build.",
+      "external": {
+        "url": "https://f-droid.org/repo/com.brouken.player_2174.apk",
+        "asset": "com.brouken.player_2174.apk",
+        "sha256": "89e459ee69f2350f5006fb514d7a7e7f2f9b4e590c3b03b1f4e66c0ffc16d1a2"
+      }
+    },
+    {
       "name": "home_keys",
       "artifact": "settings-write",
       "build": null,
