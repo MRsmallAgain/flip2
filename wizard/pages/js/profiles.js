@@ -63,6 +63,8 @@ var CATALOG_FOR = {
 var PROFILES = {
   data: null,
   selectedId: 'base',
+  // flagId -> true when the user checked it. Defaults come from profiles.json.
+  flagState: {},
   // Confirmed from the pinned 15400 APK. The Companion handler ignores any
   // other component the page might send and uses this same string.
   deviceOwnerComponent: 'com.hmdm.launcher/.AdminReceiver',
@@ -89,8 +91,29 @@ var PROFILES = {
         throw new Error('base profile is disabled');
       }
       PROFILES.selectedId = 'base';
+      PROFILES.initFlags();
       return data;
     });
+  },
+
+  initFlags: function () {
+    var list = this.list();
+    var i, j, flags, f;
+    for (i = 0; i < list.length; i++) {
+      flags = list[i].flags || [];
+      for (j = 0; j < flags.length; j++) {
+        f = flags[j];
+        if (!f || !f.id) continue;
+        if (!Object.prototype.hasOwnProperty.call(this.flagState, f.id)) {
+          this.flagState[f.id] = f.default !== false;
+        }
+      }
+    }
+  },
+
+  setFlag: function (flagId, on) {
+    this.flagState[flagId] = !!on;
+    for (var i = 0; i < this._listeners.length; i++) this._listeners[i](this.selectedId);
   },
 
   list: function () {
@@ -150,9 +173,26 @@ var PROFILES = {
     return out;
   },
 
-  // One component id per line, trailing newline, for /data/local/flip2/profile.list.
+  // Managed flags are not components. A checked flag writes the block id;
+  // an unchecked flag writes the matching enable id so the next Apply undoes it.
+  flagLines: function (id) {
+    var p = this.byId(id || this.selectedId);
+    var flags = (p && p.flags) || [];
+    var lines = [];
+    var i, f, on;
+    for (i = 0; i < flags.length; i++) {
+      f = flags[i];
+      if (!f || !f.id) continue;
+      on = this.flagState[f.id] !== false;
+      if (f.id === 'block_camera') lines.push(on ? 'block_camera' : 'enable_camera');
+      else if (f.id === 'block_browser') lines.push(on ? 'block_browser' : 'enable_browser');
+    }
+    return lines;
+  },
+
+  // One component id per line, then any managed flags, trailing newline.
   profileText: function (id) {
-    return this.componentIds(id).join('\n') + '\n';
+    return this.componentIds(id).concat(this.flagLines(id)).join('\n') + '\n';
   },
 
   rows: function (id) {

@@ -128,13 +128,13 @@
     },
     {
       "id": "where-app",
-      "file": "net.af0.where_1404.apk",
-      "purpose": "Where location app, versionCode 1404. Managed profile only. Install via Flip2 Apply before device owner when using no_install_apps in Headwind. Local pin by SHA-256.",
-      "size": 14791436,
-      "sha256": "cfc1a50142d338f5f9199783943f844f184950e34ba6635f5cb89e5b9f4d9cd6",
+      "file": "net.af0.where_1471.apk",
+      "purpose": "Where location app, versionName 2026.10.14.2, versionCode 1471, armeabi-v7a. Managed profile only. The Flip2 is 32-bit ARM; x86_64 and arm64-v8a builds fail with INSTALL_FAILED_NO_MATCHING_ABIS. Install via Flip2 Apply before device owner when using no_install_apps in Headwind. Local pin by SHA-256.",
+      "size": 11443012,
+      "sha256": "1cd385c35b23248a0f439c9cd1efe4d2027c0b4f6f77050cb456d2ffe25f410c",
       "license": "See upstream",
-      "author": "af0",
-      "upstream": "local pin ~/Downloads/net.af0.where_1404.apk",
+      "author": "danmarg",
+      "upstream": "https://github.com/danmarg/where/releases/download/v2026.10.14.2/android-standard-fdroid-armeabi-v7a-release.apk",
       "profiles": [
         "managed"
       ]

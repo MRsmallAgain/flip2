@@ -34,8 +34,22 @@
         "headwind",
         "where"
       ],
-      "summary": "Base plus Headwind MDM launcher (15400) and Where (net.af0.where_1404). Apply before device owner; see docs/MANAGED-MDM-SETUP.md.",
-      "warning": "Device owner is not part of Apply. It needs a user with no accounts; factory reset stays on the phone. This app never wipes userdata over USB. If accounts exist, back up to ~/flip2-pre-wipe-backup and reset on the phone before typing manage."
+      "summary": "Base plus Headwind MDM launcher (15400) and Where (net.af0.where_1471). Apply before device owner; see docs/MANAGED-MDM-SETUP.md.",
+      "warning": "Device owner is not part of Apply. It needs a user with no accounts; factory reset stays on the phone. This app never wipes userdata over USB. If accounts exist, back up to ~/flip2-pre-wipe-backup and reset on the phone before typing manage.",
+      "flags": [
+        {
+          "id": "block_camera",
+          "label": "Disable camera",
+          "detail": "pm disable-user com.tcl.camera. Unchecking enables it again on the next Managed Apply.",
+          "default": true
+        },
+        {
+          "id": "block_browser",
+          "label": "Disable browsers",
+          "detail": "pm disable-user org.chromium.chrome and com.mediatek.op07.browser. Unchecking enables them again on the next Managed Apply.",
+          "default": true
+        }
+      ]
     },
     {
       "id": "secure",

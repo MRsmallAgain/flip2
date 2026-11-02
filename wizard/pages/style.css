@@ -445,6 +445,23 @@ pre.rules {
   background: linear-gradient(90deg, var(--ok), #3da870);
 }
 
+#live-strip {
+  width: calc(100% - 48px);
+  max-width: 832px;
+  margin: 8px auto 0;
+  position: sticky;
+  top: 8px;
+  z-index: 4;
+  box-shadow: var(--shadow-sm);
+}
+
+#strip-prepare-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--sunset));
+  transition: width 0.2s linear;
+}
+
 .count {
   margin-top: 8px;
   font-size: 14px;
@@ -648,6 +665,38 @@ button.profile-card.on {
 
 .profile-reason {
   color: var(--ink-muted);
+}
+
+.profile-flags {
+  margin: 4px 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.profile-flag {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 10px 0 0;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.profile-flag input {
+  margin-top: 3px;
+}
+
+.profile-flag strong {
+  display: block;
+}
+
+.profile-flag-detail {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 13px;
+  margin-top: 2px;
 }
 
 .app-row {

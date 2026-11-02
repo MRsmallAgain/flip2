@@ -7,10 +7,10 @@ The Companion window is the manager. **Getting started** is the default landing 
 Canonical list: `pipeline/deploy/profiles.json`. The page fetches `wizard/profiles.json`, which must stay a byte-for-byte copy (`cmp -s`).
 
 - **base** is today's install: nav overlay, keypad backspace, FlipMouse, Tag Drawer, launcher overlay, Launcher4, Null Keyboard, Forkgram, Material Files, Intertune, Bouncy, home keys, 321×428, wallpaper, Whisper, and Vosk.
-- **managed** is base plus the pinned Headwind launcher. Device owner is not part of Apply.
+- **managed** is base plus the pinned Headwind launcher and Where. Device owner is not part of Apply. On the Profile tab, Managed also has flags: **Disable camera** (`com.tcl.camera`) and **Disable browsers** (`org.chromium.chrome`, `com.mediatek.op07.browser`). Both default on. A checked flag writes `block_camera` or `block_browser` into `profile.list` and Apply runs `pm disable-user`. An unchecked flag writes `enable_camera` or `enable_browser` and Apply runs `pm enable`. The APKs stay installed.
 - **secure** is visible and not selectable. The GrapheneLite/GraphineLite branch is not in this repo. Do not invent that OS image, and do not flash a system image for it.
 
-Apply writes `/data/local/flip2/profile.list` (one component id per line, trailing newline) and installs what that list names. It does not uninstall extras and it does not wipe the phone.
+Apply writes `/data/local/flip2/profile.list` (one component id per line, then any managed flag lines, trailing newline) and installs what that list names. It does not uninstall extras and it does not wipe the phone.
 
 A missing `profile.list` means full base, and Headwind is skipped. A listed component whose incoming file is missing is still a failure. Wallpaper image absence stays a note. An unlisted component is a note, not a failure.
 
@@ -47,10 +47,11 @@ Installing the APK does not set device owner.
 
 Local file only (managed profile).
 
-`~/Downloads/net.af0.where_1404.apk`
+`~/Downloads/net.af0.where_1471.apk`
 
-- size 14791436
-- sha256 `cfc1a50142d338f5f9199783943f844f184950e34ba6635f5cb89e5b9f4d9cd6`
+- size 11443012
+- sha256 `1cd385c35b23248a0f439c9cd1efe4d2027c0b4f6f77050cb456d2ffe25f410c`
+- abi `armeabi-v7a`, versionName `2026.10.14.2`, versionCode `1471`
 - catalog id `where-app`, incoming name `where.apk`, package `net.af0.where`
 
 Installed by Managed Apply with Headwind. Post-reset MDM policy: [MANAGED-MDM-SETUP.md](MANAGED-MDM-SETUP.md). Contacts/SMS after wipe: [RESTORE-CONTACTS-SMS.md](RESTORE-CONTACTS-SMS.md).
@@ -67,6 +68,34 @@ Prechecks live in the main process: the package is installed, no device owner is
 
 If uninstall returns `DELETE_FAILED_DEVICE_POLICY_MANAGER`, the Apps step shows that and stops. Break-glass steps stay in `docs/HEADWIND-MDM-RECOVERY.md`.
 
+## Remove root and USB debugging
+
+Separate from Apply, and not a `profile.list` id. The block stays on the Apps step for Base and Managed. The user types `unroot`. Companion requires `su` to return uid 0, then marks these module directories with `touch remove` when they exist:
+
+- `flip2_nav_overlay`
+- `flip2_keypad_backspace`
+- `FlipMouse`
+- `flip2_pixel_tag_drawer`
+- `flip2_launcher_overlay`
+- `flip2_launcher3_null_icon_fix`
+
+A missing directory is skipped. If a touch fails, USB debugging stays on. FlipMouse is stopped. Companion then sets `development_settings_enabled` to 0 and, last, `adb_enabled` to 0. Turning USB debugging off ends the management channel. Companion cannot turn it back on.
+
+This stage does not run `pipeline/deploy/installer/deroot.sh`. That script also restores the stock IME and clears home-key settings. Apps stay installed. The IME and home keys stay as they are. The phone is not rebooted, not wiped, and `/data/system/device_policies.xml` is not edited. The Magisk boot image is not restored. On the phone afterward: Magisk, Uninstall, Restore Images, then reboot. Unchecking a profile flag cannot restore Magisk or USB debugging.
+
+After USB debugging is off, Headwind recovery over adb is gone. Lockout recovery remains a factory reset on the phone.
+
+## Personal backup
+
+The Apps step saves and restores catalog apps, contacts, and messages through Flip 2 Companion. Files live in `~/flip2-personal-backup`. `factoryReadBackup` cannot read that directory. Backup and restore need USB debugging and root. Do this before removing root. It does not wipe the phone, set device owner, or remove root.
+
+- `apps/<package>.apk` — catalog packages that were installed
+- `contacts2.db` — version-checked byte copy, `user_version` 1401. Names live on `raw_contacts.display_name` and the mime name rows.
+- `mmssms.db` — rebuilt by `build-messages`, `user_version` 670020, no attachments
+- `manifest.json` — integer counts only
+
+`~/flip2-pre-wipe-backup/readable/` remains a restore source for `contacts2.db` and `mmssms.db`. The call log is not included. The Apps step shows counts only (named, blank, data; sms, threads, inbox, sent; app count). It does not print names, numbers, or message bodies. Details: [RESTORE-CONTACTS-SMS.md](RESTORE-CONTACTS-SMS.md).
+
 ## What v1 will add or remove
 
 Catalog packages and the five Magisk module ids only. There is no arbitrary APK sideload. Module install is part of Apply. There is no single-module place action, and module install is not sent through a shell command. Module remove deletes `/data/adb/modules/<id>` for an allowlisted id and asks for a reboot. It does not reboot by itself.
@@ -81,4 +110,4 @@ From `companion/`:
 
 `npm run start:safe -- --smoke`
 
-Expect the page title `TCL Flip2 Manager`, four front-door steps, catalog length 11, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.
+Expect the page title `TCL Flip2 Manager`, five front-door pills (Getting started, Phone, Profile, Apps, Prepare), catalog length 12, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.
