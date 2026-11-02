@@ -88,11 +88,11 @@
       "url": "https://f-droid.org/repo/org.schabi.newpipe_1015.apk"
     },
     {
-      "id": "just-player",
-      "file": "com.brouken.player_2174.apk",
-      "sha256": "89e459ee69f2350f5006fb514d7a7e7f2f9b4e590c3b03b1f4e66c0ffc16d1a2",
-      "size": 13050016,
-      "url": "https://f-droid.org/repo/com.brouken.player_2174.apk"
+      "id": "vlc",
+      "file": "org.videolan.vlc_13050404.apk",
+      "sha256": "e208deebfd2bbf45258770f89a763f2e94994f1365900bc72f1559388d5eb763",
+      "size": 35933852,
+      "url": "https://f-droid.org/repo/org.videolan.vlc_13050404.apk"
     },
     {
       "id": "materialfiles",

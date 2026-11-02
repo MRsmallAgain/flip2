@@ -5,7 +5,7 @@
       "id": "base",
       "label": "Base",
       "enabled": true,
-      "summary": "Today's full wizard install: modules, Launcher4, Null Keyboard, Forkgram, Material Files, AppShelf, F-Droid Basic, NewPipe, Just Player, Intertune, Bouncy, home keys, 321\u00d7428, wallpaper, Whisper, and Vosk.",
+      "summary": "Today's full wizard install: modules, Launcher4, Null Keyboard, Forkgram, Material Files, AppShelf, F-Droid Basic, NewPipe, VLC, Intertune, Bouncy, home keys, 321\u00d7428, wallpaper, Whisper, and Vosk.",
       "components": [
         "navoverlay",
         "keypad",
@@ -19,7 +19,7 @@
         "appshelf",
         "fdroid_basic",
         "newpipe",
-        "just_player",
+        "vlc",
         "intertune",
         "bouncy",
         "home_keys",

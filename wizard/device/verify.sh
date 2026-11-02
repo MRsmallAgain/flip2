@@ -142,10 +142,10 @@ if want newpipe; then
 else
   echo "NOTE: skip newpipe"
 fi
-if want just_player; then
-  check "Just Player installed" pm path com.brouken.player
+if want vlc; then
+  check "VLC installed" pm path org.videolan.vlc
 else
-  echo "NOTE: skip just_player"
+  echo "NOTE: skip vlc"
 fi
 if want tagdrawer; then
   check "Tag Drawer installed" pm path com.iwadjp.pixeltagdrawer

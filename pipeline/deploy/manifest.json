@@ -301,11 +301,11 @@
       }
     },
     {
-      "name": "just_player",
+      "name": "vlc",
       "artifact": "user-apk",
-      "package": "com.brouken.player",
-      "incoming": "just-player.apk",
-      "label": "Just Player",
+      "package": "org.videolan.vlc",
+      "incoming": "vlc.apk",
+      "label": "VLC",
       "root_install": false,
       "root_runtime": false,
       "rootless_survives_deroot": true,
@@ -317,11 +317,11 @@
         "image-post"
       ],
       "install_order": 92,
-      "notes": "F-Droid builds since ~0.180 ship arm64-v8a native libs only; INSTALL_FAILED_NO_MATCHING_ABIS on 4058G (armeabi-v7a). Pin an older v7a APK when available or sideload a 32-bit build.",
+      "notes": "F-Droid org.videolan.vlc_13050404 (3.5.x) includes armeabi-v7a; newer suggested builds are arm64-only on F-Droid.",
       "external": {
-        "url": "https://f-droid.org/repo/com.brouken.player_2174.apk",
-        "asset": "com.brouken.player_2174.apk",
-        "sha256": "89e459ee69f2350f5006fb514d7a7e7f2f9b4e590c3b03b1f4e66c0ffc16d1a2"
+        "url": "https://f-droid.org/repo/org.videolan.vlc_13050404.apk",
+        "asset": "org.videolan.vlc_13050404.apk",
+        "sha256": "e208deebfd2bbf45258770f89a763f2e94994f1365900bc72f1559388d5eb763"
       }
     },
     {

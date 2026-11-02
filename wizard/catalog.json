@@ -136,15 +136,15 @@
       "upstream": "f-droid.org org.schabi.newpipe version 1015"
     },
     {
-      "id": "just-player",
-      "file": "com.brouken.player_2174.apk",
-      "purpose": "Just (Video) Player — local/network video playback. Warning: current F-Droid APK is arm64-only; Flip2 (4058G) needs armeabi-v7a — expect INSTALL_FAILED_NO_MATCHING_ABIS until a 32-bit pin is found.",
-      "url": "https://f-droid.org/repo/com.brouken.player_2174.apk",
-      "size": 13050016,
-      "sha256": "89e459ee69f2350f5006fb514d7a7e7f2f9b4e590c3b03b1f4e66c0ffc16d1a2",
-      "license": "MIT",
-      "author": "brouken (F-Droid)",
-      "upstream": "f-droid.org com.brouken.player version 2174"
+      "id": "vlc",
+      "file": "org.videolan.vlc_13050404.apk",
+      "purpose": "VLC for Android 3.5.x (F-Droid 13050404) — video/audio playback with armeabi-v7a for Flip2 4058G.",
+      "url": "https://f-droid.org/repo/org.videolan.vlc_13050404.apk",
+      "size": 35933852,
+      "sha256": "e208deebfd2bbf45258770f89a763f2e94994f1365900bc72f1559388d5eb763",
+      "license": "GPL-2.0",
+      "author": "VideoLAN (F-Droid)",
+      "upstream": "f-droid.org org.videolan.vlc version 13050404"
     },
     {
       "id": "materialfiles",

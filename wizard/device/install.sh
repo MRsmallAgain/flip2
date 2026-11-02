@@ -185,10 +185,10 @@ if want newpipe; then
 else
   echo "NOTE: skip newpipe"
 fi
-if want just_player; then
-  install_apk just-player.apk        com.brouken.player
+if want vlc; then
+  install_apk vlc.apk                org.videolan.vlc
 else
-  echo "NOTE: skip just_player"
+  echo "NOTE: skip vlc"
 fi
 
 if want ime; then
