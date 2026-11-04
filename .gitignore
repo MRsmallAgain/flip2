@@ -49,3 +49,8 @@ companion/node_modules/
 
 # External APKs fetched by flip2 source fetch
 pipeline/deploy/sources/
+
+# Local MTK / SP Flash tooling (host-only clones, not part of repo)
+.venv-mtk/
+mtkclient/
+vendor/
