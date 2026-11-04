@@ -140,8 +140,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "optional": {
-        "vosk_models": "~40MB EN + ~75MB UK, pushed from models/ symlink or user URL; never bundled",
-        "whisper_models": "ggml .bin under files/whisper/{en,uk}; flip2 ime whisper; never bundled. One multilingual bin can serve both langs."
+        "sherpa_models": "Sherpa-ONNX streaming tar.bz2 under files/sherpa/{en,uk}; flip2 ime sherpa or --sherpa-url on pack; never bundled"
       }
     },
     {
@@ -201,9 +200,14 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
-        "wizard"
+        "wizard",
+        "image"
       ],
       "install_order": 86,
+      "image_preload": {
+        "system_app_dir": "Intertune",
+        "source": "sources/dev.skye.intertune_96.apk"
+      },
       "external": {
         "url": "https://f-droid.org/repo/dev.skye.intertune_96.apk",
         "asset": "dev.skye.intertune_96.apk",
@@ -221,9 +225,14 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
-        "wizard"
+        "wizard",
+        "image"
       ],
       "install_order": 87,
+      "image_preload": {
+        "system_app_dir": "Bouncy",
+        "source": "sources/com.dozingcatsoftware.bouncy_43.apk"
+      },
       "external": {
         "url": "https://f-droid.org/repo/com.dozingcatsoftware.bouncy_43.apk",
         "asset": "com.dozingcatsoftware.bouncy_43.apk",
@@ -244,9 +253,14 @@
         "clean",
         "full",
         "wizard",
+        "image",
         "image-post"
       ],
       "install_order": 88,
+      "image_preload": {
+        "system_app_dir": "AppShelf",
+        "source": "sources/io.github.xtratter.appshelf_90.apk"
+      },
       "external": {
         "url": "https://f-droid.org/repo/io.github.xtratter.appshelf_90.apk",
         "asset": "io.github.xtratter.appshelf_90.apk",
@@ -267,10 +281,15 @@
         "clean",
         "full",
         "wizard",
+        "image",
         "image-post"
       ],
       "install_order": 89,
       "notes": "Minimal F-Droid client (replaces full F-Droid in the build kit).",
+      "image_preload": {
+        "system_app_dir": "FdroidBasic",
+        "source": "sources/org.fdroid.basic_2000052.apk"
+      },
       "external": {
         "url": "https://f-droid.org/repo/org.fdroid.basic_2000052.apk",
         "asset": "org.fdroid.basic_2000052.apk",
@@ -291,9 +310,14 @@
         "clean",
         "full",
         "wizard",
+        "image",
         "image-post"
       ],
       "install_order": 91,
+      "image_preload": {
+        "system_app_dir": "NewPipe",
+        "source": "sources/org.schabi.newpipe_1015.apk"
+      },
       "external": {
         "url": "https://f-droid.org/repo/org.schabi.newpipe_1015.apk",
         "asset": "org.schabi.newpipe_1015.apk",
@@ -314,10 +338,15 @@
         "clean",
         "full",
         "wizard",
+        "image",
         "image-post"
       ],
       "install_order": 92,
       "notes": "F-Droid org.videolan.vlc_13050404 (3.5.x) includes armeabi-v7a; newer suggested builds are arm64-only on F-Droid.",
+      "image_preload": {
+        "system_app_dir": "VLC",
+        "source": "sources/org.videolan.vlc_13050404.apk"
+      },
       "external": {
         "url": "https://f-droid.org/repo/org.videolan.vlc_13050404.apk",
         "asset": "org.videolan.vlc_13050404.apk",

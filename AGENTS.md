@@ -2,6 +2,16 @@
 
 Repo: **`~/.local/share/flip2`** (`FLIP2_ROOT`).
 
+## Operating doctrine (mandatory)
+
+**Every session teaches lessons.** Prefer **pipeline-driven** work (`flip2` → `pipeline/<domain>/*.sh`) with **gates** (health checks, SHA-256 pins, typed words, serial/mode probes) and **validity tests** (`verify.sh`, manifests, `probe-fastboot-mode.sh`) — prove on donor hardware when possible, then promote the same script to the daily driver.
+
+- **Read before device ops:** [docs/LESSONS-LEARNED.md](docs/LESSONS-LEARNED.md), [docs/AGENT-OPERATING-DOCTRINE.md](docs/AGENT-OPERATING-DOCTRINE.md)
+- **Do not:** background adb reboot watchers, duplicate flash pipelines, or chat-only recipes without doc/pipeline follow-up
+- **Backup gate:** no wipe/custom super on a daily driver without serial-matched export or explicit user waiver
+
+Sub-agents under `.agents/` inherit this file plus [`.agents/AGENTS.md`](.agents/AGENTS.md).
+
 ## User goal
 
 Set **menu grid slots 1–9** on TCL Flip2/Gflip6 via RRO overlay. Minimal web UI at `/edit`; prefer **`flip2 slot`** and **`slots.json`**.
@@ -32,6 +42,8 @@ flip2 recovery           # after bad launcher Magisk module
 
 - [README.md](README.md) — overview
 - [docs/PIPELINE.md](docs/PIPELINE.md) — stages and layout
+- [docs/LESSONS-LEARNED.md](docs/LESSONS-LEARNED.md) — ops lessons (backup, fastbootd, UPBO vs donor)
+- [docs/AGENT-OPERATING-DOCTRINE.md](docs/AGENT-OPERATING-DOCTRINE.md) — gates, recursion, validity for agents
 - `launcher-patch/RECOVERY.md`, `EMERGENCY-unresponsive.md`
 
 ## adb

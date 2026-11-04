@@ -2,6 +2,10 @@
 
 Repeatable, modular workflows for TCL Flip2 / Gflip6 menu overlay and recovery. Repo root: **`~/.local/share/flip2`** (or **`FLIP2_ROOT`**).
 
+## Doctrine
+
+Stages should implement **gates** (preconditions), **logged steps**, and **validity checks** after each stage. New behavior proven in ops (`~/flip2-backups/...`) is **promoted** here rather than left as chat-only recipes. See [LESSONS-LEARNED.md](LESSONS-LEARNED.md) and [AGENT-OPERATING-DOCTRINE.md](AGENT-OPERATING-DOCTRINE.md).
+
 ## Layout
 
 ```

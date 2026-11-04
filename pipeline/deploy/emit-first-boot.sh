@@ -31,3 +31,23 @@ jq -r '.components[]
   | while IFS=' ' read -r ns key val; do
       printf "settings put %s '%s' '%s'\n" "$ns" "$key" "$val"
     done
+
+echo ""
+echo "# --- Null Keyboard + HOME (system preloads; image-post skips duplicate APKs) ---"
+IME_PKG="$(jq -r '.components[] | select(.name=="ime") | .package' "$MANIFEST")"
+jq -r '.components[] | select(.name=="ime") | .settings[]? // empty' "$MANIFEST" \
+  | while IFS=' ' read -r ns key val; do
+      printf "settings put %s '%s' '%s'\n" "$ns" "$key" "$val"
+    done
+jq -r '.components[] | select(.name=="ime") | .appops[]? // empty' "$MANIFEST" \
+  | while IFS=' ' read -r op mode; do
+      printf "appops set --user 0 %s %s %s\n" "$IME_PKG" "$op" "$mode"
+    done
+jq -r '.components[] | select(.name=="ime") | .permissions[]? // empty' "$MANIFEST" \
+  | while read -r perm; do
+      printf "pm grant %s %s\n" "$IME_PKG" "$perm"
+    done
+HOME_ACT="$(jq -r '.components[] | select(.name=="launcher4") | .home_activity // empty' "$MANIFEST")"
+if [[ -n "$HOME_ACT" ]]; then
+  printf "cmd package set-home-activity %s\n" "$HOME_ACT"
+fi

@@ -42,6 +42,8 @@ Project docs use a **donor** device ID for testing. **Do not** treat an unknown 
 
 ## More detail
 
+- [LESSONS-LEARNED.md](LESSONS-LEARNED.md) — backup, fastbootd, donor vs UPBO (from field ops)
+- [AGENT-OPERATING-DOCTRINE.md](AGENT-OPERATING-DOCTRINE.md) — how agents should run gated pipelines
 - [SETUP-WIZARD.md](SETUP-WIZARD.md) — how to run the page
 - [MANAGER.md](MANAGER.md) — profiles, Headwind pin, and device owner versus Apply
 - [RETURN-TO-FACTORY.md](RETURN-TO-FACTORY.md) — factory slice gates

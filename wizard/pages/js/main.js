@@ -5,7 +5,7 @@
 // Every module below is loaded by index.html before this one:
 //   CATALOG/loadCatalog/sha256Hex, ADBKEY, ADB, PIPE, PROFILES, BOOTROM.
 
-var ORDER = ['start', 'phone', 'profile', 'apps', 'prepare'];
+var ORDER = ['start', 'apps', 'prepare'];
 var PREPARE = ['credit', 'download', 'udev', 'usb', 'install', 'verify'];
 var REACHED = { start: true };
 var VERIFIED = {};            // catalog id -> ArrayBuffer of a hash-checked file
@@ -62,7 +62,7 @@ function showStep(name) {
     var idx = ORDER.indexOf(step);
     spans[n].classList.toggle('on', step === pill);
     spans[n].classList.toggle('done', idx >= 0 && i >= 0 && idx < i);
-  });
+  }
   // Rooting and return-to-factory stay off the main scroll. Opening one
   // closes the other. Prepare subsections are not extra pills.
   ['root', 'factory'].forEach(function (extra) {
@@ -79,12 +79,13 @@ function showStep(name) {
   shownStep = name;
   updatePrepareStrip(name);
   // The first call is the page load. Later calls jump to that section
-  // without hiding the rest of the page.
+  // without hiding the rest of the page. Instant, because a smooth jump
+  // started from a pill click is ignored in this window.
   if (!first) {
     var target = $('step-' + name);
-    if (name === 'start') window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (name === 'start') window.scrollTo(0, 0);
     else if (target && !target.hidden) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      target.scrollIntoView({ behavior: 'auto', block: 'start' });
     }
   }
 }
@@ -269,6 +270,24 @@ function adbLog(line) {
 
 // --- 1 · credit gate --------------------------------------------------------
 
+function catalogLinkTitle(f) {
+  return f.upstream || f.url || 'local pin';
+}
+
+function catalogLinkLabel(f) {
+  if (!f.url) return 'local';
+  try {
+    var host = new URL(f.url).hostname.replace(/^www\./, '');
+    if (host.indexOf('github.com') >= 0) return 'GitHub';
+    if (host.indexOf('huggingface.co') >= 0) return 'HF';
+    if (host.indexOf('f-droid.org') >= 0) return 'F-Droid';
+    var parts = host.split('.');
+    return parts.length >= 2 ? parts[parts.length - 2] : host.slice(0, 8);
+  } catch (e) {
+    return 'link';
+  }
+}
+
 function buildCreditTable() {
   var tbody = $('credit-table').tBodies[0];
   CATALOG.list.forEach(function (f) {
@@ -276,21 +295,24 @@ function buildCreditTable() {
     var td0 = document.createElement('td');
     td0.appendChild(document.createTextNode(f.file));
     var td1 = document.createElement('td');
-    td1.textContent = f.author;
+    td1.textContent = f.author + ' · ' + (f.license || '—');
     var td2 = document.createElement('td');
-    td2.textContent = f.license;
-    var td3 = document.createElement('td');
     if (f.url) {
       var a = document.createElement('a');
       a.href = f.url;
-      a.textContent = f.upstream || f.url;
+      a.className = 'catalog-link';
+      a.textContent = catalogLinkLabel(f);
+      a.title = catalogLinkTitle(f);
       a.target = '_blank';
       a.rel = 'noreferrer';
-      td3.appendChild(a);
+      td2.appendChild(a);
     } else {
-      td3.textContent = f.upstream || 'local pin';
+      td2.textContent = catalogLinkLabel(f);
+      td2.title = catalogLinkTitle(f);
     }
-    tr.appendChild(td0); tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+    tr.appendChild(td0);
+    tr.appendChild(td1);
+    tr.appendChild(td2);
     tbody.appendChild(tr);
   });
 }
@@ -316,7 +338,7 @@ function downloadsAllowed() {
 // buttons itself. Continue only scrolls there.
 function applyDownloadLock() {
   var allowed = downloadsAllowed();
-  ['dl-local-btn', 'dl-fetch-btn', 'dl-pick-btn'].forEach(function (id) {
+  ['dl-local-btn', 'dl-fetch-btn', 'dl-pick-btn', 'dl-pick'].forEach(function (id) {
     var el = $(id);
     if (el) el.disabled = !allowed;
   });
@@ -359,6 +381,9 @@ function buildDownloadTable() {
     } else {
       var a = document.createElement('a');
       a.href = f.url; a.textContent = 'download'; a.target = '_blank'; a.rel = 'noreferrer';
+      a.addEventListener('click', function (ev) {
+        if (!downloadsAllowed()) ev.preventDefault();
+      });
       td3.appendChild(a);
     }
     var td4 = document.createElement('td'); td4.textContent = '—';
@@ -426,6 +451,9 @@ function cleanErr(e) {
 }
 
 function fetchOne(id, btn) {
+  if (!downloadsAllowed()) {
+    return Promise.resolve({ ok: false, msg: 'type yes under Prepare before downloading' });
+  }
   var entry = CATALOG.byId[id];
   if (!entry || !entry.url) {
     setRow(id, 'local pin', 'wait');
@@ -448,7 +476,7 @@ function fetchOne(id, btn) {
     refreshDownloadGate();
     return { ok: false, msg: cleanErr(e) };
   }).then(function (res) {
-    if (btn) btn.disabled = false;
+    if (btn) btn.disabled = !downloadsAllowed();
     return res;
   });
 }
@@ -480,6 +508,10 @@ function tryCandidates(id, list) {
 }
 
 function useLocalFiles() {
+  if (!downloadsAllowed()) {
+    applyDownloadLock();
+    return;
+  }
   var btn = $('dl-local-btn');
   btn.disabled = true;
   setStatus('dl-msg', 'looking for copies already on this PC…', 'wait');
@@ -503,17 +535,21 @@ function useLocalFiles() {
     return seq.then(refreshDownloadGate);
   }).catch(function (e) {
     setStatus('dl-msg', 'could not read the local copies: ' + cleanErr(e), 'bad');
-  }).then(function () { btn.disabled = false; });
+  }).then(function () { applyDownloadLock(); });
 }
 
 function downloadAll() {
+  if (!downloadsAllowed()) {
+    applyDownloadLock();
+    return;
+  }
   var btn = $('dl-fetch-btn');
   btn.disabled = true;
   var todo = CATALOG.list.filter(function (f) { return f.url && !VERIFIED[f.id]; })
     .map(function (f) { return f.id; });
   if (!todo.length) {
     refreshDownloadGate();
-    btn.disabled = false;
+    applyDownloadLock();
     return;
   }
   var done = 0;
@@ -530,7 +566,7 @@ function downloadAll() {
     if (failed.length) {
       setStatus('dl-msg', failed.length + ' could not be downloaded. A server may be down — try again, or choose files you got another way.', 'bad');
     }
-  }).then(function () { btn.disabled = false; });
+  }).then(function () { applyDownloadLock(); });
 }
 
 function checkDownloads(picked) {
@@ -589,15 +625,26 @@ function initDownloads() {
       }
     }).catch(function () {});
   }
-  $('dl-pick-btn').addEventListener('click', function () { $('dl-pick').click(); });
+  $('dl-pick-btn').addEventListener('click', function () {
+    if (!downloadsAllowed()) {
+      applyDownloadLock();
+      return;
+    }
+    $('dl-pick').click();
+  });
   $('dl-pick').addEventListener('change', function () {
     var files = Array.prototype.slice.call(this.files);
     this.value = '';
     if (!files.length) return;
+    if (!downloadsAllowed()) {
+      applyDownloadLock();
+      return;
+    }
     setStatus('dl-msg', 'checking ' + files.length + ' file(s)…', 'wait');
     checkDownloads(files);
   });
   $('dl-next').addEventListener('click', function () { showStep('udev'); });
+  applyDownloadLock();
 }
 
 // --- 3 · udev -----------------------------------------------------------------
@@ -726,7 +773,8 @@ function initUsb() {
 function initInstall() {
   var modal = $('inst-modal');
   $('inst-btn').addEventListener('click', function () {
-    if (modal) modal.classList.remove('hidden');
+    if (typeof openInstallModal === 'function') openInstallModal();
+    else if (modal) modal.classList.remove('hidden');
   });
   if ($('inst-modal-cancel')) {
     $('inst-modal-cancel').addEventListener('click', function () {
@@ -1032,11 +1080,34 @@ var stripPendingSince = 0;
 var stripReadyInFlight = false;
 var stripLastReady = null;
 var STRIP_SETTLE_MS = 900;
+var STRIP_IPC_MS = 8000;
+
+function ipcWithTimeout(promise, ms, label) {
+  return new Promise(function (resolve, reject) {
+    var done = false;
+    var timer = setTimeout(function () {
+      if (done) return;
+      done = true;
+      reject(new Error((label || 'Companion') + ' timed out after ' + ms + ' ms'));
+    }, ms);
+    Promise.resolve(promise).then(function (v) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(v);
+    }, function (e) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      reject(e);
+    });
+  });
+}
 
 // Everyday copy. The rooting panel still owns the battery-pull wording.
 var STRIP_COPY = {
   absent: { box: 'live', cls: 'wait', label: 'no Flip2 on USB',
-    hint: 'Plug the phone in. This bar stays on every page.' },
+    hint: 'Plug the phone in. This bar stays at the top while you scroll.' },
   recovery: { box: 'bad', cls: 'bad', label: 'recovery',
     hint: 'Reboot the phone to Android. Do not flash from this screen.' },
   mtp: { box: 'live', cls: 'wait', label: 'file transfer only',
@@ -1071,7 +1142,7 @@ function paintStripPhone(mode, ready) {
   if (mode === 'android') {
     if (ready && ready.ok) {
       label = 'phone ready';
-      hint = 'USB debugging is allowed. Phone, Profile, Apps, and Prepare stay available. This bar stays on every page.';
+      hint = 'USB debugging is allowed. Phone, Profile, Apps, and Prepare stay on this page. This bar stays at the top while you scroll.';
       cls = 'ok';
       box = 'caught';
     } else if (ready && ready.checking) {
@@ -1097,12 +1168,12 @@ function pollStripPhone() {
   if (!N || !N.phoneState) {
     setStatus('strip-phone', 'needs Flip 2 Companion', 'wait');
     var plain = $('strip-hint');
-    if (plain) plain.textContent = 'Open this page in Flip 2 Companion to see the live phone status.';
+    if (plain) plain.textContent = 'Open this page in Flip 2 Companion to see the live phone status. This bar stays at the top while you scroll.';
     setStripBox('live');
     return;
   }
   var gen = ++stripGen;
-  N.phoneState().then(function (state) {
+  ipcWithTimeout(N.phoneState(), STRIP_IPC_MS, 'USB check').then(function (state) {
     if (gen !== stripGen) return;
     var mode = (state && state.mode) || 'unknown';
     var now = Date.now();
@@ -1129,7 +1200,7 @@ function pollStripPhone() {
     paintStripPhone('android', stripLastReady || { checking: true });
     if (stripReadyInFlight) return;
     stripReadyInFlight = true;
-    N.wizardHostAdbReady().then(function (ready) {
+    ipcWithTimeout(N.wizardHostAdbReady(), STRIP_IPC_MS, 'adb check').then(function (ready) {
       stripReadyInFlight = false;
       if (stripShownMode !== 'android') return;
       stripLastReady = (ready && ready.ok) ? { ok: true } : { ok: false };
@@ -1150,8 +1221,8 @@ function pollStripPhone() {
 }
 
 function startStripPoller() {
+  if (stripPoller) return;
   pollStripPhone();
-  if (stripPoller) clearInterval(stripPoller);
   stripPoller = setInterval(pollStripPhone, 1000);
 }
 
@@ -1781,6 +1852,7 @@ function init() {
   loadCatalog().then(function () {
     return PROFILES.load();
   }).then(function () {
+    startStripPoller();
     if (typeof initFrontNav !== 'function') throw new Error('manager.js did not load');
     buildCreditTable();
     initGate();

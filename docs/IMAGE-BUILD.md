@@ -2,8 +2,11 @@
 
 This is the **Tier A** path: bake the flip2 OSS set into *your own* stock
 firmware as system/product files, so the components survive even with no
-Magisk module. Everything else (FlipMouse, Forkgram, IME settings, Vosk
-models) still comes from the Tier B installer zip after first boot.
+Magisk module. **Host one-shot:** `flip2 image prepare` builds the tree,
+image-post zip, and `dist/flip2-image-kit/`. Pass **`--stock-super PATH`** to
+your own dumped `super.img` and the kit also includes **`super-flip2.img`**
+(merged on the host). Forkgram, Material Files, and Sherpa models stay
+post-flash — see [IMAGE-TIERS.md](IMAGE-TIERS.md).
 
 **We do not distribute TCL firmware or boot images.** You dump your own
 firmware; the root vector is [neutronscott's flip2
@@ -51,6 +54,8 @@ The tree contains (see its `MANIFEST.txt` + `SHA256SUMS`):
 | `system/app/PixelTagDrawer/PixelTagDrawer.apk` | D-pad Up tags (system placement survives de-root) |
 | `system/app/Launcher4/Launcher4.apk` | flip2 launcher as a normal system app |
 | `system/app/Flip2NullKeyboard/Flip2NullKeyboard.apk` | preloaded IME |
+| `system/app/AppShelf`, `FdroidBasic`, `NewPipe`, `VLC`, `Intertune`, `Bouncy` | Base FOSS suite (image v2; run `flip2 deploy source-fetch` before build-tree) |
+| `system/bin/flip2-mouse` + `system/etc/init/flip2-mouse.rc` | system-domain FlipMouse when `flip2 flipmouse build-system` was run |
 | `system/usr/keylayout/matrix-keypad.kl` | backspace remap (no Magisk needed) |
 | `product/overlay/Flip2NavOverlay.apk` | hide the 30px nav bar |
 | `product/overlay/Flip2LauncherOverlay.apk` | stock Launcher3 menu RRO |
@@ -62,9 +67,9 @@ Notes:
 - APKs are **debug-signed** — that is fine for `system/app` preloads, but
   do **not** put them in `priv-app` and do **not** replace
   `/system/priv-app/Launcher3` (bootloop risk; platform signature needed).
-- FlipMouse is **not** in the tree: it needs runtime root to read
-  `/dev/input`. Forkgram is never bundled (GPL). Both arrive via the
-  Tier B installer.
+- **Forkgram** and **Material Files** are never in the tree (GPL / download at install). Use **`flip2 installer pack --flavor image-post`** after first boot for those plus IME tuning and deroot.
+- Before **`flip2 image build-tree`**, run **`flip2 deploy source-fetch`** so F-Droid pins exist under `pipeline/deploy/sources/`.
+- System FlipMouse needs **`flip2 flipmouse build-system`** (NDK) and a donor SELinux spike before you rely on it after Restore Images — see `docs/FLIPMOUSE-SYSTEM.md`.
 - **A merge tree can only carry files.** The settings-write components
   (`home_keys`, and `display`'s `display_size_forced`) and the wallpaper's copy
   into `/data/system/users/0` are therefore *not* baked into the image. They
@@ -76,18 +81,36 @@ Notes:
 
 ## 3. Merge the tree into the stock images
 
-Mount the `system` / `product` partitions from your unpacked `super.img`
-(on Linux: `simg2img` then loop-mount, or use `lpunpack`) and copy the tree
-over:
+**Automated (recommended):** use your own stock `super.img` dump (never
+redistributed by flip2):
+
+```bash
+flip2 image merge-super --stock-super /path/to/your/super.img
+# -> pipeline/deploy/dist/super-flip2.img (+ .sha256)
+
+# Or one shot with prepare:
+flip2 image prepare --skip-flipmouse-system --stock-super /path/to/your/super.img
+# -> dist/flip2-image-kit/ includes super-flip2.img when merge succeeds
+```
+
+Host tools: `debugfs`, `e2fsck`, `resize2fs`, `python3`. Optional `avbtool`
+(or repo `vendor/.../avbtool.py`) for dm-verity footers; use
+`--skip-avb-on-merge` / `merge-super --skip-avb` for lab builds. **Orange /
+unlocked bootloader:** modified system/product usually need a matching
+`vbmeta_system` (see donor RUN-REPORT notes — we cannot sign with TCL’s key).
+
+**Manual:** mount `system` / `product` from unpacked `super` (`lpunpack` or
+loop-mount) and copy the tree (system-as-root: tree `system/` maps to `/` on
+the system partition, not `/system/`):
 
 ```bash
 sudo cp -a pipeline/deploy/dist/flip2-system-tree/system/.   /mnt/system/
 sudo cp -a pipeline/deploy/dist/flip2-system-tree/product/.  /mnt/product/
 ```
 
-Rebuild `super.img` (`lpmake`), keeping the original partition sizes and
-group layout. Check the rebuilt image against the `SHA256SUMS` of the files
-you added.
+Rebuild `super.img` (`lpmake` or flip2’s `lp_tool.py repack`), update LP
+metadata if partition sizes grew, re-sign AVB footers if you flash with
+verity enabled.
 
 ## 4. Flash via fastbootd
 

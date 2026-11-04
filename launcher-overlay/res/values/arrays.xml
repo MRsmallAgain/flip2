@@ -27,7 +27,7 @@
         <item>com.tcl.tct.weather</item>
         <item>com.android.dialer</item>
         <item>com.tcl.logger</item>
-                                                                                                                                                                                                                                                    </string-array>
+                                                                                                                                                                                                                                                        </string-array>
 
     <string-array name="tools_hasmusic_list">
         <item>com.android.settings</item>
@@ -44,5 +44,5 @@
         <item>com.tcl.tct.weather</item>
         <item>com.android.dialer</item>
         <item>com.tcl.logger</item>
-                                                                                                                                                                                                                                                    </string-array>
+                                                                                                                                                                                                                                                        </string-array>
 </resources>

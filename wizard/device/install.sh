@@ -13,7 +13,8 @@
 #   launcher4.apk nullkeyboard.apk  — payload/apks/ from the same zip
 #   forkgram.apk intertune.apk bouncy.apk materialfiles.apk — browser
 #     downloads (catalog.json)
-#   ggml-tiny-q5_1.bin vosk-model-small-en-us-0.15.zip vosk-model-small-uk-v3-nano.zip
+#   sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2
+#   sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2
 #   headwind.apk — managed profile only, not part of a base push
 #
 # Install order follows pipeline/deploy/manifest.json (10→90). Stops on the
@@ -317,55 +318,40 @@ else
   echo "NOTE: skip browser"
 fi
 
-# --- Whisper ggml: one multilingual bin serves both lang dirs --------------
-if want whisper; then
-  W=$IN/ggml-tiny-q5_1.bin
-  [ -f "$W" ] || fail "whisper model missing: $W"
-  for lang in en uk; do
-    D=/data/data/$NULL_PKG/files/whisper/$lang
-    mkdir -p "$D" || fail "mkdir $D"
-    cp "$W" "$D/model.bin" || fail "whisper copy: $lang"
-  done
-  ok "whisper placed (en, uk)"
-else
-  echo "NOTE: skip whisper"
-fi
-
-# --- Vosk: zips carry an inner top-level dir — flatten it so
-# --- files/vosk/<lang>/{am,conf,graph} matches VoskSttHelper.looksLikeModel
-place_vosk() {
-  name=$1; zip=$2
-  [ -f "$IN/$zip" ] || fail "vosk zip missing: $IN/$zip"
-  TMP=$STAGE/.vosk-$name
+# --- Sherpa-ONNX: tar.bz2 with inner dir containing tokens.txt ---------------
+place_sherpa() {
+  name=$1; tar=$2
+  [ -f "$IN/$tar" ] || fail "sherpa tarball missing: $IN/$tar"
+  TMP=$STAGE/.sherpa-$name
   rm -rf "$TMP"; mkdir -p "$TMP"
-  unzip_any "$IN/$zip" "$TMP" || fail "could not unpack vosk: $name"
-  SRC=$TMP
-  if [ ! -d "$TMP/am" ]; then
-    for d in "$TMP"/*/; do
-      if [ -d "${d}am" ]; then SRC=${d%/}; break; fi
-    done
-  fi
-  [ -d "$SRC/am" ] || fail "vosk $name: no am/ dir after unpack"
-  D=/data/data/$NULL_PKG/files/vosk/$name
-  rm -rf "$D"; mkdir -p "$D"
-  cp -a "$SRC/." "$D/" || fail "vosk copy: $name"
+  tar -xjf "$IN/$tar" -C "$TMP" 2>/dev/null || { [ -x "$BB" ] && "$BB" tar -xjf "$IN/$tar" -C "$TMP"; } \
+    || fail "could not unpack sherpa: $name"
+  inner="$(find "$TMP" -name tokens.txt -print -quit 2>/dev/null | sed 's|/tokens.txt||')"
+  [ -n "$inner" ] && [ -f "$inner/tokens.txt" ] || fail "sherpa $name: no tokens.txt after unpack"
+  D=/data/data/$NULL_PKG/files/sherpa/$name
+  rm -rf "$D"; mkdir -p "$(dirname "$D")"
+  cp -a "$inner" "$D" || fail "sherpa copy: $name"
   rm -rf "$TMP"
-  ok "vosk placed: $name"
+  ok "sherpa placed: $name"
 }
 
-if want vosk; then
-  place_vosk en vosk-model-small-en-us-0.15.zip
-  place_vosk uk vosk-model-small-uk-v3-nano.zip
+if want sherpa-en; then
+  place_sherpa en sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2
 else
-  echo "NOTE: skip vosk"
+  echo "NOTE: skip sherpa-en"
+fi
+if want sherpa-uk; then
+  place_sherpa uk sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2
+else
+  echo "NOTE: skip sherpa-uk"
 fi
 
 # Model ownership and stt_lang follow the speech models and the IME.
 # A profile that lists none of them must not fail on a missing model file.
-if want whisper || want vosk || want ime; then
+if want sherpa-en || want sherpa-uk || want ime; then
   OWNER=$(stat -c %u:%g /data/data/$NULL_PKG 2>/dev/null)
   [ -n "$OWNER" ] || fail "could not stat /data/data/$NULL_PKG"
-  if want whisper || want vosk; then
+  if want sherpa-en || want sherpa-uk; then
     chown -R "$OWNER" /data/data/$NULL_PKG/files || fail "chown files"
     restorecon -RF /data/data/$NULL_PKG/files 2>/dev/null
     ok "models owned by $OWNER"

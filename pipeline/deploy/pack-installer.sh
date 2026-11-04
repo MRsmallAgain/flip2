@@ -16,8 +16,8 @@ HOME_KEYS="$ROOT/launcher-overlay/home-keys.json"
 
 usage() {
   cat <<EOF
-Usage: flip2 installer pack [--flavor clean|full|image-post] [--vosk-url name=url]\
-                        [--whisper-url name=url] [--out DIR] [--no-zip]
+Usage: flip2 installer pack [--flavor clean|full|image-post] [--sherpa-url name=url]\
+                        [--out DIR] [--no-zip]
 
 Build the single-shot flip2 Magisk installer zip. The zip is a real Magisk
 module whose one-shot service.sh runs at first boot as root: installs the
@@ -28,11 +28,8 @@ settings, writes /data/local/flip2/deroot.sh, then removes itself.
                         clean = root-independent user APKs + settings (de-root friendly)
                         full = modules + everything (default)
                         image-post = after Tier A flash: GPL sideloads + IME settings only
-  --vosk-url name=URL   fetch a Vosk model at install time (repeatable; models
-                        are never bundled). Example: --vosk-url en=https://...
-  --whisper-url name=URL  fetch a ggml Whisper model at install time
-                        (repeatable; e.g. --whisper-url en=https://...bin). One
-                        multilingual bin may be given for both en and uk.
+  --sherpa-url name=URL fetch a Sherpa-ONNX model tarball at install time
+                        (repeatable; e.g. --sherpa-url en=https://...tar.bz2).
   --out DIR             staging directory (default: $DIST/installer-<flavor>)
   --no-zip              keep the staging dir only, do not build the zip
 EOF
@@ -41,13 +38,12 @@ EOF
 FLAVOR=full
 OUT=""
 NO_ZIP=0
-VOSK_URLS=()
-WHISPER_URLS=()
+SHERPA_URLS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --flavor) FLAVOR="${2:-}"; [ -n "$FLAVOR" ] || { echo "--flavor needs a value" >&2; exit 1; }; shift 2 ;;
-    --vosk-url) VOSK_URLS+=("${2:-}"); [ -n "${2:-}" ] || { echo "--vosk-url needs name=url" >&2; exit 1; }; shift 2 ;;
-    --whisper-url) WHISPER_URLS+=("${2:-}"); [ -n "${2:-}" ] || { echo "--whisper-url needs name=url" >&2; exit 1; }; shift 2 ;;
+    --sherpa-url) SHERPA_URLS+=("${2:-}"); [ -n "${2:-}" ] || { echo "--sherpa-url needs name=url" >&2; exit 1; }; shift 2 ;;
+    --vosk-url|--whisper-url) echo "Removed: use --sherpa-url name=url" >&2; exit 1 ;;
     --out) OUT="${2:-}"; [ -n "$OUT" ] || { echo "--out needs a path" >&2; exit 1; }; shift 2 ;;
     --no-zip) NO_ZIP=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -55,11 +51,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 case "$FLAVOR" in clean|full|image-post) ;; *) echo "--flavor must be clean, full, or image-post" >&2; exit 1 ;; esac
-for u in "${VOSK_URLS[@]}"; do
-  [[ "$u" == *=* ]] || { echo "--vosk-url wants name=url, got: $u" >&2; exit 1; }
-done
-for u in "${WHISPER_URLS[@]}"; do
-  [[ "$u" == *=* ]] || { echo "--whisper-url wants name=url, got: $u" >&2; exit 1; }
+for u in "${SHERPA_URLS[@]}"; do
+  [[ "$u" == *=* ]] || { echo "--sherpa-url wants name=url, got: $u" >&2; exit 1; }
 done
 
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
@@ -161,15 +154,10 @@ while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eur
       done >> "$DATA/permissions.txt"
 done <<< "$ROWS"
 
-# Vosk/Whisper models: never bundled; only URLs baked in if the packer got any.
-if [ "${#VOSK_URLS[@]}" -gt 0 ]; then
-  for u in "${VOSK_URLS[@]}"; do
-    printf '%s %s\n' "${u%%=*}" "${u#*=}" >> "$DATA/vosk-urls.txt"
-  done
-fi
-if [ "${#WHISPER_URLS[@]}" -gt 0 ]; then
-  for u in "${WHISPER_URLS[@]}"; do
-    printf '%s %s\n' "${u%%=*}" "${u#*=}" >> "$DATA/whisper-urls.txt"
+# Sherpa-ONNX models: never bundled; only tarball URLs if packer passed --sherpa-url.
+if [ "${#SHERPA_URLS[@]}" -gt 0 ]; then
+  for u in "${SHERPA_URLS[@]}"; do
+    printf '%s %s\n' "${u%%=*}" "${u#*=}" >> "$DATA/sherpa-urls.txt"
   done
 fi
 

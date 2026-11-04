@@ -18,284 +18,278 @@
   <img src="../assets/logo.svg" alt="" width="40" height="40" class="header-logo">
   <div>
     <h1>TCL Flip2 Manager</h1>
-    <p class="sub">Phone, Profile, Apps, and Prepare. Nothing downloads until you type <code>yes</code> under Prepare.</p>
+    <p class="sub">Flip2 Companion · type <code>yes</code> under Prepare · wipe only on the phone.</p>
   </div>
 </header>
-<nav id="steps">
-  <span data-step="start">Getting started</span>
-  <span data-step="phone">Phone</span>
-  <span data-step="profile">Profile</span>
-  <span data-step="apps">Apps</span>
-  <span data-step="prepare">Prepare</span>
-</nav>
-<div id="live-strip" class="now live" aria-live="polite">
-  <div class="now-row">
-    <span class="now-label">Phone</span>
-    <span id="strip-phone" class="status wait">Checking USB…</span>
-  </div>
-  <p id="strip-hint" class="now-hint">This bar stays on every page.</p>
-  <div id="strip-install-row" class="now-row hidden">
-    <span class="now-label">Install</span>
-    <span id="strip-install" class="status"></span>
-  </div>
-  <div id="strip-prepare" class="hidden">
-    <div class="now-row">
-      <span class="now-label">Prepare</span>
-      <span id="strip-prepare-label" class="status"></span>
+<div id="page-chrome">
+  <nav id="steps">
+    <span data-step="start">Getting started</span>
+    <span data-step="apps">Apps</span>
+    <span data-step="prepare">Prepare</span>
+  </nav>
+  <div id="live-strip" class="now live" aria-live="polite">
+    <details id="strip-phone-details" class="strip-phone-details">
+      <summary class="strip-phone-summary">
+        <span class="now-label">Phone</span>
+        <span id="strip-phone" class="status wait">Checking USB…</span>
+      </summary>
+      <div id="phone-facts" class="now strip-phone-facts"></div>
+      <p id="phone-next" class="note hidden"></p>
+      <div class="action-row action-row--compact strip-phone-actions">
+        <button type="button" id="phone-refresh" class="small">Refresh</button>
+        <button type="button" id="phone-prepare" class="ghost small">Prepare</button>
+        <button type="button" id="phone-udev" class="ghost small">USB rules</button>
+        <button type="button" id="phone-usb" class="ghost small">USB debugging</button>
+        <span id="phone-msg" class="status"></span>
+      </div>
+    </details>
+    <p id="strip-hint" class="now-hint hidden">Updates while scrolling.</p>
+    <div id="strip-install-row" class="now-row hidden">
+      <span class="now-label">Install</span>
+      <span id="strip-install" class="status"></span>
     </div>
-    <div class="watchbar"><div id="strip-prepare-bar"></div></div>
+    <div id="strip-prepare" class="hidden">
+      <div class="now-row">
+        <span class="now-label">Prepare</span>
+        <span id="strip-prepare-label" class="status"></span>
+      </div>
+      <div class="watchbar"><div id="strip-prepare-bar"></div></div>
+    </div>
   </div>
 </div>
 <main>
 
 <section class="step on" id="step-start">
   <h2>Getting started</h2>
-  <p class="guide-intro">Common paths through <b>TCL Flip2 Manager</b> in <b>Flip 2 Companion</b>. Pick a workflow, then use the buttons to jump to the right tab. Factory reset stays on the phone; this app never erases userdata over USB.</p>
-  <div class="workflow-grid">
-    <article class="workflow-card">
-      <h3>First-time Base setup</h3>
-      <p class="workflow-audience">Rooted phone, full Flip2 stack (no Headwind).</p>
-      <ol>
-        <li><b>Profile</b> → choose <b>Base</b>.</li>
-        <li><b>Prepare</b> → type <code>yes</code> on credits, verify downloads.</li>
-        <li><b>Push and install</b>, then <b>Verify</b>.</li>
-        <li>Reboot if wallpaper, display size, or Tag Drawer still look wrong.</li>
-      </ol>
-      <p class="workflow-outcome">Modules, Launcher4, apps, 321×428, wallpaper, speech models.</p>
-      <p class="workflow-actions">
-        <button type="button" class="ghost small" data-goto-step="profile">Profile</button>
-        <button type="button" class="ghost small" data-goto-step="prepare">Prepare</button>
-      </p>
-    </article>
-    <article class="workflow-card">
-      <h3>Check the phone</h3>
-      <p class="workflow-audience">Any visit — confirm adb and readiness.</p>
-      <ol>
-        <li>Plug in USB and accept the debugging prompt on the phone.</li>
-        <li>Open <b>Phone</b> → <b>Refresh</b>.</li>
-        <li>Read serial, model, root, device owner, and accounts.</li>
-      </ol>
-      <p class="workflow-outcome">Green status means host adb is ready for Apply or verify.</p>
-      <p class="workflow-actions">
-        <button type="button" class="ghost small" data-goto-step="phone">Phone</button>
-      </p>
-    </article>
-    <article class="workflow-card">
-      <h3>Managed MDM (Headwind)</h3>
-      <p class="workflow-audience">Lab or fleet — pinned Headwind launcher + device owner.</p>
-      <ol>
-        <li><b>Profile</b> → <b>Managed</b>, then Apply (Prepare or <b>Apps</b>).</li>
-        <li><b>Phone</b> must show <b>Accounts: none</b> (factory reset on the phone if not).</li>
-        <li><b>Apps</b> → type <code>manage</code> → <b>Set device owner</b>.</li>
-        <li>Reboot, then retry server / policy updates in Headwind.</li>
-        <li>Optional, last: <b>Apps</b> → type <code>unroot</code> to mark root modules and turn off USB debugging.</li>
-      </ol>
-      <p class="workflow-outcome">Device owner is separate from Apply. Removing root is last and ends the USB debugging connection.</p>
-      <p class="workflow-actions">
-        <button type="button" class="ghost small" data-goto-step="profile">Profile</button>
-        <button type="button" class="ghost small" data-goto-step="apps">Apps</button>
-      </p>
-    </article>
-    <article class="workflow-card">
-      <h3>Reboot and power-cycle</h3>
-      <p class="workflow-audience">After install, stuck adb, or preloader / rooting prep.</p>
-      <img class="guide-figure" src="../assets/guide-power-cycle.svg" alt="Four panels: reboot with USB, remove USB and battery, battery only, plug USB about one second after battery" width="720" height="200">
-      <p class="note"><b>Normal reboot:</b> USB can stay connected — use the phone power menu or <code>adb reboot</code> after Magisk modules or wallpaper.</p>
-      <p class="note"><b>Flip 2 battery cycle:</b> For the MTK preloader window (rooting slice), power off, remove USB and battery, insert battery, wait, then plug USB about one second later. If the window is missed, repeat the cycle.</p>
-      <p class="workflow-actions">
-        <button type="button" class="ghost small" data-goto-step="prepare">USB debugging (Prepare)</button>
-      </p>
-    </article>
-    <article class="workflow-card workflow-card--advanced">
-      <h3>Advanced — erase and root</h3>
-      <p class="workflow-audience">Donor or wipeable phone only — not a daily driver upgrade.</p>
-      <ol>
-        <li>Erases userdata and unlocks the bootloader path.</li>
-        <li>Flashes <code>neutron.img</code> to <code>boot</code> only — no system/super flash.</li>
-        <li>Type <code>erase</code> in the flow; battery cycle may be required for preloader.</li>
-      </ol>
-      <p class="workflow-outcome">Already rooted? Skip this — use Base setup or the release installer zip.</p>
-      <p class="workflow-actions">
-        <button type="button" class="ghost small" data-goto-step="root">Open rooting flow</button>
-      </p>
-    </article>
+  <div id="tier1-root-prereq" class="warn hidden" role="status">
+    <p><b>Root first</b> for Tier 1. Stock → Tier 3 or release zip.</p>
+    <p class="tier-jumps">
+      <button type="button" class="tier-jump" data-prereq-goto="root">Erase and root</button>
+    </p>
   </div>
-</section>
-
-<section class="step" id="step-phone">
-  <h2>Phone</h2>
-  <p>Status of the phone plugged in over host adb. USB debugging and the one-time udev rules stay under Prepare. They are not a one-time gate. This app never erases userdata over USB.</p>
-  <div id="phone-facts" class="now"></div>
-  <p id="phone-next" class="note hidden"></p>
-  <p><button type="button" id="phone-refresh">Refresh</button>
-     <button type="button" id="phone-prepare" class="ghost">Prepare</button>
-     <button type="button" id="phone-udev" class="ghost">USB rules</button>
-     <button type="button" id="phone-usb" class="ghost">USB debugging</button>
-     <span id="phone-msg" class="status"></span></p>
-</section>
-
-<section class="step" id="step-profile">
-  <h2>Profile</h2>
-  <p>Base is the current install. Managed adds the pinned Headwind launcher and Where, plus camera and browser flags. Secure is shown and cannot be selected. Apply installs what the profile lists. It does not remove extras and it does not wipe the phone.</p>
+  <p class="guide-intro"><b>Base</b> or <b>Managed</b> — pick below, then Prepare.</p>
   <div id="profile-list"></div>
   <p id="profile-msg" class="status"></p>
+
+  <article class="tier-block" id="tier-setup">
+    <h3 class="tier-title"><span class="tier-n">1</span> Setup</h3>
+    <p class="tier-lead">Prepare: <code>yes</code>, files, install, verify.</p>
+    <p class="tier-jumps">
+      <button type="button" class="tier-jump" data-goto-step="prepare">Prepare</button>
+    </p>
+  </article>
+
+  <article class="tier-block" id="tier-operate">
+    <h3 class="tier-title"><span class="tier-n">2</span> Operate</h3>
+    <p class="tier-lead">Apply, <code>manage</code>, backup, <code>unroot</code>.</p>
+    <p class="tier-jumps">
+      <button type="button" class="tier-jump" data-goto-step="apps">Apps</button>
+    </p>
+  </article>
+
+  <article class="tier-block tier-block--recover" id="tier-recover">
+    <h3 class="tier-title"><span class="tier-n">3</span> Recover</h3>
+    <p class="tier-lead">Donor only — <code>boot</code> flash; wipe on the phone.</p>
+    <p class="tier-jumps">
+      <button type="button" class="tier-jump" data-goto-step="root">Erase and root</button><span class="sep">·</span>
+      <button type="button" class="tier-jump" data-goto-step="factory">Return to factory</button>
+    </p>
+    <details class="tier-details">
+      <summary>Power cycle (rooting)</summary>
+      <img class="guide-figure" src="../assets/guide-power-cycle.svg" alt="Reboot with USB; or remove USB and battery, reinsert battery, plug USB about one second later" width="720" height="200">
+      <p class="note">Battery pull only for preloader during root.</p>
+    </details>
+  </article>
 </section>
 
-<section class="step" id="step-apps">
+<section class="step step-compact" id="step-apps">
   <h2>Apps</h2>
-  <p>Install or remove one catalog app, apply the selected profile, or run verify. Magisk modules install with Apply. Settings rows are part of Apply. Device owner is a separate step on Managed, after you type <code>manage</code>. Removing root and turning off USB debugging is a separate last step on Base or Managed, after you type <code>unroot</code>.</p>
-  <p class="apps-toolbar"><button type="button" id="apps-verify-top" class="ghost">Run verify</button></p>
   <div id="apps-rows"></div>
-  <p><button type="button" id="apps-refresh" class="ghost">Refresh</button>
-     <button type="button" id="apps-apply">Apply profile</button>
-     <button type="button" id="apps-verify" class="ghost">Run verify</button>
-     <span id="apps-msg" class="status"></span></p>
+  <div class="action-row action-row--compact">
+    <button type="button" id="apps-refresh" class="ghost">Refresh</button>
+    <button type="button" id="apps-apply">Apply</button>
+    <button type="button" id="apps-verify" class="ghost">Verify</button>
+    <span id="apps-msg" class="status"></span>
+  </div>
   <pre class="log hidden" id="apps-log"></pre>
-  <div id="apps-owner" class="hidden">
-    <h3>Device owner</h3>
-    <p id="apps-owner-warn" class="warn"></p>
-    <p>Installing the Headwind APK does not make it device owner. Type <b>manage</b> to run <code>dpm set-device-owner com.hmdm.launcher/.AdminReceiver</code>. If the phone has accounts, factory-reset on the phone first. Backup: <code>~/flip2-pre-wipe-backup</code>. This app does not wipe userdata over USB and does not edit <code>device_policies.xml</code>.</p>
-    <label class="inline">Type <b>manage</b>: <input id="apps-owner-input" autocomplete="off" size="8"></label>
-    <p><button type="button" id="apps-owner-btn" disabled>Set device owner</button>
-       <span id="apps-owner-msg" class="status"></span></p>
-  </div>
-  <div id="apps-unroot">
-    <h3>Remove root and USB debugging</h3>
-    <p class="warn">Last step. Apply and device owner still need root and USB debugging, so do this only when you are done managing the phone. This does not uninstall apps, does not wipe the phone, and does not restore the Magisk boot image.</p>
-    <p>Type <b>unroot</b> to mark the six Flip2 Magisk modules for removal and stop FlipMouse, then turn off USB debugging. On the phone afterward: Magisk, Uninstall, Restore Images, then reboot. Companion cannot turn USB debugging back on.</p>
+  <details class="apps-panel">
+    <summary>Device owner (Managed)</summary>
+    <div id="apps-owner" class="hidden">
+      <p id="apps-owner-warn" class="warn"></p>
+      <p>No accounts on phone. Type <b>manage</b>.</p>
+      <label class="inline">Type <b>manage</b>: <input id="apps-owner-input" autocomplete="off" size="8"></label>
+      <div class="action-row action-row--compact">
+        <button type="button" id="apps-owner-btn" disabled>Set device owner</button>
+        <span id="apps-owner-msg" class="status"></span>
+      </div>
+    </div>
+  </details>
+  <details class="apps-panel">
+    <summary>Unroot (last)</summary>
+    <p>Type <b>unroot</b> — marks modules, turns off USB debugging. Finish in Magisk on phone.</p>
     <label class="inline">Type <b>unroot</b>: <input id="apps-unroot-input" autocomplete="off" size="8"></label>
-    <p><button type="button" id="apps-unroot-btn" disabled>Remove root and turn off USB debugging</button>
-       <span id="apps-unroot-msg" class="status"></span></p>
-  </div>
-  <div id="apps-backup">
-    <h3>Backup apps, contacts, and messages</h3>
-    <p>Saves catalog apps, contacts, and messages on this PC in <code>~/flip2-personal-backup</code>. Do this before removing root. Backup and restore need USB debugging and root. This does not wipe the phone, does not set device owner, and does not remove root. Messages are rebuilt without attachments. The call log is not included.</p>
+    <div class="action-row action-row--compact">
+      <button type="button" id="apps-unroot-btn" disabled>Unroot</button>
+      <span id="apps-unroot-msg" class="status"></span>
+    </div>
+  </details>
+  <details class="apps-panel">
+    <summary>Backup / restore</summary>
     <p id="apps-backup-info" class="note">No saved backup read yet.</p>
-    <p><button type="button" id="apps-backup-refresh" class="ghost">Refresh saved backup</button>
-       <button type="button" id="apps-backup-contacts">Backup contacts</button>
-       <button type="button" id="apps-backup-messages">Backup messages</button>
-       <button type="button" id="apps-backup-apps">Backup apps</button></p>
-    <p><button type="button" id="apps-restore-contacts">Restore saved contacts</button>
-       <button type="button" id="apps-restore-messages">Restore saved messages</button>
-       <button type="button" id="apps-restore-apps">Restore saved apps</button></p>
-    <p><button type="button" id="apps-restore-prewipe-contacts" class="ghost">Restore pre-wipe contacts</button>
-       <button type="button" id="apps-restore-prewipe-messages" class="ghost">Restore pre-wipe messages</button></p>
-    <p><span id="apps-backup-msg" class="status"></span></p>
-  </div>
+    <div class="btn-grid">
+      <button type="button" id="apps-backup-refresh" class="ghost">Refresh info</button>
+      <button type="button" id="apps-backup-contacts">Backup contacts</button>
+      <button type="button" id="apps-backup-messages">Backup messages</button>
+      <button type="button" id="apps-backup-apps">Backup apps</button>
+      <button type="button" id="apps-restore-contacts">Restore contacts</button>
+      <button type="button" id="apps-restore-messages">Restore messages</button>
+      <button type="button" id="apps-restore-apps">Restore apps</button>
+      <button type="button" id="apps-restore-prewipe-contacts" class="ghost">Pre-wipe contacts</button>
+      <button type="button" id="apps-restore-prewipe-messages" class="ghost">Pre-wipe messages</button>
+    </div>
+    <span id="apps-backup-msg" class="status"></span>
+  </details>
 </section>
 
 <!-- 1: credit gate -->
-<section class="step" id="step-credit">
+<section class="step step-compact" id="step-credit">
   <h2>Credits and gate</h2>
-  <p>This wizard drives your phone from the browser. It does not build anything itself — it installs work by other authors. Read who made what before continuing; nothing downloads until you type <code>yes</code> below.</p>
-  <table id="credit-table">
-    <thead><tr><th>What</th><th>Author</th><th>License</th><th>Link</th></tr></thead>
-    <tbody></tbody>
-  </table>
-	  <h3>Pick your path (read before you continue)</h3>
-	  <table class="safety-paths">
-	    <thead><tr><th>Path</th><th>Flashes partitions?</th><th>Wipes data?</th></tr></thead>
-	    <tbody>
-	      <tr><td><b>Prepare install</b> (install button)</td><td>No — ADB + Magisk modules only</td><td>No</td></tr>
-	      <tr><td><b>Release installer zip</b> (GitHub)</td><td>No</td><td>No — <em>recommended for first setup</em></td></tr>
-	      <tr><td><b>Footer: erase and root</b></td><td><code>boot</code> only</td><td><b>Yes</b> (bootloader unlock)</td></tr>
-	      <tr><td><b>Footer: return to factory</b></td><td><code>boot</code> from your saved copy</td><td>Optional wipe step</td></tr>
-	    </tbody>
-	  </table>
-	  <p class="warn"><b>Brick risk</b> is mostly wrong flashes to <code>super</code>, <code>vbmeta</code>, system, or preloader — the main install path does <em>not</em> do that. Half-failed installs are retryable; verify (under Prepare) shows what landed. See <code>docs/SAFETY.md</code> in the flip2 repo for the full guide.</p>
-	  <h3>What the wizard will and will not do</h3>
-	  <ul>
-	    <li>It verifies every download in this page with SHA-256 before pushing anything to the phone. A mismatch stops that file.</li>
-	    <li>It pushes files into <code>/data/local/flip2/</code> and runs an install script. It does not flash any partition from Apply or Prepare.</li>
-	    <li>It never touches <code>super</code>, <code>vbmeta</code>, system, product, or the preloader, and never writes the EMMC_BOOT header on the Prepare install.</li>
-	    <li>Footer links open separate flows that <b>can erase</b> or rewrite <code>boot</code>. They stay hidden until you finish verify once under Prepare, so you cannot open them by accident mid-install.</li>
-	  </ul>
-	  <p class="note">If the phone is already rooted (<code>su</code> works), you do not need the rooting footer link — use Prepare, then install, or the release zip.</p>
-  <label class="inline">Type <b>yes</b> to allow downloads: <input id="gate-input" autocomplete="off" size="6"></label>
-  <p><button id="gate-btn" disabled>Continue</button>
-     <span id="gate-msg" class="note"></span></p>
+  <details class="apps-panel">
+    <summary>Credits (authors &amp; links)</summary>
+    <div class="table-scroll">
+      <table id="credit-table">
+        <thead><tr><th>What</th><th>Credit</th><th>Link</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </details>
+  <details class="apps-panel">
+    <summary>Safety paths</summary>
+    <table class="safety-paths">
+      <thead><tr><th>Path</th><th>Flashes?</th><th>Wipes?</th></tr></thead>
+      <tbody>
+        <tr><td><b>Prepare install</b></td><td>No</td><td>No</td></tr>
+        <tr><td><b>Release zip</b></td><td>No</td><td>No</td></tr>
+        <tr><td><b>Tier 3: erase and root</b></td><td><code>boot</code></td><td><b>Yes</b></td></tr>
+        <tr><td><b>Tier 3: return to factory</b></td><td><code>boot</code></td><td>On phone</td></tr>
+      </tbody>
+    </table>
+    <p class="warn">Prepare: no super/system/preloader. Tier 3: <code>docs/SAFETY.md</code>.</p>
+  </details>
+  <div class="gate-row">
+    <label class="inline">Type <b>yes</b>: <input id="gate-input" autocomplete="off" size="6"></label>
+    <button id="gate-btn" disabled>Continue</button>
+    <span id="gate-msg" class="note"></span>
+  </div>
 </section>
 
 <!-- 2: downloads + checksums -->
-<section class="step" id="step-download">
+<section class="step step-compact" id="step-download">
   <h2>Files</h2>
-  <p>Every file is checked against a pinned SHA-256 before the wizard will use it. In the Companion app, <b>Use files already on this PC</b> picks up copies you already have, and <b>Download all here</b> fetches the rest directly. In a plain browser, download each one and choose it below.</p>
-  <table id="dl-table">
-    <thead><tr><th>File</th><th>Size</th><th>Author</th><th>Get</th><th>Status</th></tr></thead>
-    <tbody></tbody>
-  </table>
+  <div class="table-scroll">
+    <table id="dl-table">
+      <thead><tr><th>File</th><th>Size</th><th>Author</th><th>Get</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
   <input type="file" id="dl-pick" multiple class="hidden">
-  <p><button id="dl-local-btn" class="hidden">Use files already on this PC</button>
-     <button id="dl-fetch-btn" class="hidden">Download all here</button>
-     <button id="dl-pick-btn" class="ghost">Choose downloaded files</button>
-     <span id="dl-msg" class="status"></span></p>
+  <div class="action-row">
+    <button id="dl-local-btn" class="hidden">Use files already on this PC</button>
+    <button id="dl-fetch-btn" class="hidden">Download all here</button>
+    <button id="dl-pick-btn" class="ghost">Choose downloaded files</button>
+    <span id="dl-msg" class="status"></span>
+  </div>
   <div id="dl-results"></div>
-  <p><button class="ghost" data-back="credit">Back</button>
-     <button id="dl-next" disabled>Continue</button></p>
+  <div class="action-row">
+    <button class="ghost" data-back="credit">Back</button>
+    <button id="dl-next" disabled>Continue</button>
+  </div>
 </section>
 
 <!-- 3: udev pause -->
 <section class="step" id="step-udev">
-  <h2>USB permission rules (one-time)</h2>
-  <p>Linux only lets your user talk to USB devices listed in udev rules. Copy this file into place once; unplug and replug the phone afterwards.</p>
+  <h2>USB rules (one-time)</h2>
   <pre class="rules" id="udev-file"></pre>
   <ol>
     <li><code>sudo cp 51-android-flip2-adb.rules /etc/udev/rules.d/</code></li>
     <li><code>sudo udevadm control --reload-rules && sudo udevadm trigger</code></li>
-    <li>Unplug the phone and plug it back in.</li>
+    <li>Unplug and replug the phone.</li>
   </ol>
-  <p class="note">This file covers both adb modes the phone presents (composite <code>1bbb:0167</code> and adb-only <code>1bbb:0c01</code>) and the MediaTek preloader <code>0e8d:2000</code> used by the optional rooting slice.</p>
-  <p><button id="udev-native" class="hidden">Install the rules for me</button>
-     <span id="udev-native-msg" class="status"></span></p>
-  <p><button class="ghost" data-back="download">Back</button>
-     <button id="udev-done">I did this — continue</button></p>
+  <details class="apps-panel">
+    <summary>USB IDs covered</summary>
+    <p class="note">adb <code>1bbb:0167</code>, <code>1bbb:0c01</code>; preloader <code>0e8d:2000</code>.</p>
+  </details>
+  <div class="action-row">
+    <button id="udev-native" class="hidden">Install the rules for me</button>
+    <span id="udev-native-msg" class="status"></span>
+  </div>
+  <div class="action-row">
+    <button class="ghost" data-back="download">Back</button>
+    <button id="udev-done">I did this — continue</button>
+  </div>
 </section>
 
-	<!-- 4: connect -->
-	<section class="step" id="step-usb">
-	  <h2>Connect</h2>
-	  <p>On the phone: <b>Settings → About → tap build number 7 times</b>, then <b>Developer options → USB debugging</b> on, and plug in USB. Then pick the phone below.</p>
-	  <p id="usb-rooted-banner" class="warn hidden"><b>Already rooted?</b> You do not need the footer “erase and root” link — that flow wipes the phone. Continue to install under Prepare or use the release installer zip for a conservative first setup.</p>
-		  <p id="usb-companion-hint" class="note hidden">In <b>Flip 2 Companion</b>, install uses host <code>adb</code> — you do not need WebUSB. Plug in USB, accept the debugging prompt, then press <b>Check host adb</b>.</p>
-		  <p><button id="usb-btn">Pick phone</button>
-     <button id="usb-host-btn" class="ghost hidden">Check host adb</button>
-     <span id="usb-msg" class="status"></span></p>
+<!-- 4: connect -->
+<section class="step" id="step-usb">
+  <h2>Connect</h2>
+  <p>Build number ×7 → USB debugging on → plug in → pick phone.</p>
+  <p id="usb-rooted-banner" class="warn hidden"><b>Already rooted?</b> Skip erase-and-root; use Prepare or release zip.</p>
+  <p id="usb-companion-hint" class="note hidden">Companion: accept prompt → <b>Check host adb</b>.</p>
+  <div class="action-row">
+    <button id="usb-btn">Pick phone</button>
+    <button id="usb-host-btn" class="ghost hidden">Check host adb</button>
+    <span id="usb-msg" class="status"></span>
+  </div>
   <pre class="log hidden" id="usb-log"></pre>
-  <p><button class="ghost" data-back="udev">Back</button>
-     <button id="usb-next" disabled>Continue to install</button></p>
+  <div class="action-row">
+    <button class="ghost" data-back="udev">Back</button>
+    <button id="usb-next" disabled>Continue to install</button>
+  </div>
 </section>
 
 <!-- 5: install -->
 <section class="step" id="step-install">
   <h2>Install <span class="badge-exp">experimental</span></h2>
-  <p class="warn"><b>Experimental.</b> This step pushes files and runs a root install script over adb. It has only been exercised on one device, so treat it as a test bed: a half-finished run may leave modules or settings half-applied (the installer is designed to be re-flashable, and the verify step shows what actually landed). If you need a first-time setup you can trust, use the Tier&nbsp;B installer zip from the release page instead — this page automates the same steps and inherits their risks.</p>
-  <p>The page unpacks the installer zip, rebuilds the Tag Drawer module with the fresh F-Droid APK, pushes everything into <code>/data/local/flip2/incoming/</code>, and runs the install script as root. It stops at the first failed line and offers Retry instead of continuing through failures.</p>
-  <p class="note"><b>Magisk on first install:</b> After modules are placed, Magisk still has to finish its own setup the first time the phone starts. Expect brief screen flashes, Magisk or module toasts, and a prompt to restart — that is normal. If root does not work after a restart, open the dialer and type <code>*#*#217703#*#*</code>.</p>
+  <p class="warn"><b>Experimental</b> — one device tested. Prefer release zip for first setup.</p>
+  <details class="apps-panel">
+    <summary>What install does</summary>
+    <p>Pushes to <code>/data/local/flip2/incoming/</code>, runs install script as root. Magisk may prompt restart on first boot; dialer <code>*#*#217703#*#*</code> if root fails.</p>
+  </details>
   <p id="inst-profile-note" class="note"></p>
-  <p><button id="inst-btn">Push and install</button>
-     <button id="inst-retry" class="ghost hidden">Retry</button>
-     <span id="inst-msg" class="status"></span></p>
+  <div class="action-row">
+    <button id="inst-btn">Push and install</button>
+    <button id="inst-retry" class="ghost hidden">Retry</button>
+    <span id="inst-msg" class="status"></span>
+  </div>
   <pre class="log hidden" id="inst-log"></pre>
   <p id="inst-wipe-hint" class="note hidden"><b>Wiping the phone?</b> This wizard does not erase userdata over USB. On the phone: <b>Settings → System → Reset options → Erase all data (factory reset)</b>, or recovery <b>Volume up + Power → Wipe data</b>. PC backup: <code>~/flip2-pre-wipe-backup</code>.</p>
-  <p><button class="ghost" data-back="usb">Back</button>
-     <button id="inst-next" disabled>Continue to verify</button>
-     <button id="inst-skip-verify" class="ghost hidden">Continue to verify anyway</button></p>
+  <div class="action-row">
+    <button class="ghost" data-back="usb">Back</button>
+    <button id="inst-next" disabled>Continue to verify</button>
+    <button id="inst-skip-verify" class="ghost hidden">Continue to verify anyway</button>
+  </div>
 </section>
 
 <!-- 6: verify -->
 <section class="step" id="step-verify">
   <h2>Verify</h2>
-  <p>Runs the verify script on the phone and shows its line-by-line results.</p>
-  <p><button id="ver-btn">Run verify</button>
-     <button id="ver-recheck" class="ghost hidden">Run again</button>
-     <span id="ver-msg" class="status"></span></p>
+  <p>On-phone verify script.</p>
+  <div class="action-row action-row--compact">
+    <button id="ver-btn">Run verify</button>
+    <button id="ver-recheck" class="ghost hidden">Run again</button>
+    <span id="ver-msg" class="status"></span>
+  </div>
   <pre class="log hidden" id="ver-log"></pre>
   <div id="ver-finish" class="hidden">
-    <p class="note"><b>Almost done.</b> Wallpaper, Magisk module overlays, and the forced display size usually show up after one full restart. Magisk may still show a one-time “finish setup” or restart prompt on the phone — allow it.</p>
-    <p><button type="button" id="ver-reboot">Restart the phone</button>
-       <span id="ver-reboot-msg" class="status"></span></p>
+    <div class="action-row action-row--compact">
+      <button type="button" id="ver-reboot">Restart phone</button>
+      <span id="ver-reboot-msg" class="status"></span>
+    </div>
+    <p class="note">Reboot once for wallpaper and display size.</p>
   </div>
-  <p><button class="ghost" data-back="install">Back</button></p>
+  <div class="action-row">
+    <button class="ghost" data-back="install">Back</button>
+  </div>
 </section>
 
 <!-- rooting slice: not linked from the step bar -->
@@ -434,29 +428,32 @@
   <p><button class="ghost" data-back="download">Back</button></p>
 </section>
 
-	</main>
-	<div id="inst-modal" class="modal hidden" role="dialog" aria-labelledby="inst-modal-title">
-	  <div class="modal-panel">
-	    <h3 id="inst-modal-title">Before push and install</h3>
-	    <ul>
-	      <li>This step does <b>not</b> flash system, super, vbmeta, or preloader.</li>
-	      <li>It <b>requires root</b> (<code>su</code>) on the phone.</li>
-	      <li>A failed run may leave modules half-applied — use <b>Retry</b>; the release installer zip is the more conservative first-time path.</li>
-	    </ul>
-	    <p><button id="inst-modal-go">I understand — push and install</button>
-	       <button id="inst-modal-cancel" class="ghost">Cancel</button></p>
-	  </div>
-	</div>
-	<footer>
-	  <p>TCL Flip2 Manager · verify, under Prepare, checks what landed on the phone.</p>
-	  <p id="footer-advanced" class="footer-advanced hidden">
-	    <span class="footer-advanced-label">Advanced — can erase device or rewrite boot:</span>
-	    <a href="#" id="root-link">erase and root this phone</a> ·
-	    <a href="#" id="factory-link">return this phone to factory</a>
-	  </p>
-	  <p id="footer-advanced-hint" class="note">Advanced links (rooting / factory) appear after you run verify once under Prepare.</p>
-	  <p id="footer-wipe-always" class="note hidden">To wipe userdata only: use the phone’s factory reset (Settings or recovery). The wizard never wipes over the cable.</p>
-	</footer>
+</main>
+<div id="inst-modal" class="modal hidden" role="dialog" aria-labelledby="inst-modal-title">
+  <div class="modal-panel">
+    <h3 id="inst-modal-title">Before push and install</h3>
+    <p id="inst-modal-root-warn" class="warn hidden">This phone did not report root on the last <b>Phone</b> → <b>Refresh</b>. Push and install will probably fail. Root the phone first (Getting started → <b>Erase and root</b>), then refresh again.</p>
+    <ul>
+      <li>This step does <b>not</b> flash system, super, vbmeta, or preloader.</li>
+      <li>It <b>requires root</b> (<code>su</code>) on the phone.</li>
+      <li>A failed run may leave modules half-applied — use <b>Retry</b>; the release installer zip is the more conservative first-time path.</li>
+    </ul>
+    <div class="action-row">
+      <button id="inst-modal-go">I understand — push and install</button>
+      <button id="inst-modal-cancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+<footer>
+  <p>TCL Flip2 Manager · verify, under Prepare, checks what landed on the phone.</p>
+  <p id="footer-advanced" class="footer-advanced hidden">
+    <span class="footer-advanced-label">Advanced — can erase device or rewrite boot:</span>
+    <a href="#" id="root-link">erase and root this phone</a> ·
+    <a href="#" id="factory-link">return this phone to factory</a>
+  </p>
+  <p id="footer-advanced-hint" class="note">Advanced links (rooting / factory) appear after you run verify once under Prepare.</p>
+  <p id="footer-wipe-always" class="note hidden">To wipe userdata only: use the phone’s factory reset (Settings or recovery). The wizard never wipes over the cable.</p>
+</footer>
 <script src="../fflate.js"></script>
 <script src="js/catalog.js"></script>
 <script src="js/keys.js"></script>

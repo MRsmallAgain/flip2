@@ -1,11 +1,11 @@
 {
-  "$comment": "Flip2 manager profiles. Canonical copy; wizard/profiles.json must stay byte-identical so the page can fetch it. Component ids match pipeline/deploy/manifest.json, plus whisper and vosk (speech files, not manifest components).",
+  "$comment": "Flip2 manager profiles. Canonical copy; wizard/profiles.json must stay byte-identical so the page can fetch it. Component ids match pipeline/deploy/manifest.json, plus sherpa-en and sherpa-uk (speech tarballs, not manifest components).",
   "profiles": [
     {
       "id": "base",
       "label": "Base",
       "enabled": true,
-      "summary": "Today's full wizard install: modules, Launcher4, Null Keyboard, Forkgram, Material Files, AppShelf, F-Droid Basic, NewPipe, VLC, Intertune, Bouncy, home keys, 321\u00d7428, wallpaper, Whisper, and Vosk.",
+      "summary": "Today's full wizard install: modules, Launcher4, Null Keyboard, Forkgram, Material Files, AppShelf, F-Droid Basic, NewPipe, VLC, Intertune, Bouncy, home keys, 321\u00d7428, wallpaper, Sherpa-ONNX STT (EN+UK).",
       "components": [
         "navoverlay",
         "keypad",
@@ -25,8 +25,8 @@
         "home_keys",
         "display",
         "wallpaper",
-        "whisper",
-        "vosk"
+        "sherpa-en",
+        "sherpa-uk"
       ]
     },
     {

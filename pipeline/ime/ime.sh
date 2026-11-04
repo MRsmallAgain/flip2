@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Flip2 chat IME: Kika shows Abc + candidate bar and breaks backspace on hardware keypad.
-# hide-bar: Flip2 Null Keyboard — zero UI, T9 + symbols + offline STT
-#           (Whisper preferred, Vosk fallback; EN/UK).
+# hide-bar: Flip2 Null Keyboard — zero UI, T9 + symbols + offline STT (Sherpa-ONNX; EN/UK).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=/dev/null
@@ -16,11 +15,8 @@ NULL_BUILD="$ROOT/pipeline/ime/null-keyboard/build.sh"
 NULL_DIR="$ROOT/pipeline/ime/null-keyboard"
 MODEL_HOST_EN="$NULL_DIR/models/en"
 MODEL_HOST_UK="$NULL_DIR/models/uk"
-# App-private path (SELinux-safe for IME uid). /data/local/flip2/vosk is system_data_file.
-MODEL_DEVICE_ROOT="/data/data/$NULL_PKG/files/vosk"
-# Whisper ggml models: one multilingual .bin (tiny-q5_1) can serve both lang dirs.
-WHISPER_HOST_ROOT="$NULL_DIR/models/whisper"
-WHISPER_DEVICE_ROOT="/data/data/$NULL_PKG/files/whisper"
+MODEL_DEVICE_ROOT="/data/data/$NULL_PKG/files/sherpa"
+FETCH_MODELS="$NULL_DIR/models/fetch-sherpa-models.sh"
 
 usage() {
   cat <<EOF
@@ -29,15 +25,13 @@ Usage: flip2 ime <subcommand>
   hide-bar    Install/set Flip2 Null Keyboard (no Abc bar, hardware backspace in chat)
   restore     Default back to stock Kika 12Key IME
   status      IME packages, default_input_method, STT models/lang
-  build       Build nullkeyboard.apk (needs JDK — see pipeline/ime/null-keyboard/build.sh)
-  models      Push EN+UK Vosk models to device + grant RECORD_AUDIO
-  whisper     Push ggml Whisper model(s) from models/whisper/{en,uk} to device
+  build       Build nullkeyboard.apk (run vendor/fetch-sherpa.sh first)
+  sherpa      Fetch host models (if needed) and push EN+UK Sherpa-ONNX to device
+  fetch-models  Download EN+UK model tarballs to pipeline/ime/null-keyboard/models/
   lang [en|uk]  Show or set STT language
 
-STT: hold * to listen (Whisper offline when a ggml model is on-device, else
-Vosk). While listening: # = EN↔UK, * = stop.
-Models stay on-device (~40MB EN + ~75MB UK Vosk, ~32MB Whisper ggml), not
-inside the APK.
+STT: hold * to listen (Sherpa-ONNX streaming). While listening: # = EN↔UK, * = stop.
+Models stay on-device under files/sherpa/{en,uk}, not inside the APK.
 EOF
 }
 
@@ -54,74 +48,39 @@ grant_mic() {
   adb shell pm grant "$NULL_PKG" android.permission.RECORD_AUDIO 2>/dev/null \
     || adb shell "su -c 'pm grant $NULL_PKG android.permission.RECORD_AUDIO'" 2>/dev/null \
     || echo "WARN: could not grant RECORD_AUDIO — grant manually" >&2
-  # DTMF tone muting (matrix * / # beep while typing) needs this special appop.
   adb shell cmd appops set "$NULL_PKG" WRITE_SETTINGS allow 2>/dev/null \
     || adb shell "su -c 'cmd appops set $NULL_PKG WRITE_SETTINGS allow'" 2>/dev/null \
     || echo "WARN: could not grant WRITE_SETTINGS appop — DTMF muting disabled" >&2
 }
 
-push_models() {
-  local en_src uk_src owner
-  en_src="$(readlink -f "$MODEL_HOST_EN" 2>/dev/null || true)"
-  uk_src="$(readlink -f "$MODEL_HOST_UK" 2>/dev/null || true)"
-  [[ -d "$en_src" ]] || { echo "Missing EN model at $MODEL_HOST_EN (symlink to cache)" >&2; exit 1; }
-  [[ -d "$uk_src" ]] || { echo "Missing UK model at $MODEL_HOST_UK (symlink to cache)" >&2; exit 1; }
-
-  echo "Pushing Vosk models -> $MODEL_DEVICE_ROOT/{en,uk}"
-  owner="$(adb shell "su -c 'stat -c %u:%g /data/data/$NULL_PKG'" 2>/dev/null | tr -d '\r')"
-  [[ -n "$owner" ]] || owner="u0_a116:u0_a116"
-
-  adb shell "rm -rf /sdcard/Download/flip2-vosk && mkdir -p /sdcard/Download/flip2-vosk" >/dev/null
-  echo "  EN..."
-  adb push "$en_src" /sdcard/Download/flip2-vosk/en >/dev/null
-  echo "  UK..."
-  adb push "$uk_src" /sdcard/Download/flip2-vosk/uk >/dev/null
-
-  # Copy into app files dir and chown to package uid (correct SELinux label via restorecon)
-  adb shell "su -c 'mkdir -p /data/data/$NULL_PKG/files; rm -rf $MODEL_DEVICE_ROOT; mkdir -p $MODEL_DEVICE_ROOT; cp -a /sdcard/Download/flip2-vosk/en $MODEL_DEVICE_ROOT/en; cp -a /sdcard/Download/flip2-vosk/uk $MODEL_DEVICE_ROOT/uk; chown -R $owner /data/data/$NULL_PKG/files; restorecon -RF /data/data/$NULL_PKG/files 2>/dev/null || true; rm -rf /sdcard/Download/flip2-vosk'" >/dev/null
-  grant_mic
-  echo "Models on device:"
-  adb shell "su -c 'du -sh $MODEL_DEVICE_ROOT/en $MODEL_DEVICE_ROOT/uk'" 2>/dev/null | tr -d '\r'
-  adb shell "su -c 'ls -Za $MODEL_DEVICE_ROOT/en/am/final.mdl 2>/dev/null | head -1'" 2>/dev/null | tr -d '\r'
+ensure_host_models() {
+  [[ -f "$MODEL_HOST_EN/tokens.txt" && -f "$MODEL_HOST_UK/tokens.txt" ]] && return 0
+  [[ -x "$FETCH_MODELS" ]] || { echo "Missing $FETCH_MODELS" >&2; exit 1; }
+  bash "$FETCH_MODELS"
 }
-push_whisper() {
-  local owner lang src staged=""
-  local en_src uk_src
-  en_src="$(readlink -f "$WHISPER_HOST_ROOT/en" 2>/dev/null || true)"
-  uk_src="$(readlink -f "$WHISPER_HOST_ROOT/uk" 2>/dev/null || true)"
-  if [[ ! -d "$en_src" && ! -d "$uk_src" ]]; then
-    echo "No Whisper models at $WHISPER_HOST_ROOT/{en,uk}" >&2
-    echo "Drop a ggml .bin (e.g. ggml-tiny-q5_1.bin, multilingual EN+UK) there;" >&2
-    echo "one multilingual bin may be symlinked into both lang dirs." >&2
-    exit 1
-  fi
 
-  echo "Pushing Whisper models -> $WHISPER_DEVICE_ROOT/{en,uk}"
+push_sherpa() {
+  ensure_host_models
+  local en_src uk_src owner
+  en_src="$(readlink -f "$MODEL_HOST_EN" 2>/dev/null || echo "$MODEL_HOST_EN")"
+  uk_src="$(readlink -f "$MODEL_HOST_UK" 2>/dev/null || echo "$MODEL_HOST_UK")"
+  [[ -f "$en_src/tokens.txt" ]] || { echo "Missing EN Sherpa model at $MODEL_HOST_EN" >&2; exit 1; }
+  [[ -f "$uk_src/tokens.txt" ]] || { echo "Missing UK Sherpa model at $MODEL_HOST_UK" >&2; exit 1; }
+
+  echo "Pushing Sherpa models -> $MODEL_DEVICE_ROOT/{en,uk}"
   owner="$(adb shell "su -c 'stat -c %u:%g /data/data/$NULL_PKG'" 2>/dev/null | tr -d '\r')"
   [[ -n "$owner" ]] || owner="u0_a116:u0_a116"
 
-  adb shell "rm -rf /sdcard/Download/flip2-whisper && mkdir -p /sdcard/Download/flip2-whisper" >/dev/null
-  for lang in en uk; do
-    local src
-    src="$(readlink -f "$WHISPER_HOST_ROOT/$lang" 2>/dev/null || true)"
-    if [[ -d "$src" ]]; then
-      echo "  $lang..."
-      adb push "$src" "/sdcard/Download/flip2-whisper/$lang" >/dev/null
-      staged="$staged $lang"
-    fi
-  done
-  [[ -n "$staged" ]] || { echo "Nothing staged" >&2; exit 1; }
+  adb shell "rm -rf /sdcard/Download/flip2-sherpa && mkdir -p /sdcard/Download/flip2-sherpa" >/dev/null
+  echo "  EN..."
+  adb push "$en_src" /sdcard/Download/flip2-sherpa/en >/dev/null
+  echo "  UK..."
+  adb push "$uk_src" /sdcard/Download/flip2-sherpa/uk >/dev/null
 
-  local copy_cmds=""
-  for lang in $staged; do
-    copy_cmds="$copy_cmds cp -a /sdcard/Download/flip2-whisper/$lang $WHISPER_DEVICE_ROOT/$lang;"
-  done
-  # Copy into app files dir and chown to package uid (correct SELinux label via restorecon)
-  adb shell "su -c 'mkdir -p /data/data/$NULL_PKG/files; mkdir -p $WHISPER_DEVICE_ROOT; $copy_cmds chown -R $owner /data/data/$NULL_PKG/files; restorecon -RF /data/data/$NULL_PKG/files 2>/dev/null || true; rm -rf /sdcard/Download/flip2-whisper'" >/dev/null
+  adb shell "su -c 'mkdir -p /data/data/$NULL_PKG/files; rm -rf $MODEL_DEVICE_ROOT; mkdir -p $MODEL_DEVICE_ROOT; cp -a /sdcard/Download/flip2-sherpa/en $MODEL_DEVICE_ROOT/en; cp -a /sdcard/Download/flip2-sherpa/uk $MODEL_DEVICE_ROOT/uk; chown -R $owner /data/data/$NULL_PKG/files; restorecon -RF /data/data/$NULL_PKG/files 2>/dev/null || true; rm -rf /sdcard/Download/flip2-sherpa'" >/dev/null
   grant_mic
-  echo "Whisper models on device:"
-  adb shell "su -c 'du -sh $WHISPER_DEVICE_ROOT/*'" 2>/dev/null | tr -d '\r'
-  echo "Engine: Whisper will be used on next IME start (Vosk stays as fallback)."
+  echo "Sherpa models on device:"
+  adb shell "su -c 'du -sh $MODEL_DEVICE_ROOT/en $MODEL_DEVICE_ROOT/uk'" 2>/dev/null | tr -d '\r'
 }
 
 set_lang() {
@@ -133,7 +92,6 @@ set_lang() {
   local owner
   owner="$(adb shell "su -c 'stat -c %u:%g /data/data/$NULL_PKG'" 2>/dev/null | tr -d '\r')"
   adb shell "su -c 'mkdir -p /data/data/$NULL_PKG/shared_prefs'" >/dev/null
-  # Write prefs via a staged file to avoid nested-heredoc quoting pain
   adb shell "cat > /sdcard/Download/flip2_null_ime.xml" <<XML
 <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
 <map>
@@ -149,6 +107,10 @@ get_lang() {
     | tr -d '\r' || echo "(default en — prefs not set yet)"
 }
 
+sherpa_on_device() {
+  adb shell "su -c 'test -f $MODEL_DEVICE_ROOT/en/tokens.txt && test -f $MODEL_DEVICE_ROOT/uk/tokens.txt'" >/dev/null 2>&1
+}
+
 cmd="${1:-help}"
 shift || true
 
@@ -161,13 +123,12 @@ case "$cmd" in
     export PATH="$JAVA_HOME/bin:$PATH"
     exec "$NULL_BUILD"
     ;;
-  models)
-    flip2_adb_require_device
-    push_models
+  fetch-models)
+    bash "$FETCH_MODELS"
     ;;
-  whisper)
+  sherpa|models)
     flip2_adb_require_device
-    push_whisper
+    push_sherpa
     ;;
   lang)
     flip2_adb_require_device
@@ -183,25 +144,20 @@ case "$cmd" in
     ensure_built
     adb install -r "$NULL_APK" >/dev/null
     grant_mic
-    # Matrix * / # DTMF spam while typing (IME cannot always write Settings.System).
     adb shell settings put system dtmf_tone 0 2>/dev/null || true
     adb shell settings put system dtmf_tone_type 0 2>/dev/null || true
-    # Route matrix BACK / keypad to null IME (onKeyPreIme); zero UI height still hides bar.
     adb shell settings put secure show_ime_with_hard_keyboard 1
     adb shell settings put global show_ime_with_hard_keyboard 1 2>/dev/null || true
     adb shell settings put secure enabled_input_methods "$NULL_IME"
     adb shell settings put secure default_input_method "$NULL_IME"
     adb shell settings put secure accessibility_soft_keyboard_mode 1 2>/dev/null || true
     adb shell pm disable-user --user 0 "$KIKA_PKG" 2>/dev/null || true
-    if ! adb shell "su -c 'test -d $MODEL_DEVICE_ROOT/en/am && test -d $MODEL_DEVICE_ROOT/uk/am'" >/dev/null 2>&1; then
-      echo "STT models not on device — pushing…"
-      push_models
-    fi
-    if ! adb shell "su -c 'ls $WHISPER_DEVICE_ROOT/*/*.bin >/dev/null 2>&1'" >/dev/null 2>&1; then
-      echo "No Whisper model on device (Vosk will be used) — flip2 ime whisper"
+    if ! sherpa_on_device; then
+      echo "Sherpa STT models not on device — pushing…"
+      push_sherpa
     fi
     echo "Default IME: Flip2 Null Keyboard. Kika disabled."
-    echo "STT: hold * to dictate (EN/UK). While listening: # = switch lang, * = stop."
+    echo "STT: hold * to dictate (Sherpa-ONNX EN/UK). While listening: # = switch lang, * = stop."
     echo "Force-stop chat app and reopen a thread."
     echo "Restore stock: flip2 ime restore"
     ;;
@@ -235,11 +191,13 @@ case "$cmd" in
       | grep -A1 'android.permission.RECORD_AUDIO' | head -2 | tr -d '\r' || echo "?"
     echo -n "stt_lang: "
     get_lang
-    echo "STT models:"
-    adb shell "su -c 'du -sh $MODEL_DEVICE_ROOT/en $MODEL_DEVICE_ROOT/uk 2>/dev/null || echo missing'" 2>/dev/null | tr -d '\r' || echo "  (none — flip2 ime models)"
-    echo "Whisper models:"
-    adb shell "su -c 'du -sh $WHISPER_DEVICE_ROOT/* 2>/dev/null || echo missing'" 2>/dev/null | tr -d '\r' || echo "  (none — flip2 ime whisper)"
+    echo "Sherpa STT models:"
+    adb shell "su -c 'du -sh $MODEL_DEVICE_ROOT/en $MODEL_DEVICE_ROOT/uk 2>/dev/null || echo missing'" 2>/dev/null | tr -d '\r' || echo "  (none — flip2 ime sherpa)"
     adb shell "dumpsys input_method 2>/dev/null | grep -E 'mCurId|CandidatesView|InputViewShown' | head -5" 2>/dev/null || true
+    ;;
+  whisper)
+    echo "Whisper removed — use: flip2 ime sherpa" >&2
+    exit 1
     ;;
   *)
     echo "Unknown ime subcommand: $cmd" >&2

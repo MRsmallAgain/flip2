@@ -261,22 +261,16 @@ else
   echo "NOTE: skip browser"
 fi
 
-# --- Speech models exist (Whisper bin in both langs, Vosk am/conf/graph) -----
-if want whisper; then
-  for lang in en uk; do
-    check "whisper $lang model" test -s "/data/data/$NULL_PKG/files/whisper/$lang/model.bin"
-  done
+# --- Sherpa-ONNX models (tokens.txt per lang) ---------------------------------
+if want sherpa-en; then
+  check "sherpa en model" test -s "/data/data/$NULL_PKG/files/sherpa/en/tokens.txt"
 else
-  echo "NOTE: skip whisper"
+  echo "NOTE: skip sherpa-en"
 fi
-if want vosk; then
-  for lang in en uk; do
-    for sub in am conf graph; do
-      check "vosk $lang/$sub" test -e "/data/data/$NULL_PKG/files/vosk/$lang/$sub"
-    done
-  done
+if want sherpa-uk; then
+  check "sherpa uk model" test -s "/data/data/$NULL_PKG/files/sherpa/uk/tokens.txt"
 else
-  echo "NOTE: skip vosk"
+  echo "NOTE: skip sherpa-uk"
 fi
 
 # --- stt_lang=uk --------------------------------------------------------------

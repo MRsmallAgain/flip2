@@ -5,6 +5,8 @@ description: Deploy or remove the Flip2 toolkit on a TCL Flip 2 (4058G) using th
 
 # Flip2 deploy tiers
 
+**Doctrine:** Pipeline stages with PASS/FAIL and verify gates — see `docs/AGENT-OPERATING-DOCTRINE.md` and `docs/LESSONS-LEARNED.md`. Before wipe or custom super on a daily driver, confirm serial-matched backup or UPBO readback plan.
+
 `pipeline/deploy/manifest.json` is the source of truth (toolkit `1.1.0-flip2`). Components in install order: navoverlay, keypad, flipmouse, tagdrawer, launcher_overlay, launcher4, ime, forkgram, home_keys.
 
 ```bash

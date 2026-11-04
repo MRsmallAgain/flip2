@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# Build Flip2 Null Keyboard APK (T9 + symbols + offline STT: Whisper + Vosk).
-# Native libs: vendor/jni/armeabi-v7a/{libvosk.so,libjnidispatch.so,
-#             libwhisper.so,libwhisperjni.so,libc++_shared.so}
-# libwhisper.so is linked against the NDK shared C++ runtime, so
-# libc++_shared.so must ship in the same lib dir or Whisper never loads.
-# Models are NOT packaged — push with: flip2 ime whisper / flip2 ime models
+# Build Flip2 Null Keyboard APK (T9 + symbols + offline STT: Sherpa-ONNX streaming).
+# Native libs: vendor/jni/armeabi-v7a/{libonnxruntime.so,libsherpa-onnx-jni.so}
+# Run vendor/fetch-sherpa.sh first. Models NOT in APK — flip2 ime sherpa
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 FLIP2_ROOT="$(cd "$ROOT/../../.." && pwd)"
@@ -27,18 +24,15 @@ D8="$BT/d8"
 ZIPALIGN="$BT/zipalign"
 APKSIGNER="$BT/apksigner"
 
-[[ -f "$VENDOR/jars/vosk-android.jar" ]] || { echo "Missing $VENDOR/jars/vosk-android.jar — restore vendor/" >&2; exit 1; }
-[[ -f "$VENDOR/jars/jna.jar" ]] || { echo "Missing $VENDOR/jars/jna.jar — restore vendor/" >&2; exit 1; }
-[[ -f "$VENDOR/jni/armeabi-v7a/libvosk.so" ]] || { echo "Missing libvosk.so" >&2; exit 1; }
-[[ -f "$VENDOR/jni/armeabi-v7a/libjnidispatch.so" ]] || { echo "Missing libjnidispatch.so" >&2; exit 1; }
-[[ -f "$VENDOR/jni/armeabi-v7a/libwhisper.so" ]] || { echo "Missing libwhisper.so" >&2; exit 1; }
-[[ -f "$VENDOR/jni/armeabi-v7a/libwhisperjni.so" ]] || { echo "Missing libwhisperjni.so" >&2; exit 1; }
-[[ -f "$VENDOR/jni/armeabi-v7a/libc++_shared.so" ]] || { echo "Missing libc++_shared.so" >&2; exit 1; }
+	[[ -f "$VENDOR/jars/sherpa-onnx-classes.jar" ]] || { echo "Missing sherpa — run vendor/fetch-sherpa.sh" >&2; exit 1; }
+	[[ -f "$VENDOR/jars/kotlin-stdlib.jar" ]] || { echo "Missing kotlin-stdlib.jar in vendor/jars" >&2; exit 1; }
+	[[ -f "$VENDOR/jni/armeabi-v7a/libonnxruntime.so" ]] || { echo "Missing libonnxruntime.so — run vendor/fetch-sherpa.sh" >&2; exit 1; }
+	[[ -f "$VENDOR/jni/armeabi-v7a/libsherpa-onnx-jni.so" ]] || { echo "Missing libsherpa-onnx-jni.so" >&2; exit 1; }
 
 rm -rf "$WORK" "$OUT"
 mkdir -p "$WORK/classes" "$WORK/res" "$OUT"
 
-CP="$VENDOR/jars/vosk-android.jar:$VENDOR/jars/jna.jar:$ANDROID_JAR"
+CP="$VENDOR/jars/sherpa-onnx-classes.jar:$VENDOR/jars/kotlin-stdlib.jar:$ANDROID_JAR"
 
 javac -source 1.8 -target 1.8 \
   -bootclasspath "$ANDROID_JAR":"$BT/core-lambda-stubs.jar" \
@@ -47,9 +41,11 @@ javac -source 1.8 -target 1.8 \
   "$ROOT/src/com/tim/flip2/nullkeyboard/"*.java
 
 cd "$WORK/classes" && jar cf "$WORK/classes.jar" com/ && cd "$ROOT"
-"$D8" --lib "$ANDROID_JAR" --classpath "$VENDOR/jars/vosk-android.jar" \
-  --classpath "$VENDOR/jars/jna.jar" --output "$WORK" \
-  "$WORK/classes.jar" "$VENDOR/jars/vosk-android.jar" "$VENDOR/jars/jna.jar"
+"$D8" --lib "$ANDROID_JAR" \
+  --classpath "$VENDOR/jars/sherpa-onnx-classes.jar" \
+  --classpath "$VENDOR/jars/kotlin-stdlib.jar" \
+  --output "$WORK" \
+  "$WORK/classes.jar" "$VENDOR/jars/sherpa-onnx-classes.jar" "$VENDOR/jars/kotlin-stdlib.jar"
 
 mkdir -p "$WORK/res/xml" "$WORK/res/values" "$WORK/res/raw"
 cp "$ROOT/res/xml/method.xml" "$WORK/res/xml/"
@@ -70,17 +66,14 @@ fi
 # DEX + native libs into APK (Android loads from lib/<abi>/)
 zip -j "$OUT/nullkeyboard-unsigned.apk" "$WORK/classes.dex" >/dev/null
 mkdir -p "$WORK/lib/armeabi-v7a"
-for lib in libvosk.so libjnidispatch.so libwhisper.so libwhisperjni.so libc++_shared.so; do
+for lib in libonnxruntime.so libsherpa-onnx-jni.so; do
   cp "$VENDOR/jni/armeabi-v7a/$lib" "$WORK/lib/armeabi-v7a/"
 done
 (
   cd "$WORK"
   zip -u "$OUT/nullkeyboard-unsigned.apk" \
-    "lib/armeabi-v7a/libvosk.so" \
-    "lib/armeabi-v7a/libjnidispatch.so" \
-    "lib/armeabi-v7a/libwhisper.so" \
-    "lib/armeabi-v7a/libwhisperjni.so" \
-    "lib/armeabi-v7a/libc++_shared.so" >/dev/null
+    "lib/armeabi-v7a/libonnxruntime.so" \
+    "lib/armeabi-v7a/libsherpa-onnx-jni.so" >/dev/null
 )
 
 "$ZIPALIGN" -f -p 4 "$OUT/nullkeyboard-unsigned.apk" "$OUT/nullkeyboard-aligned.apk"

@@ -39,6 +39,10 @@
 /* Configuration */
 #define DEV_INPUT "/dev/input"
 #define LOG_FILE "/cache/FlipMouse.log"
+#define SPEED_FILE "/data/local/flip2/flipmouse-speed"
+#ifndef FLIPMOUSE_DEFAULT_SPEED
+#define FLIPMOUSE_DEFAULT_SPEED 13
+#endif
 #ifdef DEBUG
 #define ENABLE_LOG 1
 #else
@@ -235,6 +239,29 @@ static void log_event(const char *prefix, struct input_event *ev)
 
 /* --- Mouse Functions --- */
 
+static void mouse_save_speed(int speed)
+{
+  FILE *f = fopen(SPEED_FILE, "w");
+  if (!f)
+    return;
+  fprintf(f, "%d\n", speed);
+  fclose(f);
+}
+
+static int mouse_load_speed(void)
+{
+  FILE *f = fopen(SPEED_FILE, "r");
+  int v = FLIPMOUSE_DEFAULT_SPEED;
+  if (!f)
+    return v;
+  if (fscanf(f, "%d", &v) != 1)
+    v = FLIPMOUSE_DEFAULT_SPEED;
+  fclose(f);
+  if (v < MIN_MOUSE_SPEED)
+    v = MIN_MOUSE_SPEED;
+  return v;
+}
+
 static int mouse_init(void)
 {
   app_state.mouse.dev = libevdev_new();
@@ -268,12 +295,13 @@ static int mouse_init(void)
   /* Initialize mouse parameters */
   app_state.mouse.enabled = 0;
   app_state.mouse.softhold_since = 0;
-  app_state.mouse.speed = 4;
+  app_state.mouse.speed = mouse_load_speed();
   app_state.mouse.drag_mode = 0;
   app_state.mouse.held_code = 0;
   app_state.mouse.next_repeat_ms = 0;
 
-  log_message("Virtual mouse initialized (passive — hold upper-left soft key 1s and release to activate)");
+  log_message("Virtual mouse initialized (speed=%d; passive — hold upper-left soft key 1s and release to activate)",
+              app_state.mouse.speed);
   return 0;
 }
 
@@ -373,6 +401,7 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     if (ev->value == 1)
     { /* Key press */
       app_state.mouse.speed++;
+      mouse_save_speed(app_state.mouse.speed);
       log_message("Mouse speed increased to %d", app_state.mouse.speed);
     }
     return MUTE_EVENT;
@@ -383,6 +412,7 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
       app_state.mouse.speed--;
       if (app_state.mouse.speed < MIN_MOUSE_SPEED)
         app_state.mouse.speed = MIN_MOUSE_SPEED;
+      mouse_save_speed(app_state.mouse.speed);
       log_message("Mouse speed decreased to %d", app_state.mouse.speed);
     }
     return MUTE_EVENT;

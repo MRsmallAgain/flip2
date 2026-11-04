@@ -5,6 +5,27 @@
 
 var APPS_STATE = null;
 var appsBusy = false;
+// Set on Phone → Refresh when host adb succeeds: true/false from su -c id; null = not checked yet.
+var phoneHostRootState = null;
+
+function setTier1RootPrereqVisible(show) {
+  var el = $('tier1-root-prereq');
+  if (!el) return;
+  el.classList.toggle('hidden', !show);
+}
+
+function openInstallModal() {
+  var modal = $('inst-modal');
+  if (!modal) return;
+  var warn = $('inst-modal-root-warn');
+  if (warn) warn.classList.toggle('hidden', phoneHostRootState !== false);
+  modal.classList.remove('hidden');
+  if (phoneHostRootState === false) {
+    setStatus('inst-msg',
+      'Phone did not report root on the last Refresh. Install needs su — root the phone first, then Refresh again.',
+      'bad');
+  }
+}
 
 var APK_INCOMING = {
   launcher4: { name: 'launcher4.apk', fromInstaller: 'payload/apks/launcher4.apk' },
@@ -84,10 +105,17 @@ function initGettingStarted() {
   var box = $('step-start');
   if (!box) return;
   box.addEventListener('click', function (ev) {
+    var prereq = ev.target.closest('[data-prereq-goto]');
+    if (prereq) {
+      var dest = prereq.getAttribute('data-prereq-goto');
+      if (dest === 'root') showStep('root');
+      return;
+    }
     var btn = ev.target.closest('[data-goto-step]');
     if (!btn) return;
     var step = btn.getAttribute('data-goto-step');
     if (step === 'prepare') showStep('credit');
+    else if (step === 'profile') showStep('start');
     else showStep(step);
   });
 }
@@ -201,6 +229,8 @@ function refreshPhone() {
   setPhoneNext('', false);
   var N = window.FLIP2_NATIVE;
   if (!N || !N.wizardHostAdbReady) {
+    phoneHostRootState = null;
+    setTier1RootPrereqVisible(false);
     factRow(box, 'Companion', 'Open this page in the Flip 2 Companion app to read the phone.', 'wait');
     setStatus('phone-msg', 'Host adb status needs Flip 2 Companion.', 'wait');
     return;
@@ -214,6 +244,8 @@ function refreshPhone() {
         return 'unknown';
       });
       return describe.then(function (mode) {
+        phoneHostRootState = null;
+        setTier1RootPrereqVisible(false);
         var copy = phoneNotReadyCopy(mode);
         factRow(box, 'USB', copy.fact, copy.cls);
         setStatus('phone-msg', copy.status, copy.cls);
@@ -230,6 +262,8 @@ function refreshPhone() {
       var model = parts[0].ok ? parts[0].out.trim() : '';
       factRow(box, 'Model', model || '(not reported)');
       var rooted = parts[1].ok && /uid=0/.test(parts[1].out);
+      phoneHostRootState = rooted;
+      setTier1RootPrereqVisible(!rooted);
       factRow(box, 'Root', rooted ? 'rooted' : 'no root', rooted ? 'ok' : 'wait');
       var owner = parts[2].ok ? parseDeviceOwner(parts[2].out) : 'unknown';
       factRow(box, 'Device owner', owner, owner === 'none' ? 'ok' : 'wait');
@@ -240,12 +274,21 @@ function refreshPhone() {
       if (accounts) {
         factRow(box, 'Wipe', 'Factory reset stays on the phone. Backup ~/flip2-pre-wipe-backup.', 'wait');
       }
+      if (!rooted) {
+        setStatus('phone-msg', 'Phone is on adb but does not report root.', 'wait');
+        setPhoneNext(
+          '<b>Tier 1 needs root.</b> Tier 3 <b>Erase and root</b> or the release zip, then <b>Refresh</b>. Push and install need <code>su</code>.',
+          true);
+        return;
+      }
       setStatus('phone-msg', 'Phone ready over host adb.', 'ok');
       setPhoneNext(
-        '<b>What to do next:</b> Open the <b>Profile</b> tab and choose <b>Base</b> (or Managed if you need Headwind). Then open <b>Prepare</b>, confirm credits with <code>yes</code>, verify downloads, and run <b>Push and install</b>. Use <b>Apps</b> to see what is already on the phone or to Apply without going through the full Prepare flow if files are verified.',
+        '<b>Next:</b> pick Base or Managed above → <b>Prepare</b> or <b>Apps</b> Apply.',
         true);
     });
   }).catch(function (e) {
+    phoneHostRootState = null;
+    setTier1RootPrereqVisible(false);
     setStatus('phone-msg', cleanErr(e), 'bad');
   });
 }
@@ -308,7 +351,7 @@ function renderProfiles() {
     flags.className = 'profile-flags';
     var heading = document.createElement('p');
     heading.className = 'note';
-    heading.textContent = 'Managed Apply writes these choices into profile.list. Checked disables the package for this user. Unchecked enables it again. The APK stays installed.';
+    heading.textContent = 'Managed: disable packages for this user (Apply writes profile.list).';
     flags.appendChild(heading);
     cur.flags.forEach(function (f) {
       var lab = document.createElement('label');
@@ -338,8 +381,7 @@ function renderProfiles() {
   var label = cur ? profileLabel(cur) : PROFILES.selectedId;
   var note = $('inst-profile-note');
   if (note) {
-    note.textContent = 'Selected profile: ' + label +
-      '. Apply writes /data/local/flip2/profile.list, then installs what that list names. It does not uninstall extras and it does not wipe the phone. Managed Apply needs Flip 2 Companion.';
+    note.textContent = 'Profile: ' + label + '.';
   }
   setStatus('profile-msg', 'Selected: ' + label + '.', 'ok');
 }
@@ -662,8 +704,7 @@ function initApps() {
   $('apps-refresh').addEventListener('click', function () { refreshAppsStatus(); });
   $('apps-apply').addEventListener('click', function () {
     showStep('install');
-    var modal = $('inst-modal');
-    if (modal) modal.classList.remove('hidden');
+    openInstallModal();
   });
   $('apps-verify').addEventListener('click', runAppsVerify);
   var verifyTop = $('apps-verify-top');

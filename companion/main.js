@@ -613,7 +613,7 @@ const PROFILE_IDS = {
   navoverlay: true, keypad: true, flipmouse: true, tagdrawer: true,
   launcher_overlay: true, launcher4: true, ime: true, forkgram: true,
   materialfiles: true, intertune: true, bouncy: true, home_keys: true,
-  display: true, wallpaper: true, whisper: true, vosk: true, headwind: true, where: true,
+  display: true, wallpaper: true, 'sherpa-en': true, 'sherpa-uk': true, headwind: true, where: true,
   block_camera: true, enable_camera: true, block_browser: true, enable_browser: true,
 };
 

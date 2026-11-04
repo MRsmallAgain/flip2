@@ -1,13 +1,13 @@
 # TCL Flip2 Manager
 
-The Companion window is the manager. **Getting started** is the default landing tab: five workflow cards (Base setup, Check phone, Managed MDM, Reboot/power-cycle, Advanced erase/root) with jump buttons into Phone, Profile, Apps, Prepare, and the rooting slice. The pill bar is Getting started, Phone, Profile, Apps, and Prepare. Prepare is the credit gate, the file table, udev, connect, install, and verify.
+The Companion window is the manager. Everything is one scrolling page. **Getting started** is at the top: five workflow cards (Base setup, Check phone, Managed MDM, Reboot/power-cycle, Advanced erase/root) with buttons that scroll to Phone, Profile, Apps, Prepare, or the rooting slice. The pill bar is five anchors on that same page: Getting started, Phone, Profile, Apps, and Prepare. After Apps, Prepare continues in order: the credit gate, the file table, udev, connect, install, and verify.
 
 ## Profiles
 
 Canonical list: `pipeline/deploy/profiles.json`. The page fetches `wizard/profiles.json`, which must stay a byte-for-byte copy (`cmp -s`).
 
 - **base** is today's install: nav overlay, keypad backspace, FlipMouse, Tag Drawer, launcher overlay, Launcher4, Null Keyboard, Forkgram, Material Files, Intertune, Bouncy, home keys, 321×428, wallpaper, Whisper, and Vosk.
-- **managed** is base plus the pinned Headwind launcher and Where. Device owner is not part of Apply. On the Profile tab, Managed also has flags: **Disable camera** (`com.tcl.camera`) and **Disable browsers** (`org.chromium.chrome`, `com.mediatek.op07.browser`). Both default on. A checked flag writes `block_camera` or `block_browser` into `profile.list` and Apply runs `pm disable-user`. An unchecked flag writes `enable_camera` or `enable_browser` and Apply runs `pm enable`. The APKs stay installed.
+- **managed** is base plus the pinned Headwind launcher and Where. Device owner is not part of Apply. In the Profile section, Managed also has flags: **Disable camera** (`com.tcl.camera`) and **Disable browsers** (`org.chromium.chrome`, `com.mediatek.op07.browser`). Both default on. A checked flag writes `block_camera` or `block_browser` into `profile.list` and Apply runs `pm disable-user`. An unchecked flag writes `enable_camera` or `enable_browser` and Apply runs `pm enable`. The APKs stay installed.
 - **secure** is visible and not selectable. The GrapheneLite/GraphineLite branch is not in this repo. Do not invent that OS image, and do not flash a system image for it.
 
 Apply writes `/data/local/flip2/profile.list` (one component id per line, then any managed flag lines, trailing newline) and installs what that list names. It does not uninstall extras and it does not wipe the phone.
@@ -110,4 +110,4 @@ From `companion/`:
 
 `npm run start:safe -- --smoke`
 
-Expect the page title `TCL Flip2 Manager`, five front-door pills (Getting started, Phone, Profile, Apps, Prepare), catalog length 12, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.
+Expect the page title `TCL Flip2 Manager`, one scrolling page with five anchors (Getting started, Phone, Profile, Apps, Prepare), catalog length 12, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.

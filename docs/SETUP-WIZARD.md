@@ -39,7 +39,7 @@ For a public page, serve the `wizard/` directory from any static host
 
 
 1. **Credits and gate.** Who made what, with links: neutronscott's boot
-   image, the Flip2 installer, Forkgram, whisper.cpp, Vosk, and the F-Droid
+   image, the Flip2 installer, Forkgram, Sherpa-ONNX STT models, and the F-Droid
    apps. Nothing downloads until the user types `yes`.
 2. **Files.** Pinned files that have a URL are links. The user downloads those normally (GitHub releases, F-Droid, and alphacephei.com send no cross-origin headers, so the page cannot fetch them itself) and picks them in the page. The Headwind launcher has no URL. It is a local pin, and the download gate requires it only for Managed. Neutron stays on the rooting slice, not on Apply. Every picked file is hashed with WebCrypto SHA-256 against `catalog.json`; a mismatch stops that file.
 3. **udev.** One-time `sudo cp` of the rules file so the user's account can
@@ -130,8 +130,8 @@ the boot copy is read and written on the host rather than in the page.
 
 ## What is not committed here
 
-The third-party binaries and models (neutron.img, Forkgram APK, whisper and
-Vosk models, F-Droid APKs) are **not** in this repo and are not attached to
+The third-party binaries and models (neutron.img, Forkgram APK, Sherpa-ONNX
+tarballs, F-Droid APKs) are **not** in this repo and are not attached to
 the flip2 release. `catalog.json` only pins their upstream URLs and hashes;
 the browser fetches them from upstream and verifies them. Chrome is not
 downloaded either. The Headwind launcher pin has no download URL. The file is `~/Downloads/com.hmdm.launcher_15400.apk` (see [MANAGER.md](MANAGER.md)). Do not substitute `hmdm-6.40-os.apk`.

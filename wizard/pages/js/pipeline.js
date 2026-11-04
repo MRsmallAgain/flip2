@@ -11,8 +11,7 @@
 //
 // install.sh expects exactly these names in /data/local/flip2/incoming/:
 //   5 module zips, launcher4.apk nullkeyboard.apk forkgram.apk intertune.apk
-//   bouncy.apk materialfiles.apk ggml-tiny-q5_1.bin
-//   vosk-model-small-en-us-0.15.zip vosk-model-small-uk-v3-nano.zip
+//   bouncy.apk materialfiles.apk … sherpa *.tar.bz2 (see push-manifest.js requiredIncoming)
 // plus install.sh itself at /data/local/flip2/install.sh.
 
 var INCOMING = '/data/local/flip2/incoming/';

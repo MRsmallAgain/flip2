@@ -40,9 +40,8 @@ import java.util.List;
  *             a, twice for b, and so on within 900 ms. Password fields start
  *             in multi-tap with lower case, so secrets are typed literally.
  * Symbols   : hold # — built-in emoji + special char picker
- * STT       : hold * — offline Whisper when a ggml model is on-device
- *             ({@code flip2 ime whisper}), Vosk fallback ({@code flip2 ime
- *             models}); EN/UK; while listening: # cycles EN↔UK, * stops
+ * STT       : hold * — offline Sherpa-ONNX streaming ({@code flip2 ime sherpa});
+ *             EN/UK; while listening: # cycles EN↔UK, * stops
  * Embeds:     hardware DEL / BACK / HELP; BACK = clear while text, else back-nav.
  */
 public class NullKeyboardService extends InputMethodService {
@@ -151,7 +150,7 @@ public class NullKeyboardService extends InputMethodService {
         final SttEngine.Listener sttListener = new SttEngine.Listener() {
             @Override
             public void onListening() {
-                String lang = VoskSttHelper.getLang(NullKeyboardService.this);
+                String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
                 toast("Listening (" + lang.toUpperCase() + ") — * stop, # lang");
             }
 
@@ -176,13 +175,9 @@ public class NullKeyboardService extends InputMethodService {
                 hideNoticeIfListening();
             }
         };
-        // Whisper preferred when its JNI lib loaded and a ggml model is present;
-        // Vosk otherwise. Both engines read the same stt_lang preference, so the
-        // choice does not need revisiting on language change.
-        mStt = WhisperSttHelper.libOk()
-                && WhisperSttHelper.modelAvailable(this, WhisperSttHelper.getLang(this))
-                        ? (SttEngine) new WhisperSttHelper(this, sttListener)
-                        : (SttEngine) new VoskSttHelper(this, sttListener);
+        mStt = SherpaSttHelper.libOk()
+                ? (SttEngine) new SherpaSttHelper(this, sttListener)
+                : null;
     }
 
     @Override
@@ -689,7 +684,7 @@ public class NullKeyboardService extends InputMethodService {
                     return true;
                 }
                 if (keyCode == KeyEvent.KEYCODE_POUND) {
-                    String next = VoskSttHelper.cycleLang(this);
+                    String next = SherpaSttHelper.cycleLang(this);
                     toast("STT lang: " + next.toUpperCase());
                     mStt.switchLangAndListen();
                     return true;

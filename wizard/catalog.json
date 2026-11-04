@@ -37,37 +37,22 @@
       "upstream": "github.com/MRsmallAgain/TelegramAndroid tag flip2-13.0.2.0-r1"
     },
     {
-      "id": "whisper-tiny",
-      "file": "ggml-tiny-q5_1.bin",
-      "purpose": "whisper.cpp ggml tiny model (q5_1), used for speech-to-text by the Flip2 Null Keyboard IME. Copied to files/whisper/en/model.bin AND files/whisper/uk/model.bin (one multilingual bin serves both languages).",
-      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny-q5_1.bin",
-      "size": 32152673,
-      "sha256": "818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7",
-      "license": "MIT (whisper.cpp); model weights per OpenAI whisper terms",
-      "author": "whisper.cpp (ggerganov)",
-      "upstream": "huggingface.co/ggerganov/whisper.cpp ggml-tiny-q5_1.bin"
+      "id": "sherpa-en",
+      "file": "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2",
+      "purpose": "Sherpa-ONNX streaming English (zipformer mobile). Extracted to files/sherpa/en/ on device for Null Keyboard hold-* dictation.",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2",
+      "license": "Apache-2.0 (sherpa-onnx); model per upstream",
+      "author": "k2-fsa / sherpa-onnx",
+      "upstream": "github.com/k2-fsa/sherpa-onnx asr-models"
     },
     {
-      "id": "vosk-en",
-      "file": "vosk-model-small-en-us-0.15.zip",
-      "purpose": "Vosk small US-English model — fallback STT for the IME. Unzips to a top-level model dir (am/, conf/, graph/, ivector/) which install.sh places at files/vosk/en/.",
-      "url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
-      "size": 41205931,
-      "sha256": "30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498",
-      "license": "Apache-2.0",
-      "author": "Alpha Cephei (Vosk)",
-      "upstream": "alphacephei.com/vosk/models/"
-    },
-    {
-      "id": "vosk-uk",
-      "file": "vosk-model-small-uk-v3-nano.zip",
-      "purpose": "Vosk Ukrainian nano model — fallback STT for the IME. Unzips to a top-level model dir which install.sh places at files/vosk/uk/. stt_lang defaults to uk.",
-      "url": "https://alphacephei.com/vosk/models/vosk-model-small-uk-v3-nano.zip",
-      "size": 77622640,
-      "sha256": "d6b50be0a2d20f891720f3a83c98290bb2d396fd666142dbf716e8ad302f8233",
-      "license": "Apache-2.0",
-      "author": "Alpha Cephei (Vosk)",
-      "upstream": "alphacephei.com/vosk/models/"
+      "id": "sherpa-uk",
+      "file": "sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2",
+      "purpose": "Sherpa-ONNX streaming multilingual pack (includes Ukrainian). Extracted to files/sherpa/uk/; use # while listening to switch EN↔UK.",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2",
+      "license": "Apache-2.0 (sherpa-onnx); NeMo model terms",
+      "author": "k2-fsa / sherpa-onnx",
+      "upstream": "github.com/k2-fsa/sherpa-onnx asr-models"
     },
     {
       "id": "tagdrawer",

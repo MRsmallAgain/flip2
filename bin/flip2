@@ -33,7 +33,7 @@ Commands:
   installer <sub>    Single-shot Magisk installer: pack [--flavor clean|full]
   pack-all           Build per-component Magisk zips + APKs + SHA256SUMS bundle
   deroot             Remove flip2 root components; keep user APKs + settings
-  image <sub>        Base-image system tree: build-tree
+  image <sub>        Base image: prepare | build-tree
   wizard <sub>       Setup wizard device scripts: render | check
   release            Publish GitHub release from packed dist
   source <sub>       Fetch external APK sources: fetch
@@ -282,10 +282,14 @@ case "$cmd" in
     sub="${1:-help}"
     shift || true
     case "$sub" in
+      prepare) exec "$FLIP2_ROOT/pipeline/image/prepare.sh" "$@" ;;
       build-tree) exec "$FLIP2_ROOT/pipeline/image/build-tree.sh" "$@" ;;
+      merge-super) exec "$FLIP2_ROOT/pipeline/image/merge-super.sh" "$@" ;;
       help|-h|--help)
-        echo "Usage: flip2 image build-tree"
-        echo "  Assemble dist/flip2-system-tree/ (system apps + overlays) for base-image builds."
+        echo "Usage: flip2 image {prepare|build-tree|merge-super}"
+        echo "  prepare     — build tree + image-post zip + dist/flip2-image-kit/ (see docs/IMAGE-TIERS.md)"
+        echo "  build-tree  — assemble dist/flip2-system-tree/ only"
+        echo "  merge-super — merge tree into YOUR stock super.img -> dist/super-flip2.img"
         echo "  See docs/IMAGE-BUILD.md."
         ;;
       *) echo "Unknown image subcommand: $sub" >&2; exit 1 ;;

@@ -168,57 +168,40 @@ if [ -f "$MOD/payload/data/wallpaper.txt" ]; then
   fi
 fi
 
-# --- Vosk models (optional, user-supplied URLs, never bundled) -------------
-if [ -f "$MOD/payload/data/vosk-urls.txt" ]; then
+# --- Sherpa-ONNX models (optional tar.bz2 URLs, never bundled) ---------------
+if [ -f "$MOD/payload/data/sherpa-urls.txt" ]; then
   NULL_PKG=com.tim.flip2.nullkeyboard
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     name=${line%% *}
     url=${line#* }
-    echo "fetching vosk model: $name"
-    T=$STAGE/vosk-$name.zip
+    echo "fetching sherpa model: $name"
+    T=$STAGE/sherpa-$name.tar.bz2
     if [ -x "$BB" ] && "$BB" wget -O "$T" "$url" && [ -s "$T" ]; then
-      D=/data/data/$NULL_PKG/files/vosk/$name
-      mkdir -p "$D"
-      unzip -o "$T" -d "$D/" >/dev/null 2>&1 || "$BB" unzip -o "$T" -d "$D/" >/dev/null 2>&1
+      D=/data/data/$NULL_PKG/files/sherpa/$name
+      mkdir -p "$STAGE/sherpa-extract"
+      tar -xjf "$T" -C "$STAGE/sherpa-extract" 2>/dev/null || "$BB" tar -xjf "$T" -C "$STAGE/sherpa-extract" 2>/dev/null
       rm -f "$T"
-      OWNER=$(stat -c %u:%g /data/data/$NULL_PKG 2>/dev/null)
-      [ -n "$OWNER" ] && chown -R "$OWNER" /data/data/$NULL_PKG/files/vosk
-      restorecon -RF /data/data/$NULL_PKG/files/vosk 2>/dev/null
-      echo "vosk $name placed"
+      inner="$(find "$STAGE/sherpa-extract" -name tokens.txt -print -quit 2>/dev/null | sed 's|/tokens.txt||')"
+      if [ -n "$inner" ] && [ -f "$inner/tokens.txt" ]; then
+        rm -rf "$D"
+        mkdir -p "$(dirname "$D")"
+        cp -a "$inner" "$D"
+        OWNER=$(stat -c %u:%g /data/data/$NULL_PKG 2>/dev/null)
+        [ -n "$OWNER" ] && chown -R "$OWNER" /data/data/$NULL_PKG/files/sherpa
+        restorecon -RF /data/data/$NULL_PKG/files/sherpa 2>/dev/null
+        echo "sherpa $name placed"
+      else
+        echo "sherpa $name extract failed; push manually (flip2 ime sherpa)"
+      fi
+      rm -rf "$STAGE/sherpa-extract"
     else
-      echo "vosk $name download failed; push manually (see README)"
+      echo "sherpa $name download failed; push manually (flip2 ime sherpa)"
       rm -f "$T"
     fi
-  done < "$MOD/payload/data/vosk-urls.txt"
+  done < "$MOD/payload/data/sherpa-urls.txt"
 else
-  echo "Vosk models not bundled. Add URLs with 'flip2 installer pack --vosk-url en=<url> --vosk-url uk=<url>' or push manually."
-fi
-
-# --- Whisper ggml models (optional, user-supplied URLs, never bundled) ------
-if [ -f "$MOD/payload/data/whisper-urls.txt" ]; then
-  NULL_PKG=com.tim.flip2.nullkeyboard
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    name=${line%% *}
-    url=${line#* }
-    echo "fetching whisper model: $name"
-    T=$STAGE/whisper-$name.bin
-    if [ -x "$BB" ] && "$BB" wget -O "$T" "$url" && [ -s "$T" ]; then
-      D=/data/data/$NULL_PKG/files/whisper/$name
-      mkdir -p "$D"
-      mv "$T" "$D/model.bin"
-      OWNER=$(stat -c %u:%g /data/data/$NULL_PKG 2>/dev/null)
-      [ -n "$OWNER" ] && chown -R "$OWNER" /data/data/$NULL_PKG/files/whisper
-      restorecon -RF /data/data/$NULL_PKG/files/whisper 2>/dev/null
-      echo "whisper $name placed"
-    else
-      echo "whisper $name download failed; push manually (see README)"
-      rm -f "$T"
-    fi
-  done < "$MOD/payload/data/whisper-urls.txt"
-else
-  echo "Whisper models not bundled (Vosk will be used). Add URLs with 'flip2 installer pack --whisper-url en=<url>' or push manually."
+  echo "Sherpa STT models not bundled. Use flip2 installer pack --sherpa-url or flip2 ime sherpa."
 fi
 
 # --- de-root helper + instructions -----------------------------------------

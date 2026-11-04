@@ -121,6 +121,24 @@ preload_apk() {
 preload_apk "launcher4/dist/launcher4.apk" "Launcher4"
 preload_apk "pipeline/ime/null-keyboard/dist/nullkeyboard.apk" "Flip2NullKeyboard"
 
+# Image v2: F-Droid / pinned APKs with manifest "image" tier + image_preload (run source-fetch first).
+while IFS=$'\t' read -r comp dir rel; do
+  [[ -n "$comp" && -n "$dir" && -n "$rel" ]] || continue
+  src="$ROOT/pipeline/deploy/$rel"
+  if [[ -f "$src" ]]; then
+    log "system app: $dir ($comp)"
+    mkdir -p "$OUT/system/app/$dir"
+    cp "$src" "$OUT/system/app/$dir/$dir.apk"
+  else
+    MISSING+=("pipeline/deploy/$rel (flip2 deploy source-fetch)")
+  fi
+done < <(jq -r '
+  .components[]
+  | select(.artifact == "user-apk" and (.tiers | index("image")))
+  | select(.image_preload.system_app_dir // "" != "")
+  | [.name, .image_preload.system_app_dir, .image_preload.source] | @tsv
+' "$MANIFEST")
+
 # wallpaper: the default asset rides in system/media so the phone can copy it
 # into /data at first boot (the tree cannot write there itself).
 WP_ASSET="$ROOT/pipeline/wallpaper/assets/flip2-wallpaper.png"
@@ -205,12 +223,17 @@ fi
 mkdir -p /data/local/flip2
 echo "@VERSION@" > /data/local/flip2/.image-tier
 echo "image-tier stamp: /data/local/flip2/.image-tier"
+if [ ! -f /data/local/flip2/flipmouse-speed ]; then
+  echo "@MOUSE_SPEED@" > /data/local/flip2/flipmouse-speed
+  echo "flipmouse-speed seeded: @MOUSE_SPEED@"
+fi
 
 echo "first-boot done. Reboot to apply the logical display size."
 FB_TAIL
 	} > "$OUT/first-boot.sh"
-	sed -i "s/@VERSION@/$VERSION/g" "$OUT/first-boot.sh"
-	chmod 755 "$OUT/first-boot.sh"
+		MOUSE_SPEED="${FLIPMOUSE_DEFAULT_SPEED:-13}"
+		sed -i "s/@VERSION@/$VERSION/g; s/@MOUSE_SPEED@/$MOUSE_SPEED/g" "$OUT/first-boot.sh"
+		chmod 755 "$OUT/first-boot.sh"
 
 # --- manifest of contents + checksums ---------------------------------------
 # Plain-text record of what went into the tree, for IMAGE-BUILD verification.

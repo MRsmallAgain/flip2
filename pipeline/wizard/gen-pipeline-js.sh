@@ -53,7 +53,10 @@ done < <(jq -r '
   | [.name, .package] | @tsv
 ' "$MANIFEST")
 
-REQUIRED+=("ggml-tiny-q5_1.bin" "vosk-model-small-en-us-0.15.zip" "vosk-model-small-uk-v3-nano.zip")
+REQUIRED+=(
+  "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2"
+  "sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2"
+)
 
 jq -n \
   --argjson mod "$(printf '%s\n' "${MOD_PATHS[@]}" | jq -R . | jq -s .)" \
@@ -76,9 +79,8 @@ jq -n \
       "fdroid-basic": "fdroid-basic.apk",
       "newpipe": "newpipe.apk",
       "vlc": "vlc.apk",
-      "whisper-tiny": "ggml-tiny-q5_1.bin",
-      "vosk-en": "vosk-model-small-en-us-0.15.zip",
-      "vosk-uk": "vosk-model-small-uk-v3-nano.zip"
+      "sherpa-en": "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2",
+      "sherpa-uk": "sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2"
     },
     requiredIncoming: $req
   }' > "$OUT"

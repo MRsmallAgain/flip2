@@ -35,8 +35,8 @@ var COMPONENT_META = {
   home_keys: { label: 'Home keys', kind: 'settings' },
   display: { label: 'Display 321\u00d7428', kind: 'settings' },
   wallpaper: { label: 'Wallpaper', kind: 'settings' },
-  whisper: { label: 'Whisper', kind: 'settings' },
-  vosk: { label: 'Vosk', kind: 'settings' },
+  'sherpa-en': { label: 'Sherpa STT (EN)', kind: 'settings' },
+  'sherpa-uk': { label: 'Sherpa STT (UK)', kind: 'settings' },
   headwind: { label: 'Headwind MDM', kind: 'apk', packageName: 'com.hmdm.launcher' },
   where: { label: 'Where', kind: 'apk', packageName: 'net.af0.where' }
 };
@@ -62,8 +62,8 @@ var CATALOG_FOR = {
   fdroid_basic: ['fdroid-basic'],
   newpipe: ['newpipe'],
   vlc: ['vlc'],
-  whisper: ['whisper-tiny'],
-  vosk: ['vosk-en', 'vosk-uk'],
+  'sherpa-en': ['sherpa-en'],
+  'sherpa-uk': ['sherpa-uk'],
   headwind: ['headwind-launcher'],
   where: ['where-app']
 };
