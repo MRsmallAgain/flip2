@@ -136,7 +136,7 @@ install_apk() {
   [ -f "$IN/$f" ] || fail "APK missing: $IN/$f"
   S=$STAGE/$f
   cp "$IN/$f" "$S" && chmod 644 "$S" || fail "could not stage $f"
-  pm install -r "$S" >/dev/null 2>&1 || { rm -f "$S"; fail "pm install failed: $pkg ($f)"; }
+  pm install -r -d "$S" >/dev/null 2>&1 || { rm -f "$S"; fail "pm install failed: $pkg ($f)"; }
   rm -f "$S"
   ok "installed: $pkg"
 }
@@ -326,7 +326,7 @@ place_sherpa() {
   rm -rf "$TMP"; mkdir -p "$TMP"
   tar -xjf "$IN/$tar" -C "$TMP" 2>/dev/null || { [ -x "$BB" ] && "$BB" tar -xjf "$IN/$tar" -C "$TMP"; } \
     || fail "could not unpack sherpa: $name"
-  inner="$(find "$TMP" -name tokens.txt -print -quit 2>/dev/null | sed 's|/tokens.txt||')"
+  inner="$(find "$TMP" -name tokens.txt 2>/dev/null | head -n 1 | sed 's|/tokens.txt||')"
   [ -n "$inner" ] && [ -f "$inner/tokens.txt" ] || fail "sherpa $name: no tokens.txt after unpack"
   D=/data/data/$NULL_PKG/files/sherpa/$name
   rm -rf "$D"; mkdir -p "$(dirname "$D")"
