@@ -612,7 +612,8 @@ const PROFILE_PATH = '/data/local/flip2/profile.list';
 const PROFILE_IDS = {
   navoverlay: true, keypad: true, flipmouse: true, tagdrawer: true,
   launcher_overlay: true, launcher4: true, ime: true, forkgram: true,
-  materialfiles: true, intertune: true, bouncy: true, home_keys: true,
+  materialfiles: true, appshelf: true, fdroid_basic: true, newpipe: true, vlc: true,
+  intertune: true, bouncy: true, home_keys: true,
   display: true, wallpaper: true, 'sherpa-en': true, 'sherpa-uk': true, headwind: true, where: true,
   block_camera: true, enable_camera: true, block_browser: true, enable_browser: true,
 };
@@ -1001,13 +1002,21 @@ async function wizardHostRunInstall(payload) {
         120000);
     }
     log('running install.sh as root…');
-    const out = await adbRun(['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote('sh /data/local/flip2/install.sh')], 1800000);
-    out.split('\n').forEach(function (line) {
+    const run = await adbRunShell(
+      ['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote('sh /data/local/flip2/install.sh')],
+      1800000);
+    if (run.code !== 0 && !run.stdout.trim() && run.stderr.trim()) {
+      throw new Error(run.stderr.trim());
+    }
+    run.stdout.split('\n').forEach(function (line) {
       if (line.length) log(line);
     });
     const fail = lines.find(function (l) { return /^FAIL:/.test(l); });
     if (fail) return { ok: false, error: fail, lines: lines };
     if (installOutputLooksOk(lines)) return { ok: true, lines: lines };
+    if (run.code !== 0) {
+      return { ok: false, error: fail || ('install.sh exited ' + run.code), lines: lines };
+    }
     return { ok: false, error: 'install.sh did not report DONE', lines: lines };
   } catch (e) {
     if (installOutputLooksOk(lines)) {
