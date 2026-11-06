@@ -19,8 +19,8 @@
       "file": "flip2-installer-full-magisk.zip",
       "purpose": "Flip2 single-shot Magisk installer (full tier): installs user APKs (launcher4, Null Keyboard), downloads external APKs (Forkgram, Material Files), unpacks the flip2 Magisk modules, applies baked settings (home-keys, the 321x428 logical size) and the default wallpaper, then self-removes. Matches release v1.2.0-flip2.",
       "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.2.0-flip2/flip2-installer-full-magisk.zip",
-      "size": 16424801,
-      "sha256": "be8b5fc7d2fe4b56ae0aa3d91d72a3de12e5be0cf36a09a8687cc6eeaf1e26bb",
+      "size": 21951066,
+      "sha256": "3f0f84d48b7e724185dd7200405bb9c5de130c2fd406559c57d90de4187f8eea",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "github.com/MRsmallAgain/flip2 release v1.2.0-flip2"
@@ -68,6 +68,17 @@
       "license": "MIT",
       "author": "iwadjp (F-Droid)",
       "upstream": "f-droid.org com.iwadjp.pixeltagdrawer version 7"
+    },
+    {
+      "id": "astro-loop",
+      "file": "com.astroloop.game_6.apk",
+      "purpose": "Astro Loop v1.5 (versionCode 6) — GPLv3 roguelike shooter; D-pad/gamepad input built in; pure Kotlin, no native libs (Flip2 32-bit ARM). Optional demo game alongside Bouncy.",
+      "url": "https://f-droid.org/repo/com.astroloop.game_6.apk",
+      "size": 52950747,
+      "sha256": "79aa83482f64f7ae0bc245aa3550bc0e231fecdc046cb783b818917e418f6cf7",
+      "license": "GPL-3.0-only",
+      "author": "PubDeer (F-Droid)",
+      "upstream": "f-droid.org com.astroloop.game version 6"
     },
     {
       "id": "bouncy",

@@ -13,8 +13,8 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "sha256": "be8b5fc7d2fe4b56ae0aa3d91d72a3de12e5be0cf36a09a8687cc6eeaf1e26bb",
-      "size": 16424801,
+      "sha256": "3f0f84d48b7e724185dd7200405bb9c5de130c2fd406559c57d90de4187f8eea",
+      "size": 21951066,
       "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.2.0-flip2/flip2-installer-full-magisk.zip"
     },
     {
@@ -44,6 +44,13 @@
       "sha256": "8215454c5b7c8b1465cbc82f304f1cc448fb0c93b63ffc7d15f16b31ce7f6435",
       "size": 8433539,
       "url": "https://f-droid.org/repo/com.iwadjp.pixeltagdrawer_7.apk"
+    },
+    {
+      "id": "astro-loop",
+      "file": "com.astroloop.game_6.apk",
+      "sha256": "79aa83482f64f7ae0bc245aa3550bc0e231fecdc046cb783b818917e418f6cf7",
+      "size": 52950747,
+      "url": "https://f-droid.org/repo/com.astroloop.game_6.apk"
     },
     {
       "id": "bouncy",
