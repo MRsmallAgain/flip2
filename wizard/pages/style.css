@@ -1296,3 +1296,73 @@ button.big-btn.secondary {
 .fail-snippet.hidden {
   display: none !important;
 }
+
+.status-rows {
+  margin: 12px 0 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 4px 14px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.status-row:last-child {
+  border-bottom: none;
+}
+
+.step-hero-compact {
+  text-align: center;
+  margin: 0 0 16px;
+}
+
+.step-hero-compact .hero-title {
+  font-size: 1.1rem;
+}
+
+.step-hero-compact .hero-lead {
+  margin-bottom: 8px;
+}
+
+.install-progress {
+  margin: 12px 0;
+}
+
+.install-progress-title {
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--bg-deep);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #b83670);
+  border-radius: 4px;
+  width: 0%;
+  transition: width 0.25s ease;
+}
+
+.progress-label {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.muted {
+  color: var(--ink-muted);
+}

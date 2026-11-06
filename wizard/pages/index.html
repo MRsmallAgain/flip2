@@ -19,6 +19,7 @@
   <div>
     <h1>TCL Flip2 Manager</h1>
     <p class="sub">Runs on your PC · plug in the phone · wipe only on the phone.</p>
+    <p id="wizard-build" class="sub build-stamp" hidden aria-hidden="true"></p>
   </div>
 </header>
 <div id="page-chrome">
@@ -163,10 +164,15 @@
 </section>
 
 <!-- 1: credit gate -->
-<section class="step step-compact" id="step-credit">
-  <h2>Ready?</h2>
-  <p class="step-lead">Type <b>yes</b> to continue.</p>
-  <details class="apps-panel">
+	<section class="step step-compact" id="step-credit">
+	  <h2>Ready?</h2>
+	  <p class="step-lead">Type <b>yes</b> to continue.</p>
+	  <div id="credit-status-rows" class="status-rows" aria-live="polite">
+	    <div class="status-row"><span><span class="status-dot wait" id="credit-dot-phone"></span>Phone</span><strong id="credit-val-phone">Checking…</strong></div>
+	    <div class="status-row"><span><span class="status-dot wait" id="credit-dot-profile"></span>Profile</span><strong id="credit-val-profile">—</strong></div>
+	    <div class="status-row"><span><span class="status-dot wait" id="credit-dot-files"></span>Files</span><strong id="credit-val-files">—</strong></div>
+	  </div>
+	  <details class="apps-panel">
     <summary>Credits (authors &amp; links)</summary>
     <div class="table-scroll">
       <table id="credit-table">
@@ -196,10 +202,14 @@
 </section>
 
 <!-- 2: downloads + checksums -->
-<section class="step step-compact" id="step-download">
-  <h2>Get files</h2>
-  <p class="step-lead">Download or pick verified copies on this PC.</p>
-  <div class="table-scroll">
+	<section class="step step-compact" id="step-download">
+	  <h2>Get files</h2>
+	  <p class="step-lead">Download or pick verified copies on this PC.</p>
+	  <div id="dl-hub-summary" class="status-rows hidden" aria-live="polite">
+	    <div class="status-row"><span>Files</span><strong id="dl-hub-count">—</strong></div>
+	    <p id="dl-hub-banner" class="one-liner ok hidden">All verified</p>
+	  </div>
+	  <div class="table-scroll">
     <table id="dl-table">
       <thead><tr><th>File</th><th>Size</th><th>Author</th><th>Get</th><th>Status</th></tr></thead>
       <tbody></tbody>
@@ -245,8 +255,11 @@
 
 <!-- 4: connect -->
 <section class="step" id="step-usb">
-  <h2>Connect</h2>
-  <p class="step-lead">USB debugging on · plug in · tap Allow on phone.</p>
+  <div class="step-hero-compact">
+    <div class="hero-icon" aria-hidden="true">🔌</div>
+    <p class="hero-title">Allow USB debugging</p>
+    <p class="hero-lead">Tap OK on the phone when prompted</p>
+  </div>
   <p id="usb-rooted-banner" class="warn hidden"><b>Already rooted?</b> Use Set up — not erase-and-root.</p>
   <p id="usb-companion-hint" class="note hidden">Companion: accept prompt → <b>Check host adb</b>.</p>
   <div class="action-row">
@@ -272,6 +285,11 @@
     <p>Pushes to <code>/data/local/flip2/incoming/</code>, runs install script as root. Magisk may prompt restart on first boot; dialer <code>*#*#217703#*#*</code> if root fails.</p>
   </details>
   <p id="inst-profile-note" class="note"></p>
+  <div id="inst-progress-wrap" class="install-progress hidden" aria-live="polite">
+    <p class="install-progress-title">Putting on phone</p>
+    <div class="progress-bar"><span id="inst-progress-bar"></span></div>
+    <p id="inst-progress-label" class="muted progress-label"></p>
+  </div>
   <p id="inst-error-head" class="one-liner hidden" role="alert">Install stopped</p>
   <p id="inst-fail-line" class="fail-snippet hidden"></p>
   <div class="action-row">

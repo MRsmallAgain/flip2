@@ -115,9 +115,14 @@ function serveWizard(request) {
   if (rel.includes('..')) return Promise.resolve(new Response('bad path', { status: 400 }));
   const file = path.join(WIZARD, rel);
   return fsp.readFile(file).then(function (buf) {
-    return new Response(buf, {
-      headers: { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' },
-    });
+    const ext = path.extname(file);
+    const headers = {
+      'content-type': MIME[ext] || 'application/octet-stream',
+    };
+    if (ext === '.js' || ext === '.css' || ext === '.html' || ext === '.json') {
+      headers['cache-control'] = 'no-store';
+    }
+    return new Response(buf, { headers });
   }).catch(function () {
     return new Response('not found: ' + rel, { status: 404 });
   });

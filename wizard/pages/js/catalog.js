@@ -35,6 +35,13 @@ function loadCatalog() {
     CATALOG.list = (cat.files || []).map(function (f) { return mergePinFields(f, pinById[f.id]); });
     CATALOG.byId = {};
     CATALOG.list.forEach(function (f) { CATALOG.byId[f.id] = f; });
+    var stamp = document.getElementById('wizard-build');
+    if (stamp) {
+      var ver = (pins.version || cat.version || '').trim();
+      stamp.textContent = ver ? 'Catalog ' + ver + ' · pins merge' : 'Catalog · pins merge';
+      stamp.hidden = false;
+      stamp.removeAttribute('aria-hidden');
+    }
     return cat;
   });
 }

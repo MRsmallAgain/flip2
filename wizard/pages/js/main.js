@@ -78,6 +78,7 @@ function showStep(name) {
   });
   shownStep = name;
   updatePrepareStrip(name);
+  if (name === 'credit') updateCreditStatusRows();
   // The first call is the page load. Later calls jump to that section
   // without hiding the rest of the page. Instant, because a smooth jump
   // started from a pill click is ignored in this window.
@@ -128,6 +129,66 @@ function setStripInstall(text, cls) {
   var row = $('strip-install-row');
   if (row) row.classList.remove('hidden');
   setStatus('strip-install', text, cls);
+}
+
+function setDot(id, state) {
+  var el = $(id);
+  if (!el) return;
+  el.className = 'status-dot' + (state ? ' ' + state : '');
+}
+
+function updateCreditStatusRows() {
+  var phoneVal = $('credit-val-phone');
+  var profileVal = $('credit-val-profile');
+  var filesVal = $('credit-val-files');
+  if (stripLastReady && stripLastReady.ok) {
+    if (phoneVal) phoneVal.textContent = 'Ready';
+    setDot('credit-dot-phone', 'ok');
+  } else if (stripLastReady && stripLastReady.ok === false) {
+    if (phoneVal) phoneVal.textContent = 'Connect first';
+    setDot('credit-dot-phone', 'bad');
+  } else {
+    if (phoneVal) phoneVal.textContent = 'Plug in · allow USB';
+    setDot('credit-dot-phone', 'wait');
+  }
+  if (typeof PROFILES !== 'undefined' && PROFILES.selected) {
+    var p = PROFILES.selected();
+    if (profileVal) profileVal.textContent = p ? (p.label || p.id) : '—';
+    setDot('credit-dot-profile', p ? 'ok' : 'wait');
+  }
+  var ids = (typeof requiredCatalog === 'function') ? requiredCatalog() : [];
+  var have = ids.filter(function (id) { return VERIFIED[id]; }).length;
+  if (filesVal) {
+    filesVal.textContent = ids.length ? have + ' / ' + ids.length : '—';
+  }
+  setDot('credit-dot-files', ids.length && have === ids.length ? 'ok' : 'wait');
+}
+
+function updateDlHubSummary(ids, missing) {
+  var wrap = $('dl-hub-summary');
+  var count = $('dl-hub-count');
+  var banner = $('dl-hub-banner');
+  if (!wrap || !count) return;
+  wrap.classList.remove('hidden');
+  var have = ids.length - missing.length;
+  count.textContent = have + ' / ' + ids.length;
+  if (banner) {
+    if (missing.length === 0) banner.classList.remove('hidden');
+    else banner.classList.add('hidden');
+  }
+}
+
+function setInstallProgressVisible(on) {
+  var wrap = $('inst-progress-wrap');
+  if (wrap) wrap.classList.toggle('hidden', !on);
+}
+
+function setInstallProgress(pct, label) {
+  var bar = $('inst-progress-bar');
+  var lab = $('inst-progress-label');
+  setInstallProgressVisible(true);
+  if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  if (lab && label != null) lab.textContent = label;
 }
 
 function hideInstallErrorPanel() {
@@ -215,6 +276,7 @@ function maybeRecoverInstallAfterFailure(errMsg, log) {
 
 function markInstallSuccess(msg) {
   hideInstallErrorPanel();
+  setInstallProgressVisible(false);
   var text = msg || 'Install complete.';
   setStatus('inst-msg', text, 'ok');
   var next = $('inst-next');
@@ -256,11 +318,13 @@ function runPushAndInstall() {
   hideInstallErrorPanel();
   setStatus('inst-msg', 'building push set…', 'wait');
   setStripInstall('Install running', 'wait');
+  setInstallProgress(8, 'Building push set…');
   var log = makeLog('inst-log');
   var pushSet;
   try {
     pushSet = PIPE.buildPushSet(files, PROFILES.componentIds());
   } catch (e) {
+    setInstallProgressVisible(false);
     setStatus('inst-msg', e.message, 'bad');
     setStripInstall(e.message, 'bad');
     showInstallErrorPanel(e.message);
@@ -268,8 +332,10 @@ function runPushAndInstall() {
     $('inst-btn').disabled = false;
     return;
   }
+  var pushTotal = Object.keys(pushSet).length;
   var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostPrepare;
   if (!useHost && PROFILES.selectedId === 'managed') {
+    setInstallProgressVisible(false);
     var managedMsg = 'Managed needs Flip 2 Companion app';
     setStatus('inst-msg', managedMsg, 'bad');
     setStripInstall(managedMsg, 'bad');
@@ -287,6 +353,16 @@ function runPushAndInstall() {
     ? PIPE.hostPushAndInstall(pushSet, installShText, log, PROFILES.profileText(), function (text) {
         setStatus('inst-msg', text, 'wait');
         setStripInstall(text, 'wait');
+        var m = String(text || '').match(/(\d+)\s*of\s*(\d+)/i);
+        if (m && pushTotal) {
+          var n = parseInt(m[1], 10);
+          var t = parseInt(m[2], 10) || pushTotal;
+          setInstallProgress(15 + Math.round((n / t) * 75), text);
+        } else if (/install/i.test(text)) {
+          setInstallProgress(92, text);
+        } else {
+          setInstallProgress(40, text);
+        }
       })
     : PIPE.pushAndInstall(pushSet, INSTALL_SH, log);
   var cleanP = useHost ? PIPE.hostCleanup(log) : PIPE.cleanup(log);
@@ -297,6 +373,7 @@ function runPushAndInstall() {
   }).catch(function (e) {
     var errMsg = e.message || String(e);
     var benign = isBenignInstallError(errMsg);
+    setInstallProgressVisible(false);
     setStatus('inst-msg', errMsg, 'bad');
     setStripInstall(errMsg, 'bad');
     showInstallErrorPanel(errMsg);
@@ -498,6 +575,8 @@ function refreshDownloadGate() {
       ' still needed: ' + missing.map(function (f) { return f.file; }).join(', '), 'wait');
     $('dl-next').disabled = true;
   }
+  updateDlHubSummary(ids, missing);
+  if (shownStep === 'credit') updateCreditStatusRows();
   return missing;
 }
 
@@ -1246,6 +1325,7 @@ function paintStripPhone(mode, ready) {
   var hintEl = $('strip-hint');
   if (hintEl) hintEl.textContent = hint;
   setStripBox(box);
+  if (shownStep === 'credit') updateCreditStatusRows();
 }
 
 function pollStripPhone() {
