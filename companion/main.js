@@ -625,6 +625,10 @@ const CATALOG_APKS = {
   'materialfiles.apk': 'me.zhanghai.android.files',
   'intertune.apk': 'dev.skye.intertune',
   'bouncy.apk': 'com.dozingcatsoftware.bouncy',
+  'appshelf.apk': 'io.github.xtratter.appshelf',
+  'fdroid-basic.apk': 'org.fdroid.basic',
+  'newpipe.apk': 'org.schabi.newpipe',
+  'vlc.apk': 'org.videolan.vlc',
   'headwind.apk': 'com.hmdm.launcher',
   'where.apk': 'net.af0.where',
 };
@@ -636,6 +640,10 @@ const CATALOG_PACKAGES = {
   'me.zhanghai.android.files': true,
   'dev.skye.intertune': true,
   'com.dozingcatsoftware.bouncy': true,
+  'io.github.xtratter.appshelf': true,
+  'org.fdroid.basic': true,
+  'org.schabi.newpipe': true,
+  'org.videolan.vlc': true,
   'com.hmdm.launcher': true,
   'net.af0.where': true,
 };

@@ -95,7 +95,7 @@ install_apk() {
   [ -f "$IN/$f" ] || fail "APK missing: $IN/$f"
   S=$STAGE/$f
   cp "$IN/$f" "$S" && chmod 644 "$S" || fail "could not stage $f"
-  pm install -r "$S" >/dev/null 2>&1 || { rm -f "$S"; fail "pm install failed: $pkg ($f)"; }
+  pm install -r -d "$S" >/dev/null 2>&1 || { rm -f "$S"; fail "pm install failed: $pkg ($f)"; }
   rm -f "$S"
   ok "installed: $pkg"
 }
