@@ -41,7 +41,7 @@
 #define LOG_FILE "/cache/FlipMouse.log"
 #define SPEED_FILE "/data/local/flip2/flipmouse-speed"
 #ifndef FLIPMOUSE_DEFAULT_SPEED
-#define FLIPMOUSE_DEFAULT_SPEED 13
+#define FLIPMOUSE_DEFAULT_SPEED 39
 #endif
 #ifdef DEBUG
 #define ENABLE_LOG 1

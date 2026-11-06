@@ -231,7 +231,7 @@ fi
 echo "first-boot done. Reboot to apply the logical display size."
 FB_TAIL
 	} > "$OUT/first-boot.sh"
-		MOUSE_SPEED="${FLIPMOUSE_DEFAULT_SPEED:-13}"
+		MOUSE_SPEED="${FLIPMOUSE_DEFAULT_SPEED:-39}"
 		sed -i "s/@VERSION@/$VERSION/g; s/@MOUSE_SPEED@/$MOUSE_SPEED/g" "$OUT/first-boot.sh"
 		chmod 755 "$OUT/first-boot.sh"
 
