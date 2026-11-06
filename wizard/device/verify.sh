@@ -147,6 +147,11 @@ if want vlc; then
 else
   echo "NOTE: skip vlc"
 fi
+if want astro_loop; then
+  check "Astro Loop installed" pm path com.astroloop.game
+else
+  echo "NOTE: skip astro_loop"
+fi
 if want tagdrawer; then
   check "Tag Drawer installed" pm path com.iwadjp.pixeltagdrawer
 else

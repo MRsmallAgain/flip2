@@ -240,6 +240,32 @@
       }
     },
     {
+      "name": "astro_loop",
+      "artifact": "user-apk",
+      "package": "com.astroloop.game",
+      "incoming": "astro-loop.apk",
+      "label": "Astro Loop",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "wizard",
+        "image"
+      ],
+      "install_order": 871,
+      "notes": "F-Droid v1.5; upstream InputRouter supports DPAD/gamepad. No Flip2 smali patch yet — see pipeline/astro-loop/README.md.",
+      "image_preload": {
+        "system_app_dir": "AstroLoop",
+        "source": "sources/com.astroloop.game_6.apk"
+      },
+      "external": {
+        "url": "https://f-droid.org/repo/com.astroloop.game_6.apk",
+        "asset": "com.astroloop.game_6.apk",
+        "sha256": "79aa83482f64f7ae0bc245aa3550bc0e231fecdc046cb783b818917e418f6cf7"
+      }
+    },
+    {
       "name": "appshelf",
       "artifact": "user-apk",
       "package": "io.github.xtratter.appshelf",

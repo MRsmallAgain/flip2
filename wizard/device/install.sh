@@ -191,6 +191,11 @@ if want vlc; then
 else
   echo "NOTE: skip vlc"
 fi
+if want astro_loop; then
+  install_apk astro-loop.apk         com.astroloop.game
+else
+  echo "NOTE: skip astro_loop"
+fi
 
 if want ime; then
 # --- IME settings (manifest 70): values mirror payload data/settings.txt ---

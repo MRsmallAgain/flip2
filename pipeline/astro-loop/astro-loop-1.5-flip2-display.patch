@@ -1,0 +1,22 @@
+--- smali/com/astroloop/game/core/DesignSpace.smali
++++ smali/com/astroloop/game/core/DesignSpace.smali
+@@ -202,7 +202,7 @@
+ 
+     .line 10
+     :cond_0
+-    const p1, 0x4505e000    # 2142.0f
++    const p1, 0x44700000    # 960.0f flip2 portrait design height
+ 
+     .line 11
+     .line 12
+--- smali/com/astroloop/game/core/GameConfig.smali
++++ smali/com/astroloop/game/core/GameConfig.smali
+@@ -214,7 +214,7 @@
+ 
+ .field public static final CRYO_BASE_RADIUS:F = 100.0f
+ 
+-.field public static final DESIGN_HEIGHT:F = 2142.0f
++.field public static final DESIGN_HEIGHT:F = 960.0f
+ 
+ .field public static final DESIGN_WIDTH:F = 960.0f
+ 

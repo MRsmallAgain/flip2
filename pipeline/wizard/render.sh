@@ -17,6 +17,7 @@ wizard_incoming() {
     ime) echo nullkeyboard.apk ;;
     intertune) echo intertune.apk ;;
     bouncy) echo bouncy.apk ;;
+    astro_loop) echo astro-loop.apk ;;
     *) jq -r --arg n "$1" '.components[] | select(.name==$n) | .incoming // empty' "$MANIFEST" ;;
   esac
 }

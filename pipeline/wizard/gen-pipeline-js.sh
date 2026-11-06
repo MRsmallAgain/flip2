@@ -15,6 +15,7 @@ wizard_incoming() {
     ime) echo nullkeyboard.apk ;;
     intertune) echo intertune.apk ;;
     bouncy) echo bouncy.apk ;;
+    astro_loop) echo astro-loop.apk ;;
     *) jq -r --arg n "$1" '.components[] | select(.name==$n) | .incoming // empty' "$MANIFEST" ;;
   esac
 }
@@ -74,6 +75,7 @@ jq -n \
       "forkgram": "forkgram.apk",
       "intertune": "intertune.apk",
       "bouncy": "bouncy.apk",
+      "astro-loop": "astro-loop.apk",
       "materialfiles": "materialfiles.apk",
       "appshelf": "appshelf.apk",
       "fdroid-basic": "fdroid-basic.apk",
