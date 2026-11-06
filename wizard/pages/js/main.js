@@ -18,12 +18,12 @@ function $(id) { return document.getElementById(id); }
 var shownStep = null;
 
 var PREPARE_LABELS = {
-  credit: 'Credits',
-  download: 'Files',
+  credit: 'Ready',
+  download: 'Get files',
   udev: 'USB rules',
-  usb: 'USB debugging',
-  install: 'Install',
-  verify: 'Verify'
+  usb: 'Connect',
+  install: 'Put on phone',
+  verify: 'Check'
 };
 
 function updatePrepareStrip(name) {
@@ -130,6 +130,73 @@ function setStripInstall(text, cls) {
   setStatus('strip-install', text, cls);
 }
 
+function hideInstallErrorPanel() {
+  var head = $('inst-error-head');
+  var line = $('inst-fail-line');
+  if (head) head.classList.add('hidden');
+  if (line) {
+    line.classList.add('hidden');
+    line.textContent = '';
+  }
+}
+
+function showInstallErrorPanel(errMsg) {
+  var head = $('inst-error-head');
+  var line = $('inst-fail-line');
+  if (!head || !line) return;
+  var m = String(errMsg || '');
+  var failLine = m;
+  var parts = m.split(/\n/);
+  for (var i = 0; i < parts.length; i++) {
+    if (/^FAIL:/.test(parts[i])) {
+      failLine = parts[i];
+      break;
+    }
+  }
+  head.classList.remove('hidden');
+  line.textContent = failLine;
+  line.classList.remove('hidden');
+}
+
+function parseVerifyScore(logText) {
+  var passed = null;
+  var failed = null;
+  var text = String(logText || '');
+  var m = text.match(/SUMMARY:\s*(\d+)\s+passed,\s*(\d+)\s+failed/i);
+  if (m) {
+    passed = m[1];
+    failed = m[2];
+  } else {
+    m = text.match(/(\d+)\s+passed/i);
+    if (m) passed = m[1];
+    m = text.match(/(\d+)\s+failed/i);
+    if (m) failed = m[1];
+  }
+  return { passed: passed, failed: failed };
+}
+
+function updateVerifyCelebrate(ok, logPre) {
+  var box = $('ver-celebrate');
+  var score = $('ver-score');
+  var sub = $('ver-score-sub');
+  if (!box || !score || !sub) return;
+  if (!ok) {
+    box.classList.add('hidden');
+    return;
+  }
+  var text = logPre && logPre.textContent ? logPre.textContent : '';
+  var s = parseVerifyScore(text);
+  if (s.passed != null) {
+    score.textContent = s.passed + ' passed';
+    sub.textContent = (s.failed != null ? s.failed : '0') + ' failed';
+    box.classList.remove('hidden');
+  } else {
+    score.textContent = 'All checks passed';
+    sub.textContent = '';
+    box.classList.remove('hidden');
+  }
+}
+
 function maybeRecoverInstallAfterFailure(errMsg, log) {
   // A real install.sh failure, including an ABI mismatch or a nonzero adb
   // exit that does not say FAIL:, is the answer. Verify would only append
@@ -147,6 +214,7 @@ function maybeRecoverInstallAfterFailure(errMsg, log) {
 }
 
 function markInstallSuccess(msg) {
+  hideInstallErrorPanel();
   var text = msg || 'Install complete.';
   setStatus('inst-msg', text, 'ok');
   var next = $('inst-next');
@@ -169,9 +237,10 @@ function runPushAndInstall() {
     }
   });
   if (missing.length) {
-    var missingMsg = 'Verify under Prepare, Files, first: ' + missing.join(', ');
+    var missingMsg = 'Get files first: ' + missing.join(', ');
     setStatus('inst-msg', missingMsg, 'bad');
     setStripInstall(missingMsg, 'bad');
+    showInstallErrorPanel(missingMsg);
     return;
   }
   var files = {};
@@ -184,6 +253,7 @@ function runPushAndInstall() {
   next.classList.add('hidden');
   var wipeHint = $('inst-wipe-hint');
   if (wipeHint) wipeHint.classList.add('hidden');
+  hideInstallErrorPanel();
   setStatus('inst-msg', 'building push set…', 'wait');
   setStripInstall('Install running', 'wait');
   var log = makeLog('inst-log');
@@ -193,14 +263,17 @@ function runPushAndInstall() {
   } catch (e) {
     setStatus('inst-msg', e.message, 'bad');
     setStripInstall(e.message, 'bad');
+    showInstallErrorPanel(e.message);
     $('inst-retry').classList.remove('hidden');
     $('inst-btn').disabled = false;
     return;
   }
   var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostPrepare;
   if (!useHost && PROFILES.selectedId === 'managed') {
-    setStatus('inst-msg', 'managed Apply requires Flip 2 Companion', 'bad');
-    setStripInstall('managed Apply requires Flip 2 Companion', 'bad');
+    var managedMsg = 'Managed needs Flip 2 Companion app';
+    setStatus('inst-msg', managedMsg, 'bad');
+    setStripInstall(managedMsg, 'bad');
+    showInstallErrorPanel(managedMsg);
     $('inst-retry').classList.remove('hidden');
     $('inst-btn').disabled = false;
     return;
@@ -226,6 +299,7 @@ function runPushAndInstall() {
     var benign = isBenignInstallError(errMsg);
     setStatus('inst-msg', errMsg, 'bad');
     setStripInstall(errMsg, 'bad');
+    showInstallErrorPanel(errMsg);
     $('inst-retry').classList.remove('hidden');
     var skip = $('inst-skip-verify');
     var hint = $('inst-wipe-hint');
@@ -826,16 +900,21 @@ function initVerify() {
     $('ver-btn').disabled = true;
     $('ver-recheck').classList.add('hidden');
     if (finish) finish.classList.add('hidden');
+    updateVerifyCelebrate(false);
     var useHost = window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostVerify;
-    setStatus('ver-msg', useHost ? 'running verify.sh (host adb)…' : 'running verify.sh…', 'wait');
+    setStatus('ver-msg', 'Checking phone…', 'wait');
+    var logPre = $('ver-log');
+    if (logPre) logPre.textContent = '';
     var log = makeLog('ver-log');
     var verifyShText = typeof VERIFY_SH === 'string' ? VERIFY_SH : new TextDecoder().decode(VERIFY_SH);
     var verifyP = useHost ? PIPE.hostVerify(verifyShText, log) : PIPE.verify(VERIFY_SH, log);
     verifyP.then(function () {
       setStatus('ver-msg', 'All checks passed.', 'ok');
+      updateVerifyCelebrate(true, logPre);
       if (finish) finish.classList.remove('hidden');
     }).catch(function (e) {
       setStatus('ver-msg', e.message, 'bad');
+      updateVerifyCelebrate(false);
       $('ver-recheck').classList.remove('hidden');
     }).then(function () {
       $('ver-btn').disabled = false;
