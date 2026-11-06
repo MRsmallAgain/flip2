@@ -229,10 +229,27 @@ async function installUdev() {
 // is already on this PC, or fetch it here (no CORS, no browser detour).
 
 const CATALOG_PATH = path.join(WIZARD, 'catalog.json');
+const PINS_PATH = path.join(WIZARD, 'pins.json');
+
+function mergePinFields(entry, pin) {
+  if (!pin) return entry;
+  const out = { ...entry };
+  if (pin.sha256 != null) out.sha256 = pin.sha256;
+  if (pin.size != null) out.size = pin.size;
+  if (pin.url) out.url = pin.url;
+  if (pin.file) out.file = pin.file;
+  return out;
+}
 
 async function readCatalog() {
   const text = await fsp.readFile(CATALOG_PATH, 'utf8');
-  return JSON.parse(text).files || [];
+  const files = JSON.parse(text).files || [];
+  let pinById = {};
+  try {
+    const pins = JSON.parse(await fsp.readFile(PINS_PATH, 'utf8'));
+    for (const p of pins.files || []) pinById[p.id] = p;
+  } catch (e) { /* pins.json optional for dev */ }
+  return files.map(function (f) { return mergePinFields(f, pinById[f.id]); });
 }
 
 async function catalogEntry(id) {
@@ -281,6 +298,9 @@ async function readLocal(id, index) {
 
 async function downloadFile(id) {
   const f = await catalogEntry(id);
+  if (f.size == null || f.sha256 == null) {
+    throw new Error((f.file || id) + ': catalog entry missing pinned size or SHA-256');
+  }
   if (!f.url) {
     throw new Error(f.file + ': no download URL; match the local pin');
   }

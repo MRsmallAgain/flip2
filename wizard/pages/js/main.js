@@ -506,6 +506,12 @@ function refreshDownloadGate() {
 function acceptBytes(id, bytes) {
   var f = CATALOG.byId[id];
   if (!f) return Promise.resolve({ ok: false, msg: id + ' is not in the catalog' });
+  if (f.sha256 == null || f.size == null) {
+    return Promise.resolve({
+      ok: false,
+      msg: (f.file || id) + ': catalog entry missing pinned size or SHA-256 — reload the page',
+    });
+  }
   var view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   return sha256Hex(view).then(function (hex) {
     if (hex !== f.sha256) {
