@@ -259,6 +259,18 @@ var FASTBOOT = {
       if (/^fastboot FAIL/.test(e.message)) throw e;
       // otherwise the phone dropped off the bus as it rebooted — that IS success
       self.log('device left fastboot (' + e.message + ')');
-    });
+    }).then(function () { return self.release(); });
+  },
+
+  // Drop the WebUSB handle after unlock/reboot so the next Connect picks a fresh
+  // fastboot enumeration (same PID often reappears after unlock reboot).
+  release: function () {
+    var self = this;
+    self.out = null;
+    self.inp = null;
+    if (!self.device) return Promise.resolve();
+    var dev = self.device;
+    self.device = null;
+    return dev.close().catch(function () {});
   }
 };

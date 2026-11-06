@@ -131,6 +131,16 @@ function setStripInstall(text, cls) {
   setStatus('strip-install', text, cls);
 }
 
+function clearStripInstall() {
+  var row = $('strip-install-row');
+  if (row) row.classList.add('hidden');
+  setStatus('strip-install', '', '');
+}
+
+function isRootingFlashStage() {
+  return stageName === 'flash' || stageName === 'done';
+}
+
 function setDot(id, state) {
   var el = $(id);
   if (!el) return;
@@ -290,6 +300,34 @@ function markInstallSuccess(msg) {
 }
 
 function runPushAndInstall() {
+  if (isRootingFlashStage()) {
+    var flashMsg = 'Finish Erase and root first: install the boot image in fastboot, then boot Android with root before Prepare → Put on phone.';
+    setStatus('inst-msg', flashMsg, 'bad');
+    setStripInstall(flashMsg, 'bad');
+    showInstallErrorPanel(flashMsg);
+    return;
+  }
+  var N = window.FLIP2_NATIVE;
+  if (N && N.phoneState) {
+    return N.phoneState().then(function (state) {
+      var mode = (state && state.mode) || '';
+      if (mode === 'fastboot' || mode === 'preloader' || mode === 'bootrom') {
+        var usbMsg = mode === 'fastboot'
+          ? 'Phone is in fastboot — use Install boot image below, not Prepare install.'
+          : 'Phone is in a flash mode — continue rooting steps, not Prepare install.';
+        setStatus('inst-msg', usbMsg, 'bad');
+        setStripInstall(usbMsg, 'bad');
+        showInstallErrorPanel(usbMsg);
+        return;
+      }
+      runPushAndInstallCore();
+    }).catch(function () { runPushAndInstallCore(); });
+    return;
+  }
+  runPushAndInstallCore();
+}
+
+function runPushAndInstallCore() {
   var needIds = PROFILES.catalogIds();
   var missing = [];
   needIds.forEach(function (id) {
@@ -1215,6 +1253,7 @@ function showFastbootSection() {
   watching = false;
   stopWatchClock(true);
   setStage('flash');
+  clearStripInstall();
   setStatus('boot-msg', 'The phone is in flashing mode.', 'ok');
   // Whatever went wrong before the power cycle no longer describes this phone.
   setStatus('fb-msg', '', '');
@@ -1278,8 +1317,8 @@ var STRIP_COPY = {
     hint: 'Switch the USB mode or turn on USB debugging. This is not a flash mode.' },
   preloader: { box: 'bad', cls: 'bad', label: 'preloader',
     hint: 'The phone is in the preloader. Power it back to Android. Do not flash from this screen.' },
-  fastboot: { box: 'bad', cls: 'bad', label: 'fastboot',
-    hint: 'The phone is in fastboot. Reboot it to Android. Do not flash from this screen.' },
+  fastboot: { box: 'caught', cls: 'ok', label: 'flashing mode',
+    hint: 'Continue below: Connect to the phone, then Install boot image. Prepare install is for after Android boots with root.' },
   bootrom: { box: 'bad', cls: 'bad', label: 'bootrom',
     hint: 'The phone is in the bootrom. Power it back to Android. Do not flash from this screen.' },
   stuck: { box: 'bad', cls: 'bad', label: 'not in Android',
@@ -1325,6 +1364,7 @@ function paintStripPhone(mode, ready) {
   var hintEl = $('strip-hint');
   if (hintEl) hintEl.textContent = hint;
   setStripBox(box);
+  if (mode === 'fastboot' && isRootingFlashStage()) clearStripInstall();
   if (shownStep === 'credit') updateCreditStatusRows();
 }
 
@@ -1545,10 +1585,17 @@ function initFastboot() {
   $('fb-unlock').addEventListener('click', function () {
     setStatus('fb-msg', 'Confirm on the phone keypad…', 'wait');
     FASTBOOT.unlock(function (line) { log('INFO: ' + line); }).then(function () {
-      setStatus('fb-msg', 'Unlocked. The phone has been erased.', 'ok');
-      stage('fb-flash');
+      return FASTBOOT.release();
+    }).then(function () {
+      setStatus('fb-msg', 'Unlocked and erased. Press Connect to the phone again — the phone may have rebooted into fastboot.', 'ok');
+      log('Released WebUSB after unlock. Connect again if flash buttons stay disabled.');
+      stage('fb-pick');
     }).catch(function (e) {
       setStatus('fb-msg', e.message, 'bad');
+      if (e && e.stopped) {
+        silentWake = true;
+        showWake('silent');
+      }
     });
   });
   $('fb-flash').addEventListener('click', function () {

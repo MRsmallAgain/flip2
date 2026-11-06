@@ -376,6 +376,29 @@ function adbRunShell(args, timeoutMs) {
   });
 }
 
+// Host push/install uses adb + su. Fastboot and preloader are not adb targets.
+async function assertHostInstallUsbMode() {
+  const st = readPhoneState();
+  const mode = st.mode;
+  if (mode === 'fastboot') {
+    throw new Error(
+      'The phone is in fastboot (flashing mode), not Android. Finish Erase and root here — Connect to the phone, then Install boot image. Do not use Prepare → Put on phone until Android is running with root.');
+  }
+  if (mode === 'preloader' || mode === 'bootrom') {
+    throw new Error(
+      'The phone is in a flash handoff mode, not Android. Continue the rooting steps on this page; Prepare install is for after neutron is flashed and the phone boots Android.');
+  }
+}
+
+function mapSuPrepareError(err) {
+  const m = String((err && err.message) || err || '');
+  if (/su:\s*inaccessible|su:\s*not found|\/system\/bin\/sh:\s*su/i.test(m)) {
+    return new Error(
+      'Prepare install needs root (su) on the phone. After unlock the phone is wiped and has no root — install the neutron boot image in fastboot first, boot Android, then use Set up.');
+  }
+  return err instanceof Error ? err : new Error(m);
+}
+
 // One phone, ready, or this fails. The serial is read, never assumed, so a
 // second phone on the bus cannot be backed up or checked by mistake.
 async function adbSerial() {
@@ -977,13 +1000,18 @@ async function wizardHostDropRootAdb(payload) {
 }
 
 async function wizardHostPrepare() {
+  await assertHostInstallUsbMode();
   await adbSerial();
   wizardHostTmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
   const serial = await adbSerial();
-  await wizardHostSu(serial,
-    'rm -rf ' + shellQuote(WIZARD_STAGING) +
-      ' && mkdir -p /data/local/flip2/incoming ' + shellQuote(WIZARD_STAGING),
-    60000);
+  try {
+    await wizardHostSu(serial,
+      'rm -rf ' + shellQuote(WIZARD_STAGING) +
+        ' && mkdir -p /data/local/flip2/incoming ' + shellQuote(WIZARD_STAGING),
+      60000);
+  } catch (e) {
+    throw mapSuPrepareError(e);
+  }
   return { ok: true };
 }
 
