@@ -50,6 +50,8 @@ final class SherpaSttHelper implements SttEngine {
     private static final String KEY_LANG = "stt_lang";
     private static final int SAMPLE_RATE = 16000;
     private static final int LISTEN_TIMEOUT_MS = 12000;
+    /** Cap preroll while the Sherpa model loads (~4 s at 16 kHz). */
+    private static final int PREROLL_MAX_SAMPLES = SAMPLE_RATE * 4;
     private static final String TAG = "Flip2STT";
     private static final String[] MODEL_ROOTS_EXTRA = {
             "/sdcard/Android/data/com.tim.flip2.nullkeyboard/files/sherpa",
@@ -82,9 +84,13 @@ final class SherpaSttHelper implements SttEngine {
     private String mLoadedOfflineLang;
     /** UK only: whole-utterance PCM, drained by {@link #decodeOffline()}. */
     private final List<float[]> mOfflinePcm = Collections.synchronizedList(new ArrayList<float[]>());
+    /** PCM captured while the Sherpa model loads; drained when capture starts. */
+    private final List<float[]> mPrerollPcm = Collections.synchronizedList(new ArrayList<float[]>());
     private volatile boolean mOfflineMode;
     private AudioRecord mAudioRecord;
     private Thread mCaptureThread;
+    private Thread mPrerollThread;
+    private volatile boolean mPrerollActive;
     private final AtomicBoolean mRecording = new AtomicBoolean(false);
     private volatile boolean mListening;
     private volatile boolean mStarting;
@@ -131,9 +137,14 @@ final class SherpaSttHelper implements SttEngine {
             mListener.onError("No " + lang + " model — flip2 ime sherpa"); return false;
         }
         clearOfflinePcm();
+        clearPrerollPcm();
         mOfflineMode = LANG_UK.equals(lang);
         mStarting = true;
         mListener.onListening();
+        if (!startMicPreroll()) {
+            mStarting = false;
+            return false;
+        }
         mBg.execute(() -> {
             try {
                 if (mOfflineMode) ensureOfflineLocked(lang);
@@ -143,32 +154,107 @@ final class SherpaSttHelper implements SttEngine {
                 String err = t.getMessage();
                 if (err == null || err.isEmpty()) err = t.getClass().getSimpleName();
                 final String e = err;
-                mMain.post(() -> { mStarting = false; mListener.onError(e); mListener.onIdle(); });
+                mMain.post(() -> { mStarting = false; releaseMic(); mListener.onError(e); mListener.onIdle(); });
             }
         });
         return true;
     }
 
-    private void beginCapture() {
-        if (!mStarting) return;
+    /** FGS + mic + preroll thread before model load so early speech is not dropped. */
+    private boolean startMicPreroll() {
         try {
-            /* The foreground service has to be up before the record is created: an IME
-               uid is IMPORTANT_BACKGROUND even with a focused window, and AudioPolicyService
-               refuses RECORD_AUDIO for background uids on A11. */
             SttForegroundService.start(mApp);
             int minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT);
             mAudioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, Math.max(minBuf, 1) * 2);
-            if (mAudioRecord.getState() != AudioRecord.STATE_INITIALIZED) throw new IllegalStateException("Mic init failed");
+            if (mAudioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
+                throw new IllegalStateException("Mic init failed");
+            }
             mAudioRecord.startRecording();
+            mPrerollActive = true;
+            mPrerollThread = new Thread(this::capturePreroll, "flip2-sherpa-preroll");
+            mPrerollThread.start();
+            Log.i(TAG, "preroll mic started");
+            return true;
+        } catch (Throwable t) {
+            releaseMic();
+            mListener.onError(t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName());
+            mListener.onIdle();
+            return false;
+        }
+    }
+
+    private void capturePreroll() {
+        int chunk = (int) (0.1 * SAMPLE_RATE);
+        short[] buf = new short[chunk];
+        try {
+            while (mPrerollActive && mAudioRecord != null) {
+                int n = mAudioRecord.read(buf, 0, buf.length);
+                if (n <= 0) continue;
+                float[] samples = new float[n];
+                for (int i = 0; i < n; i++) samples[i] = buf[i] / 32768.0f;
+                appendPreroll(samples);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "preroll capture", t);
+        }
+    }
+
+    private void appendPreroll(float[] samples) {
+        synchronized (mPrerollPcm) {
+            mPrerollPcm.add(samples);
+            int total = 0;
+            for (float[] c : mPrerollPcm) total += c.length;
+            while (total > PREROLL_MAX_SAMPLES && !mPrerollPcm.isEmpty()) {
+                total -= mPrerollPcm.get(0).length;
+                mPrerollPcm.remove(0);
+            }
+        }
+    }
+
+    private List<float[]> drainPrerollPcm() {
+        synchronized (mPrerollPcm) {
+            if (mPrerollPcm.isEmpty()) return Collections.emptyList();
+            List<float[]> out = new ArrayList<>(mPrerollPcm);
+            mPrerollPcm.clear();
+            return out;
+        }
+    }
+
+    private void clearPrerollPcm() {
+        synchronized (mPrerollPcm) { mPrerollPcm.clear(); }
+    }
+
+    private void stopPrerollThread() {
+        mPrerollActive = false;
+        Thread t = mPrerollThread;
+        mPrerollThread = null;
+        if (t != null) {
+            try { t.join(800L); } catch (InterruptedException ignored) {}
+        }
+    }
+
+    private void beginCapture() {
+        if (!mStarting) return;
+        try {
+            stopPrerollThread();
+            List<float[]> preroll = drainPrerollPcm();
+            int prerollSamples = 0;
+            for (float[] c : preroll) prerollSamples += c.length;
+            if (prerollSamples > 0) {
+                Log.i(TAG, "preroll drained " + (prerollSamples / (float) SAMPLE_RATE) + "s");
+            }
             mRecording.set(true);
             mStarting = false;
             mListening = true;
             mMain.removeCallbacks(mTimeout);
             mMain.postDelayed(mTimeout, LISTEN_TIMEOUT_MS + 500L);
-            mCaptureThread = new Thread(mOfflineMode ? this::captureOffline : this::captureStreaming,
-                    "flip2-sherpa");
+            final List<float[]> pr = preroll;
+            mCaptureThread = new Thread(() -> {
+                if (mOfflineMode) captureOffline(pr);
+                else captureStreaming(pr);
+            }, "flip2-sherpa");
             mCaptureThread.start();
         } catch (Throwable t) {
             mStarting = false;
@@ -178,7 +264,7 @@ final class SherpaSttHelper implements SttEngine {
         }
     }
 
-    private void captureStreaming() {
+    private void captureStreaming(List<float[]> preroll) {
         OnlineRecognizer rec = mRecognizer;
         if (rec == null) return;
         OnlineStream stream = rec.createStream("");
@@ -186,6 +272,11 @@ final class SherpaSttHelper implements SttEngine {
         short[] buf = new short[chunk];
         String lastPartial = "";
         try {
+            for (float[] pre : preroll) {
+                if (pre == null || pre.length == 0) continue;
+                stream.acceptWaveform(pre, SAMPLE_RATE);
+                while (rec.isReady(stream)) rec.decode(stream);
+            }
             while (mRecording.get() && mAudioRecord != null) {
                 int n = mAudioRecord.read(buf, 0, buf.length);
                 if (n <= 0) continue;
@@ -234,7 +325,10 @@ final class SherpaSttHelper implements SttEngine {
     }
 
     /** UK: no partials are possible from an offline model, so just buffer. */
-    private void captureOffline() {
+    private void captureOffline(List<float[]> preroll) {
+        for (float[] pre : preroll) {
+            if (pre != null && pre.length > 0) mOfflinePcm.add(pre);
+        }
         int chunk = (int) (0.1 * SAMPLE_RATE);
         short[] buf = new short[chunk];
         try {
@@ -283,6 +377,9 @@ final class SherpaSttHelper implements SttEngine {
 
     private void releaseMic() {
         mRecording.set(false);
+        mPrerollActive = false;
+        stopPrerollThread();
+        clearPrerollPcm();
         AudioRecord ar = mAudioRecord;
         mAudioRecord = null;
         if (ar != null) {
