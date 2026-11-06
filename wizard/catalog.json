@@ -1,7 +1,7 @@
 {
   "$comment": "Flip2 setup wizard download catalog. Every hash below was computed from the real upstream file (sha256sum), not guessed; sizes are exact byte counts. The browser verifies each download with WebCrypto SHA-256 against these pins before anything is pushed to the phone. Nothing in this catalog is stored in the repo or attached to releases — these are pointers to upstream artifacts.",
-  "version": "1.2.0-flip2",
-  "pinned": "2026-10-29",
+  "version": "1.3.0-alpha.1-flip2",
+  "pinned": "2026-11-06",
   "files": [
     {
       "id": "neutron",
@@ -17,13 +17,13 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "purpose": "Flip2 single-shot Magisk installer (full tier): installs user APKs (launcher4, Null Keyboard), downloads external APKs (Forkgram, Material Files), unpacks the flip2 Magisk modules, applies baked settings (home-keys, the 321x428 logical size) and the default wallpaper, then self-removes. Matches release v1.2.0-flip2.",
-      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.2.0-flip2/flip2-installer-full-magisk.zip",
-      "size": 21951066,
-      "sha256": "3f0f84d48b7e724185dd7200405bb9c5de130c2fd406559c57d90de4187f8eea",
+      "purpose": "Flip2 single-shot Magisk installer (full tier): installs user APKs (launcher4, Null Keyboard with Sherpa STT preroll), downloads external APKs (Forkgram, Material Files), unpacks the flip2 Magisk modules (FlipMouse default speed 39), applies baked settings (home-keys, the 321x428 logical size) and the default wallpaper, then self-removes. Alpha release v1.3.0-alpha.1-flip2.",
+      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.3.0-alpha.1-flip2/flip2-installer-full-magisk.zip",
+      "size": 21951067,
+      "sha256": "14d7ed3c9af499db922f30098dba131fa03a261851c4ff55e5aeb163f9ac3bd3",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "github.com/MRsmallAgain/flip2 release v1.2.0-flip2"
+      "upstream": "github.com/MRsmallAgain/flip2 release v1.3.0-alpha.1-flip2"
     },
     {
       "id": "forkgram",

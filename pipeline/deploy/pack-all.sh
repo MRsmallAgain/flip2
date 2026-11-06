@@ -150,7 +150,7 @@ MD
 
 jq -r '.components
   | sort_by(.install_order)[]
-  | "| \(.install_order) | \(.name) | \(if .name == "home_keys" then "home-keys.json + apply-home-keys.sh" elif .artifact == "wallpaper" then "flip2-wallpaper.png + apply-wallpaper.sh" elif .artifact == "settings-write" then "display_size_forced (settings)" elif .external then (if .external.url then "\(.external.asset) (download from \(.external.url))" else "\(.external.asset) (download from \(.external.repo), tag \(.external.tag))" end) else (.zip // .apk | split("/")[-1]) end) | \(.artifact) | \(.root_install) | \(.root_runtime) | \(.reboot) |"' "$MANIFEST" \
+  | "| \(.install_order) | \(.name) | \(if .name == "home_keys" then "home-keys.json + apply-home-keys.sh" elif .artifact == "wallpaper" then "flip2-wallpaper.png + apply-wallpaper.sh" elif .artifact == "settings-write" then "display_size_forced (settings)" elif .external then (if .external.url then "\(.external.asset) (download from \(.external.url))" else "\(.external.asset) (download from \(.external.repo), tag \(.external.tag))" end) else ((.zip // .apk // "") | if type == "string" and length > 0 then split("/")[-1] else "—" end) end) | \(.artifact) | \(.root_install) | \(.root_runtime) | \(.reboot) |"' "$MANIFEST" \
   >> "$OUT/README.md"
 
 cat >> "$OUT/README.md" <<'MD'

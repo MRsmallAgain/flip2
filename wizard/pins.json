@@ -1,6 +1,6 @@
 {
-  "version": "1.2.0-flip2",
-  "pinned": "2026-10-29",
+  "version": "1.3.0-alpha.1-flip2",
+  "pinned": "2026-11-06",
   "catalog": "wizard/catalog.json",
   "files": [
     {
@@ -13,9 +13,9 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "sha256": "3f0f84d48b7e724185dd7200405bb9c5de130c2fd406559c57d90de4187f8eea",
-      "size": 21951066,
-      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.2.0-flip2/flip2-installer-full-magisk.zip"
+      "sha256": "14d7ed3c9af499db922f30098dba131fa03a261851c4ff55e5aeb163f9ac3bd3",
+      "size": 21951067,
+      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.3.0-alpha.1-flip2/flip2-installer-full-magisk.zip"
     },
     {
       "id": "forkgram",
