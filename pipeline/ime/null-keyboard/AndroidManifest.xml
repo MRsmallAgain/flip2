@@ -5,6 +5,10 @@
     android:versionName="2.6.0">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="30" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Android 11 while-in-use mic: the IME uid stays IMPORTANT_BACKGROUND even
+         with a focused window, so AudioPolicyService denies the input stream.
+         A microphone-type foreground service lifts the uid out of background. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- DTMF tone muting while typing (* / # on the matrix keypad). Special
          appop permission: no runtime dialog; grant with `cmd appops set ...`. -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
@@ -22,5 +26,9 @@
                 android:name="android.view.im"
                 android:resource="@xml/method" />
         </service>
+        <service
+            android:name=".SttForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
     </application>
 </manifest>

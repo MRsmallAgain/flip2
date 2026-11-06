@@ -143,9 +143,10 @@ public class NullKeyboardService extends InputMethodService {
     @Override
     public void onCreate() {
         super.onCreate();
-        // If a previous IME process died while DTMF was muted, put the user's
-        // original value back before any new session mutes it again.
+        // If a previous IME process died while DTMF or the key-click was muted,
+        // put the user's original values back before any new session mutes them.
         restoreDtmfTone();
+        restoreSoundEffects();
         T9PredictiveHelper.loadWords(this);
         final SttEngine.Listener sttListener = new SttEngine.Listener() {
             @Override
@@ -183,6 +184,7 @@ public class NullKeyboardService extends InputMethodService {
     @Override
     public void onDestroy() {
         restoreDtmfTone();
+        restoreSoundEffects();
         if (mStt != null) {
             mStt.release();
             mStt = null;
@@ -203,6 +205,7 @@ public class NullKeyboardService extends InputMethodService {
         Log.i("Flip2IME", "onFinishInput");
         hideNotice();
         restoreDtmfTone();
+        restoreSoundEffects();
         super.onFinishInput();
     }
 
@@ -336,6 +339,8 @@ public class NullKeyboardService extends InputMethodService {
     public void onWindowHidden() {
         super.onWindowHidden();
         Log.i("Flip2IME", "onWindowHidden");
+        // A hold can be interrupted by focus loss, which never delivers KEY_UP.
+        restoreSoundEffects();
     }
 
     @Override
@@ -592,6 +597,42 @@ public class NullKeyboardService extends InputMethodService {
         }
     }
 
+    /** Muting DTMF does not cover the framework key-click: AudioService plays
+     *  FX_KEYCLICK for every key-repeat, so holding * to dictate machine-guns
+     *  clicks. Muted only while * / # is down, so ordinary typing still clicks. */
+    private static final String KEY_SE_ORIG = "se_orig";
+
+    private void muteSoundEffects() {
+        try {
+            android.content.SharedPreferences sp =
+                    getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE);
+            if (!sp.contains(KEY_SE_ORIG)) {
+                sp.edit().putInt(KEY_SE_ORIG, Settings.System.getInt(
+                        getContentResolver(), Settings.System.SOUND_EFFECTS_ENABLED, 1)).commit();
+            }
+            if (sp.getInt(KEY_SE_ORIG, 1) != 0) {
+                Settings.System.putInt(getContentResolver(),
+                        Settings.System.SOUND_EFFECTS_ENABLED, 0);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Undo muteSoundEffects using the persisted original. Safe to call repeatedly. */
+    private void restoreSoundEffects() {
+        try {
+            android.content.SharedPreferences sp =
+                    getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE);
+            if (!sp.contains(KEY_SE_ORIG)) {
+                return;
+            }
+            Settings.System.putInt(getContentResolver(),
+                    Settings.System.SOUND_EFFECTS_ENABLED, sp.getInt(KEY_SE_ORIG, 1));
+            sp.edit().remove(KEY_SE_ORIG).commit();
+        } catch (Throwable ignored) {
+        }
+    }
+
     private void commitSttText(String text) {
         Log.i("Flip2STT", "commitSttText: [" + text + "]");
         if (text == null || text.length() == 0) {
@@ -672,6 +713,17 @@ public class NullKeyboardService extends InputMethodService {
                 }
             }
             return ic.sendKeyEvent(event);
+        }
+
+        // Holding * / # to dictate machine-guns the framework key-click (one per
+        // repeat), which lands in the mic. Mute it for the whole press; the key-up
+        // and every lifecycle exit restore it.
+        if (keyCode == KeyEvent.KEYCODE_STAR || keyCode == KeyEvent.KEYCODE_POUND) {
+            if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                muteSoundEffects();
+            } else if (action == KeyEvent.ACTION_UP) {
+                restoreSoundEffects();
+            }
         }
 
         // While STT is listening: * stops; # cycles EN↔UK and restarts.
