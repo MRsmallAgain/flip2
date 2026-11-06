@@ -54,6 +54,7 @@ Load project skills before improvising:
 |-------|------|
 | `flip2-deploy` | Tiers, image flash, deroot |
 | `flip2-adb` | USB permissions, unauthorized |
+| `flip2-ime-stt` | Sherpa models, hold-`*` dictation, mic FGS, `stt_lang` |
 | Others | See [AGENTS.md](../AGENTS.md) |
 
 ## Cross-repo agents

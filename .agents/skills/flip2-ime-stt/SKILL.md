@@ -31,11 +31,16 @@ flip2 ime restore     # stock Kika: com.iqqijni.dvt912key
 
 ## Engine
 
-**Sherpa-ONNX only** (`SherpaSttHelper`): loads `libonnxruntime.so` and `libsherpa-onnx-jni.so` (armeabi-v7a). Streaming partials while holding `*`. Shared pref `stt_lang` (`en`|`uk`); `#` while listening cycles language.
+**Sherpa-ONNX only** (`SherpaSttHelper`): loads `libonnxruntime.so` and `libsherpa-onnx-jni.so` (armeabi-v7a). Shared pref `stt_lang` (`en`|`uk`); `#` while listening cycles language.
 
-Hold `*` (~380 ms) starts dictation. While listening: `#` = EN↔UK, `*` = stop. Hold `#` outside dictation opens symbols.
+- **EN:** `OnlineRecognizer` (streaming zipformer) — live partials; **tail flush on stop** so mid-sentence release is not dropped.
+- **UK:** `OfflineRecognizer` (NeMo int8) — no streaming UK upstream; text appears on stop (~10 s first load).
 
-Logcat tag `Flip2STT` for load errors and commits.
+**Mic (Android 11):** start **`SttForegroundService`** (microphone FGS) before `AudioRecord`; IME uid is `IMPORTANT_BACKGROUND` otherwise.
+
+Hold `*` (~380 ms) starts dictation. While listening: `#` = EN↔UK, `*` = stop. Hold `#` outside dictation opens symbols. Holding `*` mutes **`FX_KEYCLICK`** via `muteSoundEffects()` (not just DTMF).
+
+Logcat: `Flip2STT` (`fg service up`, load errors, `commitSttText:`).
 
 ## Models (not in git or APK)
 

@@ -43,7 +43,7 @@ adb shell "su -c 'sendevent /dev/input/event2 1 522 1; sendevent /dev/input/even
 
 1. `am start -a android.intent.action.SENDTO -d smsto:1` opens Messages compose. Confirm `mCurrentFocus` is `com.android.mms` and the null keyboard is the current method.
 2. `adb logcat -c`, then the star hold above. Toast should be `Listening (EN)` or `Listening (UK)`.
-3. Stop with a second star hold. `Flip2STT` `commitSttText:` is the raw transcript. `harvest final=` means the listen took the Vosk path.
+3. Stop with a second star hold. `Flip2STT` `commitSttText:` is the raw transcript. EN shows streaming partials while holding; UK decodes on stop (offline NeMo).
 4. Reinstalling the IME kills the process. Tap the compose field again before the next hold.
 5. The user's daily language is **uk**. `flip2 ime lang en` is only for an English clip; put it back with `flip2 ime lang uk`.
 

@@ -8,7 +8,7 @@
 
 Upstream grabs the keypads at startup and toggles mouse mode on a **Star tap**.
 On this device the star key belongs to the null-keyboard IME: tap-`*` cycles T9
-candidates, hold-`*` runs Vosk dictation. An always-grabbing mouse would break
+candidates, hold-`*` runs Sherpa-ONNX dictation (Null Keyboard). An always-grabbing mouse would break
 both.
 
 ## Local patch (`main.c`, this directory)

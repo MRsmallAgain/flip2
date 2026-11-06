@@ -105,8 +105,24 @@ When the user reaches Android and taps **Allow USB debugging**, background scrip
 ## Wizard and manager
 
 - Install path: host **adb push** + `su 0` (Companion), not WebUSB sync on Linux ([WIZARD-FAILURES.md](WIZARD-FAILURES.md)).
+- **`wizardHostRunInstall`** must use **`adbRunShell`** so non-zero exit still surfaces stdout **`FAIL:`** lines in the UI.
+- **`PROFILE_IDS`** in Companion must include every component id profiles can emit (e.g. appshelf, fdroid_basic, newpipe, vlc) or Apply rejects **`profile.list`**.
+- Catalog **`size` + `sha256`** required for download gate (Sherpa tarballs included); regen **`pins.json`** after catalog edits.
 - Destructive slices: **`erase`** (rooting / neutron boot), **`factory`** (boot restore from saved copy) — separate gates.
-- **Verify** is the validity test for Tier B/C; run after partial install failures too.
+- **Check phone** (`verify.sh`) is the validity test for Tier B/C; trust **`SUMMARY: N passed, M failed`**, not a green status line alone.
+
+---
+
+## Speech (Sherpa-ONNX, Null Keyboard)
+
+| Lesson | Detail |
+|--------|--------|
+| **Engine** | **Sherpa-ONNX only** on current IME; Whisper/Vosk removed from catalog and install path. See [SHERPA-STT.md](SHERPA-STT.md). |
+| **EN vs UK** | English = streaming zipformer; Ukrainian = **offline** NeMo pack (no streaming UK upstream). |
+| **Mic on Android 11** | IME uid stays background → **`SttForegroundService`** (microphone FGS) before **`AudioRecord`**. |
+| **Hold `*`** | Mute **`FX_KEYCLICK`** (`sound_effects_enabled`), not just DTMF, or repeat clicks machine-gun the mic. |
+| **Provision** | Wizard **`sherpa-en`** / **`sherpa-uk`** → `install.sh` extracts to `files/sherpa/{en,uk}`; verify checks **`tokens.txt`**. |
+| **Forkgram** | Package **`org.forkgram.classic`** only; chat BACK delete hooks **`n20.onBackPressed`**, not LaunchActivity alone. |
 
 ---
 

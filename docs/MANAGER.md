@@ -1,12 +1,12 @@
 # TCL Flip2 Manager
 
-The Companion window is the manager. Everything is one scrolling page. **Getting started** is at the top: five workflow cards (Base setup, Check phone, Managed MDM, Reboot/power-cycle, Advanced erase/root) with buttons that scroll to Phone, Profile, Apps, Prepare, or the rooting slice. The pill bar is five anchors on that same page: Getting started, Phone, Profile, Apps, and Prepare. After Apps, Prepare continues in order: the credit gate, the file table, udev, connect, install, and verify.
+The Companion window is the manager. Everything is one scrolling page. **Start** is at the top: hero, Base/Managed profile tiles, **Start setup**, and **Phone already done?** (Apps). Operate/recover cards live under **More: operate & recover**. The pill bar has three anchors: **Start**, **Apps**, and **Set up** (Prepare). Prepare continues in order: ready gate (`yes`), get files, USB rules, connect, put on phone, check phone. The sticky strip shows phone status and Prepare progress with plain labels (Ready, Get files, Connect, Put on phone, Check).
 
 ## Profiles
 
 Canonical list: `pipeline/deploy/profiles.json`. The page fetches `wizard/profiles.json`, which must stay a byte-for-byte copy (`cmp -s`).
 
-- **base** is today's install: nav overlay, keypad backspace, FlipMouse, Tag Drawer, launcher overlay, Launcher4, Null Keyboard, Forkgram, Material Files, Intertune, Bouncy, home keys, 321×428, wallpaper, Whisper, and Vosk.
+- **base** is today's install: nav overlay, keypad backspace, FlipMouse, Tag Drawer, launcher overlay, Launcher4, Null Keyboard, Forkgram Classic, Material Files, Intertune, Bouncy, AppShelf, F-Droid Basic, NewPipe, VLC, home keys, 321×428, wallpaper, **Sherpa-ONNX** (`sherpa-en`, `sherpa-uk` tarballs → `files/sherpa/{en,uk}/`).
 - **managed** is base plus the pinned Headwind launcher and Where. Device owner is not part of Apply. In the Profile section, Managed also has flags: **Disable camera** (`com.tcl.camera`) and **Disable browsers** (`org.chromium.chrome`, `com.mediatek.op07.browser`). Both default on. A checked flag writes `block_camera` or `block_browser` into `profile.list` and Apply runs `pm disable-user`. An unchecked flag writes `enable_camera` or `enable_browser` and Apply runs `pm enable`. The APKs stay installed.
 - **secure** is visible and not selectable. The GrapheneLite/GraphineLite branch is not in this repo. Do not invent that OS image, and do not flash a system image for it.
 
@@ -100,7 +100,7 @@ The Apps step saves and restores catalog apps, contacts, and messages through Fl
 
 Catalog packages and the five Magisk module ids only. There is no arbitrary APK sideload. Module install is part of Apply. There is no single-module place action, and module install is not sent through a shell command. Module remove deletes `/data/adb/modules/<id>` for an allowlisted id and asks for a reboot. It does not reboot by itself.
 
-Launcher4 and Null Keyboard ask for an extra confirm, because Home or the keyboard falls back. Settings rows (home keys, display, wallpaper, Whisper, Vosk) are part of Apply and have no Remove button.
+Launcher4 and Null Keyboard ask for an extra confirm, because Home or the keyboard falls back. Settings rows (home keys, display, wallpaper, Sherpa models) are part of Apply and have no Remove button.
 
 Neutron is the rooting slice only. Apply does not require it. Rooting stays behind typing `erase`. Return to factory stays behind typing `factory`. Neither slice flashes `super`, `vbmeta`, system, product, or the preloader.
 
@@ -110,4 +110,4 @@ From `companion/`:
 
 `npm run start:safe -- --smoke`
 
-Expect the page title `TCL Flip2 Manager`, one scrolling page with five anchors (Getting started, Phone, Profile, Apps, Prepare), catalog length 12, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.
+Expect the page title `TCL Flip2 Manager`, pill bar **Start · Apps · Set up**, sticky phone/prepare strip, catalog pins including `sherpa-en` and `sherpa-uk` with size and sha256, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.

@@ -165,9 +165,9 @@ cat >> "$OUT/README.md" <<'MD'
   (`cmd package set-home-activity com.tim.flip2.launcher4/com.android.launcher3.Launcher`).
 - **Null keyboard**: after install run the settings block below, grant
   RECORD_AUDIO + WRITE_SETTINGS appop, and disable the stock Kika IME
-  (`pm disable-user --user 0 com.iqqijni.dvt912key` — root). Vosk STT models
-  (~40MB EN + ~75MB UK) are never bundled; push them separately
-  (`flip2 ime models`).
+  (`pm disable-user --user 0 com.iqqijni.dvt912key` — root). Sherpa-ONNX tarballs
+  (EN streaming + UK offline NeMo pack) are never bundled; push separately
+  (`flip2 ime sherpa` or wizard/install `sherpa-en` + `sherpa-uk`).
 - **Forkgram**: not included — download the patched release from
   github.com/MRsmallAgain/TelegramAndroid (tag flip2-13.0.2.0-r1) per GPL.
 - **home_keys**: run `./apply-home-keys.sh` with a device connected (no root).

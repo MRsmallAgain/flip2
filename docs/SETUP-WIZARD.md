@@ -2,7 +2,7 @@
 
 **Safety first:** read [SAFETY.md](SAFETY.md) before install or any footer link (rooting / factory).
 
-`wizard/` is the **TCL Flip2 Manager**: Phone, Profile, Apps, and Prepare. From **Chrome on Linux** the browser path still talks to the phone over USB (ADB over WebUSB for install, Web Serial for the optional rooting slice) and does not use host adb. Flip 2 Companion is the same page with host adb for install and verify. Profiles, the Headwind pin, and device owner are in [MANAGER.md](MANAGER.md).
+`wizard/` is the **TCL Flip2 Manager**: **Start** (profile + **Start setup**), **Apps**, and **Set up** (Prepare). The sticky strip shows phone status and Prepare progress in plain language. From **Chrome on Linux** the browser path talks to the phone over USB (WebUSB for install, Web Serial for the optional rooting slice) and does not use host adb. **Flip 2 Companion** is the same pages on your PC with host adb for install, verify, udev, and Managed `profile.list`. Profiles, Headwind/Where pins, and device owner are in [MANAGER.md](MANAGER.md).
 
 Firefox does not work: it has no WebUSB. Windows and macOS get the same site later; Linux is proven first.
 
@@ -22,7 +22,7 @@ For a public page, serve the `wizard/` directory from any static host
 
 | Path | Role |
 |------|------|
-| `pages/` | the manager: one HTML page. Front door is Phone, Profile, Apps, and Prepare |
+| `pages/` | the manager: one HTML page. Pills: Start, Apps, Set up; phone strip in chrome |
 | `catalog.json` | pinned downloads: exact byte size + SHA-256 of every third-party file |
 | `device/install.sh`, `device/verify.sh` | pushed to the phone and run there |
 | `51-android-flip2-adb.rules` | udev rules the user installs once |
@@ -30,42 +30,20 @@ For a public page, serve the `wizard/` directory from any static host
 
 ## Front door
 
-1. **Phone.** Status over host adb in Companion: model, root, device owner, and accounts. Refresh. USB debugging and the udev rules are linked here too. This screen does not wipe the phone.
-2. **Profile.** Base is today's install. Managed is base plus the pinned Headwind launcher. Secure is shown and cannot be selected.
-3. **Apps.** Install or remove one catalog package, remove one Magisk module, Apply the selected profile, or run verify. Device owner is separate, on Managed, after you type `manage`. Apply installs what is missing and writes settings. It does not uninstall extras and it does not wipe.
-4. **Prepare.** The sections below. Nothing downloads until you type `yes`.
+1. **Start.** Pick **Base** or **Managed**, then **Start setup** (Prepare). Phone status lives in the sticky strip (Companion: Refresh, USB rules). **Forkgram Classic** only — not Client. Operate/recover links are under **More: operate & recover**.
+2. **Apps.** Install or remove one catalog package, remove one Magisk module, **Apply** the selected profile, or **Run check** (verify). Device owner is separate on Managed after you type `manage`. Apply writes `profile.list` and installs missing components; it does not wipe.
+3. **Set up (Prepare).** Six sub-steps below. Nothing downloads until you type `yes` on **Ready**.
 
-## Prepare sections
+## Prepare sections (UI labels)
 
+1. **Ready** — Credits and safety paths folded under Advanced; type **`yes`** to continue.
+2. **Get files** — Every catalog file needs verified bytes (`size` + SHA-256 in `catalog.json`, including **`sherpa-en`** and **`sherpa-uk`**). Pick downloads or use Companion to fetch. Headwind/Where are local pins for Managed only.
+3. **USB rules** — One-time Linux udev; Companion can install rules for you.
+4. **Connect** — USB debugging, pick phone (WebUSB or Companion host adb).
+5. **Put on phone** — Experimental push + `install.sh` as root. Companion surfaces **`FAIL:`** lines and **Install stopped**; **`pm install -r -d`** on device for downgrades. Fully quit Companion after updating the app so host fixes load.
+6. **Check phone** — On-device `verify.sh`; UI shows pass/fail summary (`SUMMARY: N passed, M failed`) and **Restart phone** when done.
 
-1. **Credits and gate.** Who made what, with links: neutronscott's boot
-   image, the Flip2 installer, Forkgram, Sherpa-ONNX STT models, and the F-Droid
-   apps. Nothing downloads until the user types `yes`.
-2. **Files.** Pinned files that have a URL are links. The user downloads those normally (GitHub releases, F-Droid, and alphacephei.com send no cross-origin headers, so the page cannot fetch them itself) and picks them in the page. The Headwind launcher has no URL. It is a local pin, and the download gate requires it only for Managed. Neutron stays on the rooting slice, not on Apply. Every picked file is hashed with WebCrypto SHA-256 against `catalog.json`; a mismatch stops that file.
-3. **udev.** One-time `sudo cp` of the rules file so the user's account can
-   reach the phone (both adb modes and the MediaTek preloader).
-4. **Connect.** USB debugging on, pick the phone, ADB handshake in the page.
-   The page generates its own RSA key once, stores it in localStorage, and
-   offers the public key to adbd — the phone prompts once, "always allow"
-   remembers it.
-5. **Install.** ⚠ **Experimental** — this step pushes files and runs a root
-   install script over adb and has only been exercised on one device. For a
-   first-time setup you can trust, flash the Tier B installer zip from the
-   release page instead; the page automates the same steps and inherits
-   their risks.
-
-   The page unpacks the installer zip, rebuilds the Tag Drawer
-   module around the fresh F-Droid APK, pushes everything into
-   `/data/local/flip2/incoming/`, and runs `install.sh` as root. It **stops
-   at the first failed line**, shows it, and offers Retry — it does not
-   continue through failures the way `flip2 setup full` does. `incoming/`
-   is kept for Retry; the page cleans it up on success.
-   Companion Apply writes `/data/local/flip2/profile.list` before the push. A missing list means full base, and Headwind is skipped. Managed Apply from a plain browser stops and asks for Flip 2 Companion. Apply does not uninstall extras and does not wipe the phone.
-
-6. **Verify.** `verify.sh` runs on the phone and prints one PASS/FAIL line
-   per check (daemon, IME, home, six apps, speech models, stt_lang, the five
-   home-key shortcuts, IME settings, `display_size_forced=321,428`, and the
-   default wallpaper when the installer zip carried one).
+Checks include Sherpa **`tokens.txt`** under `files/sherpa/en` and `files/sherpa/uk`, IME, home, apps, `stt_lang`, home keys, display size, wallpaper when present.
 
 The wizard never clears the home-key shortcuts, never downloads a browser
 (menu slot 7 stays `org.chromium.chrome` — Chrome is already on the phone),
@@ -162,18 +140,8 @@ No packaging step is provided; the app runs from the repo tree like
 
 ## Test status
 
-The wizard has been run once end-to-end against a real Flip 2 from Chrome on
-Linux: all six steps passed on the phone, including install and verify. The
-2026-10-29 re-run of install and verify (now under Prepare) got the same result but drove the install
-over host adb instead of WebUSB, because the host `adb` server held the
-interface — so the payload path is re-proven and the WebUSB ADB transport
-the install section uses is still not proven. All three slices have now had their buttons pressed
-on hardware: the factory slice through all six stages, the rooting slice's
-flash, and the wipe stage walked to its continue button. The
-Electron companion has a self-check mode (`npm start -- --smoke`) that boots
-the app, loads the wizard over `flip2://`, and prints the page state as JSON:
-the title is TCL Flip2 Manager, the front door has four steps, and all eleven catalog rows render, fflate loads, the native bridge answers, the
-udev button is visible, and WebUSB + Web Serial are exposed. The one-click
-udev install and the device auto-pick still need a real phone plugged in to
-exercise; the first such run happens from the user's local terminal, not
-from this sandbox.
+Prepare (Ready → Get files → … → Check phone) has been run end-to-end on donor hardware with **Flip 2 Companion** host adb: install completes with **`SUMMARY: N passed, 0 failed`** when Sherpa tarballs and profile ids match catalog pins. Install failures must surface **`FAIL:`** from `install.sh` stdout (Companion uses shell capture, not exit-only adb).
+
+Chrome WebUSB install is secondary; Linux Companion is the supported path for Managed Apply and reliable push. Rooting and factory slices remain separately gated (`erase` / `factory`).
+
+Companion smoke (`companion/` → `npm run start:safe -- --smoke`): page title **TCL Flip2 Manager**, pills **Start · Apps · Set up**, catalog includes **`sherpa-en`** / **`sherpa-uk`** with size and sha256. See [MANAGER.md](MANAGER.md) for smoke expectations.

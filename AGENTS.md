@@ -42,7 +42,9 @@ flip2 recovery           # after bad launcher Magisk module
 
 - [README.md](README.md) — overview
 - [docs/PIPELINE.md](docs/PIPELINE.md) — stages and layout
-- [docs/LESSONS-LEARNED.md](docs/LESSONS-LEARNED.md) — ops lessons (backup, fastbootd, UPBO vs donor)
+- [docs/SETUP-WIZARD.md](docs/SETUP-WIZARD.md) · [docs/MANAGER.md](docs/MANAGER.md) — Companion / TCL Flip2 Manager (Start · Apps · Set up)
+- [docs/SHERPA-STT.md](docs/SHERPA-STT.md) — on-device dictation (authoritative; [WHISPER-STT.md](docs/WHISPER-STT.md) is historical)
+- [docs/LESSONS-LEARNED.md](docs/LESSONS-LEARNED.md) — ops lessons (backup, fastbootd, Sherpa/wizard gates)
 - [docs/AGENT-OPERATING-DOCTRINE.md](docs/AGENT-OPERATING-DOCTRINE.md) — gates, recursion, validity for agents
 - `launcher-patch/RECOVERY.md`, `EMERGENCY-unresponsive.md`
 
@@ -57,7 +59,7 @@ Repeated workflows are in `.agents/skills/`. Read the matching `SKILL.md` before
 | Skill | Use when |
 |-------|----------|
 | `flip2-adb` | `no permissions`, unauthorized, or USB missing from this shell |
-| `flip2-ime-stt` | Null keyboard, Whisper, Vosk, `stt_lang`, hold-`*` dictation |
+| `flip2-ime-stt` | Null keyboard, Sherpa-ONNX (EN streaming / UK offline), `SttForegroundService`, `stt_lang`, hold-`*` dictation |
 | `flip2-flipmouse` | Cursor toggle, 1s hold, shortcuts in mouse mode |
 | `flip2-ondevice-keys` | `sendevent` holds on `/dev/input/event2` |
 | `flip2-deploy` | Tiers A–D, `flip2 setup full`, de-root, image flash |

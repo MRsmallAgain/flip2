@@ -23,7 +23,7 @@ Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Lau
   <img src="wizard/assets/og-wizard.png" alt="Flip 2 Linux setup wizard — six verified steps" width="720" />
 </p>
 
-No CLI? The **[browser setup wizard](docs/SETUP-WIZARD.md)** (`wizard/`) walks through six steps: credits gate → SHA-256 verified downloads → udev → WebUSB connect → push & install → on-device verify. Read **[SAFETY.md](docs/SAFETY.md)** first (what flashes vs what only uses ADB). For a conservative first install, use the **Tier B full installer zip** from [Releases](https://github.com/MRsmallAgain/flip2/releases); the wizard automates the same payload but marks step 5 as experimental.
+No CLI? The **[browser setup wizard](docs/SETUP-WIZARD.md)** (`wizard/`) is **TCL Flip2 Manager** on your PC: pick Base/Managed → **Start setup** → Ready (`yes`) → get files (Sherpa tarballs pinned) → connect → put on phone → check. Read **[SAFETY.md](docs/SAFETY.md)** first. For a conservative first install, use the **Tier B full installer zip** from [Releases](https://github.com/MRsmallAgain/flip2/releases); the wizard automates the same payload but marks install as experimental.
 
 ```bash
 cd wizard && python3 -m http.server 8000

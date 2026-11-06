@@ -66,13 +66,15 @@ tagdrawer_system:
 # --- input / framework ------------------------------------------------------
 
 ime:
-  description: Null keyboard IME (T9/multi-tap/numeric, STT) — build, settings, models
+  description: Null keyboard IME (T9/multi-tap/numeric, Sherpa-ONNX dictation) — build, settings, models
   requires: [adb, gradle, root (settings + hide-bar)]
-  cli: flip2 ime {build|hide-bar|restore|status|models|lang}
+  cli: flip2 ime {build|hide-bar|restore|status|sherpa|lang}
   script: pipeline/ime/ime.sh
   notes:
     - hide-bar sets secure settings show_ime_with_hard_keyboard=1, default IME, disables Kika
-    - models push Vosk EN (~40MB) + UK (~75MB) to /data/data (never in repo)
+    - sherpa pushes EN zipformer + UK NeMo tarballs to files/sherpa/{en,uk} (never in repo); wizard catalog sherpa-en, sherpa-uk
+    - SttForegroundService (microphone FGS) required on Android 11 before AudioRecord
+    - Authoritative doc docs/SHERPA-STT.md; whisper/vosk CLI removed
 
 keypad:
   description: matrix-keypad.kl ⌫ (code 138) → DEL via Magisk module
