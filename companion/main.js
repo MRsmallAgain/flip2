@@ -376,6 +376,17 @@ function adbRunShell(args, timeoutMs) {
   });
 }
 
+// Wizard install paths use su 0 sh -c + quoted inner script (same argv shape as install).
+function shellQuote(s) {
+  return "'" + String(s).replace(/'/g, "'\\''") + "'";
+}
+
+async function wizardHostSu(serial, shCmd, timeoutMs) {
+  // adb joins shell arguments and the phone's shell parses that line. Quote the
+  // script so `&&` and spaces stay inside `sh -c` instead of running as shell.
+  await adbRun(['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote(shCmd)], timeoutMs || 120000);
+}
+
 // Host push/install uses adb + su. Fastboot and preloader are not adb targets.
 async function assertHostInstallUsbMode() {
   const st = readPhoneState();
@@ -456,7 +467,7 @@ const sha256Of = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 // like instead of promising an unrooted phone that a rooted copy cannot deliver.
 async function phoneRooted(serial) {
   try {
-    return /uid=0/.test(await adbRun(['-s', serial, 'shell', 'su -c id'], 30000));
+    return /uid=0/.test(await adbRun(['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote('id')], 30000));
   } catch (e) {
     return false;
   }
@@ -484,8 +495,8 @@ async function backupBoot() {
   // cryptic, and the honest answer is that this phone cannot be dumped — the
   // person needs to hear that rather than guess at a permission message.
   try {
-    await adbRun(['-s', serial, 'shell',
-      'su -c "dd if=/dev/block/by-name/boot of=' + remote + '"'], 180000);
+    await adbRun(['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote(
+      'dd if=/dev/block/by-name/boot of=' + remote)], 180000);
   } catch (e) {
     throw new Error('this phone has no root, so its boot image cannot be copied off it. ' +
       'Use a copy saved on an earlier visit, or root the phone first.');
@@ -587,7 +598,7 @@ async function factoryState(expectedFingerprint) {
   const props = await phoneIdentity();
   let rooted = false;
   try {
-    rooted = /uid=0/.test(await adbRun(['-s', props.serial, 'shell', 'su -c id'], 30000));
+    rooted = /uid=0/.test(await adbRun(['-s', props.serial, 'shell', 'su', '0', 'sh', '-c', shellQuote('id')], 30000));
   } catch (e) { rooted = false; }
   let packages = -1;
   try {
@@ -614,16 +625,6 @@ async function factoryState(expectedFingerprint) {
 // adbd cannot create files under /data/local/flip2 (SELinux); stage on sdcard, su cp.
 const WIZARD_STAGING = '/sdcard/Download/flip2-wizard-staging';
 let wizardHostTmp = null;
-
-function shellQuote(s) {
-  return "'" + String(s).replace(/'/g, "'\\''") + "'";
-}
-
-async function wizardHostSu(serial, shCmd, timeoutMs) {
-  // adb joins shell arguments and the phone's shell parses that line. Quote the
-  // script so `&&` and spaces stay inside `sh -c` instead of running as shell.
-  await adbRun(['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote(shCmd)], timeoutMs || 120000);
-}
 
 function installOutputLooksOk(lines) {
   const text = (lines || []).join('\n');

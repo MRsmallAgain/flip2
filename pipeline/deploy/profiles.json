@@ -30,6 +30,32 @@
       ]
     },
     {
+      "id": "slim",
+      "label": "Slim",
+      "enabled": true,
+      "summary": "Same as Base but uses the smaller Magisk installer zip (no bundled Sherpa STT). Download sherpa-en / sherpa-uk separately if you want hold-to-dictate voices.",
+      "components": [
+        "navoverlay",
+        "keypad",
+        "flipmouse",
+        "tagdrawer",
+        "launcher_overlay",
+        "launcher4",
+        "ime",
+        "forkgram",
+        "materialfiles",
+        "appshelf",
+        "fdroid_basic",
+        "newpipe",
+        "vlc",
+        "intertune",
+        "bouncy",
+        "home_keys",
+        "display",
+        "wallpaper"
+      ]
+    },
+    {
       "id": "managed",
       "label": "Managed",
       "enabled": true,

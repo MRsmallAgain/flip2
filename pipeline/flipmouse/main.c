@@ -16,6 +16,13 @@
  *     down, soft-left scrolls up, del toggles drag, volume = speed. The
  *     right soft key passes through so the Shortcuts bar still fires.
  *   - a Star tap exits back to passive (grabs released, IME unaffected)
+ *
+ * flip2 landscape gamepad (same daemon — pipeline/landscape-gamepad):
+ *   - when landscape (dumpsys) and gamepad.conf landscape_auto=1: auto gamepad
+ *     remap (virtual uinput gamepad); no separate Flip2Gamepad process.
+ *   - hold right soft key (48) HOLD_TOGGLE_MS in landscape gamepad mode: drop
+ *     remap and use virtual mouse with D-pad rotated for landscape (cursor only).
+ *   - soft-left hold still toggles full passive ↔ mouse (portrait-oriented mouse).
  */
 
 // #define DEBUG 1
@@ -24,6 +31,7 @@
 #include <fcntl.h>
 #include <linux/input.h>
 #include <linux/input-event-codes.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,6 +40,7 @@
 #include <dirent.h>
 #include <stdarg.h>
 #include <signal.h>
+#include <sys/ioctl.h>
 #include <sys/signalfd.h>
 #include <sys/time.h>
 #include <time.h>
@@ -40,6 +49,14 @@
 #define DEV_INPUT "/dev/input"
 #define LOG_FILE "/cache/FlipMouse.log"
 #define SPEED_FILE "/data/local/flip2/flipmouse-speed"
+#define GAMEPAD_CONFIG "/data/local/flip2/gamepad.conf"
+#define POLL_LANDSCAPE_MS 1500
+#define BACK_REAL_HOLD_MS 2000
+#define SOFT_RIGHT_CODE 48
+#define MESSENGER_CODE 30
+#define AXIS_GP_MAX 32767
+#define AXIS_GP_MIN -32767
+#define STICK_EDGE AXIS_GP_MAX
 #ifndef FLIPMOUSE_DEFAULT_SPEED
 #define FLIPMOUSE_DEFAULT_SPEED 39
 #endif
@@ -85,6 +102,24 @@ typedef enum
   PASS_THRU_EVENT = 1,
   CHANGED_EVENT = 2
 } event_action_t;
+
+typedef enum
+{
+  MODE_PASSIVE = 0,
+  MODE_GAMEPAD = 1,
+  MODE_LANDSCAPE_CURSOR = 2,
+  MODE_MOUSE = 3
+} input_mode_t;
+
+typedef struct
+{
+  struct libevdev *dev;
+  struct libevdev_uinput *uidev;
+  int stick_lx, stick_ly, stick_rx, stick_ry;
+  long long back_hold_since;
+  long long right_hold_since;
+  int landscape_cursor;
+} gamepad_t;
 
 /* Device structure */
 typedef struct dev_st

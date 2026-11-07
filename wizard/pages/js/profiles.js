@@ -168,14 +168,18 @@ var PROFILES = {
   // Catalog ids the download gate and Apply must have verified.
   // neutron is intentionally absent.
   catalogIds: function (id) {
-    var comps = this.componentIds(id);
+    var pid = id || this.selectedId;
+    var comps = this.componentIds(pid);
+    var installerCat = pid === 'slim' ? 'installer-slim' : 'installer-full';
     var out = [];
     for (var i = 0; i < comps.length; i++) {
       var mapped = CATALOG_FOR[comps[i]];
       if (!mapped) throw new Error('no catalog mapping for component: ' + comps[i]);
       for (var j = 0; j < mapped.length; j++) {
-        if (mapped[j] === 'neutron') continue;
-        if (out.indexOf(mapped[j]) < 0) out.push(mapped[j]);
+        var cat = mapped[j];
+        if (cat === 'neutron') continue;
+        if (cat === 'installer-full') cat = installerCat;
+        if (out.indexOf(cat) < 0) out.push(cat);
       }
     }
     return out;

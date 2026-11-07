@@ -200,6 +200,8 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "clean",
+        "full",
         "wizard",
         "image"
       ],
@@ -225,6 +227,8 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "clean",
+        "full",
         "wizard",
         "image"
       ],
@@ -250,6 +254,8 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "clean",
+        "full",
         "wizard",
         "image"
       ],
@@ -502,6 +508,6 @@
     "full": "Tier B full / Tier C — everything, root required",
     "bundle": "Tier D — per-component zips + APKs + SHA256SUMS"
   },
-  "version": "1.3.0-alpha.1-flip2",
-  "versionCode": 20261106
+  "version": "1.3.0-alpha.2-flip2",
+  "versionCode": 20261107
 }

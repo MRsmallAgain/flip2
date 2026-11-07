@@ -5,7 +5,7 @@
 
 var APPS_STATE = null;
 var appsBusy = false;
-// Set on Phone → Refresh when host adb succeeds: true/false from su -c id; null = not checked yet.
+// Set on Phone → Refresh when host adb succeeds: true/false from su 0 sh -c id; null = not checked yet.
 var phoneHostRootState = null;
 
 function setTier1RootPrereqVisible(show) {
@@ -255,7 +255,7 @@ function refreshPhone() {
     factRow(box, 'Serial', ready.serial || '(unknown)', 'ok');
     return Promise.all([
       shellSoft('getprop ro.product.model'),
-      shellSoft('su -c id'),
+      shellSoft("su 0 sh -c 'id'"),
       shellSoft('dumpsys device_policy'),
       shellSoft('dumpsys account')
     ]).then(function (parts) {
@@ -429,10 +429,11 @@ function apkBytesFor(row) {
     }
     return { name: spec.name, bytes: new Uint8Array(VERIFIED[spec.catalogId]) };
   }
-  if (!VERIFIED['installer-full']) {
-    return { error: 'Verify installer-full under Prepare, Files, first.' };
+  var instId = VERIFIED['installer-slim'] ? 'installer-slim' : 'installer-full';
+  if (!VERIFIED[instId]) {
+    return { error: 'Verify ' + instId + ' under Prepare, Files, first.' };
   }
-  var zip = fflate.unzipSync(new Uint8Array(VERIFIED['installer-full']));
+  var zip = fflate.unzipSync(new Uint8Array(VERIFIED[instId]));
   var entry = zip[spec.fromInstaller];
   if (!entry) return { error: 'installer zip is missing ' + spec.fromInstaller };
   return { name: spec.name, bytes: entry instanceof Uint8Array ? entry : new Uint8Array(entry) };
@@ -474,7 +475,7 @@ function refreshAppsStatus(doneMsg) {
   if (!doneMsg) setStatus('apps-msg', 'reading the phone\u2026', 'wait');
   Promise.all([
     shellSoft('pm list packages'),
-    shellSoft("su -c 'ls /data/adb/modules'")
+    shellSoft("su 0 sh -c 'ls /data/adb/modules'")
   ]).then(function (parts) {
     APPS_STATE = {
       pkgs: parts[0].ok ? parsePackages(parts[0].out) : {},

@@ -109,7 +109,7 @@ function unlockAdvancedFooter() {
 function probeRooted() {
   var banner = $('usb-rooted-banner');
   if (!banner) return;
-  ADB.shell('su -c id', function () {})
+  ADB.shell("su 0 sh -c 'id'", function () {})
     .then(function () {
       banner.classList.remove('hidden');
     })
@@ -918,7 +918,7 @@ function checkHostAdb() {
 function probeRootedHost() {
   var banner = $('usb-rooted-banner');
   if (!banner || !window.FLIP2_NATIVE || !window.FLIP2_NATIVE.wizardHostShell) return;
-  window.FLIP2_NATIVE.wizardHostShell({ cmd: 'su -c id', timeoutMs: 15000 })
+  window.FLIP2_NATIVE.wizardHostShell({ cmd: "su 0 sh -c 'id'", timeoutMs: 15000 })
     .then(function (r) {
       if (r.ok && /uid=0/.test(r.stdout || '')) banner.classList.remove('hidden');
     })

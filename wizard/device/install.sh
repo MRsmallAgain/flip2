@@ -10,9 +10,9 @@
 #   FlipMouse.zip flip2_pixel_tag_drawer-magisk.zip flip2_launcher_overlay-magisk.zip
 #     — extracted from the published full installer zip payload/modules/;
 #       the page rebuilds the Tag Drawer zip so it embeds the fresh F-Droid APK
-#   launcher4.apk nullkeyboard.apk  — payload/apks/ from the same zip
-#   forkgram.apk intertune.apk bouncy.apk materialfiles.apk — browser
-#     downloads (catalog.json)
+#   launcher4.apk nullkeyboard.apk — payload/apks/ from the same zip when built in
+#   forkgram.apk materialfiles.apk … — installer zip when host prefetched sources/;
+#     otherwise verified catalog downloads (catalog.json)
 #   sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2
 #   sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2
 #   headwind.apk — managed profile only, not part of a base push

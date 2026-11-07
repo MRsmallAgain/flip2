@@ -174,7 +174,15 @@ adb push pipeline/deploy/dist/flip2-installer-image-post-magisk.zip /sdcard/Down
 adb shell cat /cache/flip2-installer.log
 ```
 
-The **image-post** flavor downloads Forkgram and Material Files (Wi‑Fi),
+For **full** and **clean** tiers, prefetch GPL/F-Droid APKs on the host
+(`flip2 deploy source-fetch` → `pipeline/deploy/sources/`) so
+`flip2 installer pack` bundles them under stable names in `payload/apks/`
+and skips `external-apks.txt`. Without prefetch, the one-shot installer
+falls back to on-device `wget` via `external-apks.txt` (needs Wi‑Fi).
+
+The **image-post** flavor installs Forkgram and Material Files from
+`apks.txt` when prefetched at pack time, or downloads them (Wi‑Fi) via
+`external-apks.txt` otherwise; it
 applies Null Keyboard settings/appops, sets Launcher4 as HOME, writes
 `/data/local/flip2/deroot.sh`, and self-removes. It does **not** unpack
 nav/keypad/tagdrawer/FlipMouse modules or reinstall Launcher4/IME APKs.

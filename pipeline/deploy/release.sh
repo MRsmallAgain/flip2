@@ -12,6 +12,7 @@ Usage: flip2 release [--dry-run] [--notes FILE]
 Create github.com/MRsmallAgain/flip2 release v<manifest.version> from:
   flip2-installer-clean-magisk.zip
   flip2-installer-full-magisk.zip
+  flip2-installer-slim-magisk.zip
   flip2-installer-image-post-magisk.zip
   flip2-packages-<version>.zip (zip dist/flip2-packages-<version>/ first)
   flip2-system-tree-<version>.zip (zip dist/flip2-system-tree/ first)
@@ -45,6 +46,7 @@ TAG="v$VERSION"
 ASSETS=(
   "$DIST/flip2-installer-clean-magisk.zip"
   "$DIST/flip2-installer-full-magisk.zip"
+  "$DIST/flip2-installer-slim-magisk.zip"
   "$DIST/flip2-installer-image-post-magisk.zip"
   "$DIST/flip2-packages-$VERSION.zip"
   "$DIST/flip2-system-tree-$VERSION.zip"

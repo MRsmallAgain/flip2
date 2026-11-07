@@ -28,6 +28,7 @@ Commands:
   tagdrawer <sub>    Pixel Tag Drawer system (Magisk): pack | install | rollback | status
   vmouse <sub>       Simple mouse (neutronscott simple-release1): install | status
   flipmouse <sub>    FlipMouse virtual mouse (vendored, Magisk): build | install | status | rollback
+  gamepad <sub>      Landscape virtual gamepad (Magisk): build | install | status | rollback
   forkgram <sub>     Patched Forkgram APK: patch | release (BACK deletes in text fields)
   astro-loop <sub>   Astro Loop game: install (F-Droid pin, D-pad ready)
   setup <tier>       Deployment: full (rooted set in verified order) | clean
@@ -183,6 +184,23 @@ case "$cmd" in
         echo "  Right soft key passes through (Shortcuts). Drag is DEL. See pipeline/flipmouse/VENDORED.md."
         ;;
       *) echo "Unknown flipmouse subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  gamepad)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      build)    exec "$FLIP2_ROOT/pipeline/landscape-gamepad/build.sh" "$@" ;;
+      install)  exec "$FLIP2_ROOT/pipeline/landscape-gamepad/install.sh" ;;
+      status)   exec "$FLIP2_ROOT/pipeline/landscape-gamepad/status.sh" ;;
+      rollback) exec "$FLIP2_ROOT/pipeline/landscape-gamepad/rollback.sh" ;;
+      help|-h|--help)
+        echo "Usage: flip2 gamepad {build|install|status|rollback}"
+        echo "  Landscape virtual gamepad: D-pad rotated left, numpad right stick (#0* face)."
+        echo "  Config: /data/local/flip2/gamepad.conf (enabled=, landscape_auto=)."
+        echo "  See pipeline/landscape-gamepad/README.md. Companion APK: companion/ (TBD)."
+        ;;
+      *) echo "Unknown gamepad subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;
   forkgram)

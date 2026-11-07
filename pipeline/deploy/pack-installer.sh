@@ -24,9 +24,10 @@ module whose one-shot service.sh runs at first boot as root: installs the
 bundled user APKs, unpacks the flip2 modules (full flavor), applies baked
 settings, writes /data/local/flip2/deroot.sh, then removes itself.
 
-  --flavor clean|full|image-post
+  --flavor clean|full|slim|image-post
                         clean = root-independent user APKs + settings (de-root friendly)
-                        full = modules + everything (default)
+                        full = modules + everything + bundled Sherpa STT (default)
+                        slim = same as full without bundled voice models (~200 MiB smaller)
                         image-post = after Tier A flash: GPL sideloads + IME settings only
   --sherpa-url name=URL fetch a Sherpa-ONNX model tarball at install time
                         (repeatable; e.g. --sherpa-url en=https://...tar.bz2).
@@ -50,12 +51,20 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
 done
-case "$FLAVOR" in clean|full|image-post) ;; *) echo "--flavor must be clean, full, or image-post" >&2; exit 1 ;; esac
+case "$FLAVOR" in clean|full|slim|image-post) ;; *) echo "--flavor must be clean, full, slim, or image-post" >&2; exit 1 ;; esac
+
+# slim uses full-tier manifest rows; payload flavor.txt stays "slim".
+MANIFEST_FLAVOR="$FLAVOR"
+[[ "$FLAVOR" == slim ]] && MANIFEST_FLAVOR=full
+
 for u in "${SHERPA_URLS[@]}"; do
   [[ "$u" == *=* ]] || { echo "--sherpa-url wants name=url, got: $u" >&2; exit 1; }
 done
 
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
+
+# shellcheck source=/dev/null
+source "$ROOT/pipeline/deploy/wizard-apk-basename.sh"
 
 VERSION="$(jq -r '.version // "dev"' "$MANIFEST")"
 VERSIONCODE="$(jq -r '.versionCode // "0"' "$MANIFEST")"
@@ -64,7 +73,7 @@ VERSIONCODE="$(jq -r '.versionCode // "0"' "$MANIFEST")"
 # Components active in this flavor, in install order.
 # NOTE: '|' separator, not @tsv — empty TSV fields collapse under whitespace
 # IFS in bash read, shifting columns; none of these values contain '|'.
-ROWS="$(jq -r --arg flavor "$FLAVOR" '
+ROWS="$(jq -r --arg flavor "$MANIFEST_FLAVOR" '
   .components[]
   | select([.tiers[]] | index($flavor))
   | [ .install_order, .name, .artifact, (.zip // ""), (.apk // ""),
@@ -74,7 +83,7 @@ ROWS="$(jq -r --arg flavor "$FLAVOR" '
 ' "$MANIFEST" | sort -n)"
 
 rm -rf "$OUT"
-mkdir -p "$OUT/META-INF/com/google/android" "$OUT/payload/data" "$OUT/payload/apks" "$OUT/payload/modules"
+mkdir -p "$OUT/META-INF/com/google/android" "$OUT/payload/data" "$OUT/payload/apks" "$OUT/payload/modules" "$OUT/payload/sherpa"
 
 cp "$TPL/META-INF/com/google/android/update-binary" "$OUT/META-INF/com/google/android/update-binary"
 cp "$TPL/META-INF/com/google/android/update-script" "$OUT/META-INF/com/google/android/update-script"
@@ -86,13 +95,15 @@ cp "$TPL/service.sh" "$OUT/service.sh"
 DATA="$OUT/payload/data"
 mkdir -p "$DATA"
 printf '%s\n' "$FLAVOR" > "$DATA/flavor.txt"
-: > "$DATA/external-apks.txt"
-: > "$DATA/appops.txt"
-: > "$DATA/permissions.txt"
+	: > "$DATA/external-apks.txt"
+	: > "$DATA/sherpa-bundled.txt"
+	: > "$DATA/sherpa-urls.txt"
+	: > "$DATA/appops.txt"
+	: > "$DATA/permissions.txt"
 
 EMIT="$ROOT/pipeline/deploy/emit.sh"
 chmod +x "$EMIT"
-"$EMIT" --flavor "$FLAVOR" --manifest "$MANIFEST" --home-keys "$HOME_KEYS" --root "$ROOT" --data "$DATA"
+"$EMIT" --flavor "$MANIFEST_FLAVOR" --manifest "$MANIFEST" --home-keys "$HOME_KEYS" --root "$ROOT" --data "$DATA"
 
 MISSING=()
 log() { echo "==> $*"; }
@@ -111,11 +122,27 @@ while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eur
           MISSING+=("$apk")
         fi
       elif [[ -n "$eurl" || -n "$erepo" ]]; then
-        url="$eurl"
-        if [[ -z "$url" ]]; then
-          url="https://github.com/$erepo/releases/download/$etag/$easset"
+        prefetch="$ROOT/pipeline/deploy/sources/$easset"
+        skip_prefetch=0
+        if [[ "$FLAVOR" == "image-post" ]] && \
+           jq -e --arg n "$name" '.components[] | select(.name==$n) | .tiers | index("image")' "$MANIFEST" >/dev/null 2>&1; then
+          skip_prefetch=1
         fi
-        printf '%s|%s\n' "$pkg" "$url" >> "$DATA/external-apks.txt"
+        if [[ "$skip_prefetch" -eq 0 && -n "$easset" && -f "$prefetch" ]]; then
+          wb="$(wizard_apk_basename "$name" "$MANIFEST")"
+          [[ -n "$wb" ]] || wb="$easset"
+          cp "$prefetch" "$OUT/payload/apks/$wb"
+        else
+          if [[ "$skip_prefetch" -eq 1 ]]; then
+            : # system preload — omit external-apks and payload copy
+          else
+            url="$eurl"
+            if [[ -z "$url" ]]; then
+              url="https://github.com/$erepo/releases/download/$etag/$easset"
+            fi
+            printf '%s|%s\n' "$pkg" "$url" >> "$DATA/external-apks.txt"
+          fi
+        fi
       fi
       ;;
     magisk-module)
@@ -154,10 +181,28 @@ while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eur
       done >> "$DATA/permissions.txt"
 done <<< "$ROWS"
 
-# Sherpa-ONNX models: never bundled; only tarball URLs if packer passed --sherpa-url.
+# Sherpa-ONNX: bundle prefetched tarballs on full/clean; else --sherpa-url or wizard push.
+SHERPA_JSON="$ROOT/pipeline/deploy/sherpa-models.json"
+SRC="$ROOT/pipeline/deploy/sources"
+if [[ -f "$SHERPA_JSON" ]] && [[ "$FLAVOR" == full || "$FLAVOR" == clean ]]; then
+  while IFS=$'\t' read -r inst file; do
+    [[ -n "$inst" && -n "$file" ]] || continue
+    if [[ -f "$SRC/$file" ]]; then
+      cp "$SRC/$file" "$OUT/payload/sherpa/$file"
+      printf '%s %s\n' "$inst" "$file" >> "$DATA/sherpa-bundled.txt"
+      echo "  + sherpa $inst ($file)"
+    fi
+  done < <(jq -r '.models[] | [.install_name, .file] | @tsv' "$SHERPA_JSON")
+fi
 if [ "${#SHERPA_URLS[@]}" -gt 0 ]; then
   for u in "${SHERPA_URLS[@]}"; do
-    printf '%s %s\n' "${u%%=*}" "${u#*=}" >> "$DATA/sherpa-urls.txt"
+    inst="${u%%=*}"
+    url="${u#*=}"
+    file="$(jq -r --arg n "$inst" '.models[] | select(.install_name==$n) | .file // empty' "$SHERPA_JSON" 2>/dev/null)"
+    if [[ -n "$file" ]] && grep -q "^${inst} ${file}$" "$DATA/sherpa-bundled.txt" 2>/dev/null; then
+      continue
+    fi
+    printf '%s %s\n' "$inst" "$url" >> "$DATA/sherpa-urls.txt"
   done
 fi
 

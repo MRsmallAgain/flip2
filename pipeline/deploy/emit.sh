@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<EOF
-Usage: emit.sh --flavor clean|full|image-post --manifest PATH --home-keys PATH --root PATH --data DIR
+Usage: emit.sh --flavor clean|full|slim|image-post --manifest PATH --home-keys PATH --root PATH --data DIR
 
 Write payload/data settings.txt, wallpaper.txt, modules.txt, and apks.txt for the selected flavor.
 EOF
@@ -31,9 +31,14 @@ done
 [[ -n "$FLAVOR" && -n "$MANIFEST" && -n "$HOME_KEYS" && -n "$ROOT" && -n "$DATA" ]] || {
   usage >&2; exit 1
 }
-case "$FLAVOR" in clean|full|image-post) ;; *) echo "--flavor must be clean, full, or image-post" >&2; exit 1 ;; esac
+EMIT_FLAVOR="$FLAVOR"
+[[ "$FLAVOR" == slim ]] && EMIT_FLAVOR=full
+case "$FLAVOR" in clean|full|slim|image-post) ;; *) echo "--flavor must be clean, full, slim, or image-post" >&2; exit 1 ;; esac
 
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
+
+# shellcheck source=/dev/null
+source "$ROOT/pipeline/deploy/wizard-apk-basename.sh"
 
 mkdir -p "$DATA"
 : > "$DATA/settings.txt"
@@ -41,7 +46,7 @@ mkdir -p "$DATA"
 : > "$DATA/modules.txt"
 : > "$DATA/apks.txt"
 
-ROWS="$(jq -r --arg flavor "$FLAVOR" '
+ROWS="$(jq -r --arg flavor "$EMIT_FLAVOR" '
   .components[]
   | select([.tiers[]] | index($flavor))
   | [ .install_order, .name, .artifact, (.zip // ""), (.apk // ""),
@@ -73,6 +78,18 @@ while IFS='|' read -r _order name artifact zip apk pkg mid _erepo _etag _easset 
         if [[ "$skip_apk" -eq 0 ]]; then
           base="$(basename "$apk")"
           printf '%s %s\n' "$base" "$pkg" >> "$DATA/apks.txt"
+        fi
+      elif [[ -z "$apk" && -n "$pkg" && -n "$_easset" && -f "$ROOT/pipeline/deploy/sources/$_easset" ]]; then
+        skip_apk=0
+        if [[ "$FLAVOR" == "image-post" ]]; then
+          if jq -e --arg n "$name" '.components[] | select(.name==$n) | .tiers | index("image")' "$MANIFEST" >/dev/null; then
+            skip_apk=1
+          fi
+        fi
+        if [[ "$skip_apk" -eq 0 ]]; then
+          wb="$(wizard_apk_basename "$name" "$MANIFEST")"
+          [[ -n "$wb" ]] || wb="$_easset"
+          printf '%s %s\n' "$wb" "$pkg" >> "$DATA/apks.txt"
         fi
       fi
       ;;

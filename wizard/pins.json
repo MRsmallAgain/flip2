@@ -1,6 +1,6 @@
 {
-  "version": "1.3.0-alpha.1-flip2",
-  "pinned": "2026-11-06",
+  "version": "1.3.0-alpha.2-flip2",
+  "pinned": "2026-11-07",
   "catalog": "wizard/catalog.json",
   "files": [
     {
@@ -13,9 +13,16 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "sha256": "14d7ed3c9af499db922f30098dba131fa03a261851c4ff55e5aeb163f9ac3bd3",
-      "size": 21951067,
-      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.3.0-alpha.1-flip2/flip2-installer-full-magisk.zip"
+      "sha256": "55d24d3be4bbb54c394e4b62bc6a20dd08708edf20123f3bda7c816999a46109",
+      "size": 395581728,
+      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.3.0-alpha.2-flip2/flip2-installer-full-magisk.zip"
+    },
+    {
+      "id": "installer-slim",
+      "file": "flip2-installer-slim-magisk.zip",
+      "sha256": "bafc69493081c8fe2ff4d9475cc6d3b5f660822fce34b608b6da5c0e0e4843c9",
+      "size": 181476863,
+      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.3.0-alpha.2-flip2/flip2-installer-slim-magisk.zip"
     },
     {
       "id": "forkgram",

@@ -53,9 +53,10 @@ done
 	  done < "$MOD/payload/data/apks.txt"
 	fi
 
-# --- External APKs: downloaded at install time, never bundled ---------------
-# forkgram (GitHub release) and Material Files (F-Droid direct URL) bake into
-# payload/data/external-apks.txt as "<package>|<url>" lines.
+# --- External APKs: Wi‑Fi wget fallback when not bundled in apks.txt --------
+# When host prefetch (pipeline/deploy/sources/) was missing at pack time,
+# pack-installer.sh writes payload/data/external-apks.txt as "<package>|<url>".
+# Bundled rows use stable names in apks.txt + payload/apks/ (see wizard_apk_basename).
 if [ -f "$MOD/payload/data/external-apks.txt" ]; then
   while IFS='|' read -r pkg url; do
     [ -n "$pkg" ] && [ -n "$url" ] || continue
@@ -168,40 +169,67 @@ if [ -f "$MOD/payload/data/wallpaper.txt" ]; then
   fi
 fi
 
-# --- Sherpa-ONNX models (optional tar.bz2 URLs, never bundled) ---------------
-if [ -f "$MOD/payload/data/sherpa-urls.txt" ]; then
+# --- Sherpa-ONNX: bundled tarballs first, else Wi‑Fi wget via sherpa-urls.txt ----
+sherpa_place_from_tar() {
+  name=$1
+  T=$2
   NULL_PKG=com.tim.flip2.nullkeyboard
+  D=/data/data/$NULL_PKG/files/sherpa/$name
+  [ -s "$T" ] || return 1
+  mkdir -p "$STAGE/sherpa-extract"
+  tar -xjf "$T" -C "$STAGE/sherpa-extract" 2>/dev/null || "$BB" tar -xjf "$T" -C "$STAGE/sherpa-extract" 2>/dev/null
+  inner="$(find "$STAGE/sherpa-extract" -name tokens.txt -print -quit 2>/dev/null | sed 's|/tokens.txt||')"
+  if [ -n "$inner" ] && [ -f "$inner/tokens.txt" ]; then
+    rm -rf "$D"
+    mkdir -p "$(dirname "$D")"
+    cp -a "$inner" "$D"
+    OWNER=$(stat -c %u:%g /data/data/$NULL_PKG 2>/dev/null)
+    [ -n "$OWNER" ] && chown -R "$OWNER" /data/data/$NULL_PKG/files/sherpa
+    restorecon -RF /data/data/$NULL_PKG/files/sherpa 2>/dev/null
+    echo "sherpa $name placed"
+    rm -rf "$STAGE/sherpa-extract"
+    return 0
+  fi
+  rm -rf "$STAGE/sherpa-extract"
+  return 1
+}
+
+NULL_PKG=com.tim.flip2.nullkeyboard
+if [ -f "$MOD/payload/data/sherpa-bundled.txt" ]; then
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    name=${line%% *}
+    f=${line#* }
+    T="$MOD/payload/sherpa/$f"
+    if [ -f "$T" ]; then
+      echo "installing bundled sherpa: $name ($f)"
+      sherpa_place_from_tar "$name" "$T" || echo "sherpa $name extract failed; push manually (flip2 ime sherpa)"
+    fi
+  done < "$MOD/payload/data/sherpa-bundled.txt"
+fi
+
+if [ -f "$MOD/payload/data/sherpa-urls.txt" ]; then
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     name=${line%% *}
     url=${line#* }
+    D=/data/data/$NULL_PKG/files/sherpa/$name
+    if [ -d "$D" ] && [ -f "$D/tokens.txt" ]; then
+      echo "sherpa $name already installed"
+      continue
+    fi
     echo "fetching sherpa model: $name"
     T=$STAGE/sherpa-$name.tar.bz2
     if [ -x "$BB" ] && "$BB" wget -O "$T" "$url" && [ -s "$T" ]; then
-      D=/data/data/$NULL_PKG/files/sherpa/$name
-      mkdir -p "$STAGE/sherpa-extract"
-      tar -xjf "$T" -C "$STAGE/sherpa-extract" 2>/dev/null || "$BB" tar -xjf "$T" -C "$STAGE/sherpa-extract" 2>/dev/null
-      rm -f "$T"
-      inner="$(find "$STAGE/sherpa-extract" -name tokens.txt -print -quit 2>/dev/null | sed 's|/tokens.txt||')"
-      if [ -n "$inner" ] && [ -f "$inner/tokens.txt" ]; then
-        rm -rf "$D"
-        mkdir -p "$(dirname "$D")"
-        cp -a "$inner" "$D"
-        OWNER=$(stat -c %u:%g /data/data/$NULL_PKG 2>/dev/null)
-        [ -n "$OWNER" ] && chown -R "$OWNER" /data/data/$NULL_PKG/files/sherpa
-        restorecon -RF /data/data/$NULL_PKG/files/sherpa 2>/dev/null
-        echo "sherpa $name placed"
-      else
+      sherpa_place_from_tar "$name" "$T" && rm -f "$T" || {
         echo "sherpa $name extract failed; push manually (flip2 ime sherpa)"
-      fi
-      rm -rf "$STAGE/sherpa-extract"
+        rm -f "$T"
+      }
     else
       echo "sherpa $name download failed; push manually (flip2 ime sherpa)"
       rm -f "$T"
     fi
   done < "$MOD/payload/data/sherpa-urls.txt"
-else
-  echo "Sherpa STT models not bundled. Use flip2 installer pack --sherpa-url or flip2 ime sherpa."
 fi
 
 # --- de-root helper + instructions -----------------------------------------

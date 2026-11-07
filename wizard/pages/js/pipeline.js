@@ -4,7 +4,8 @@
 // Layout of the published installer zip (verified by unzip -l):
 //   payload/modules/{flip2_nav_overlay,flip2_keypad_backspace,FlipMouse,
 //     flip2_pixel_tag_drawer,flip2_launcher_overlay}-magisk.zip  (module zips)
-//   payload/apks/{launcher4.apk,nullkeyboard.apk}
+//   payload/apks/{launcher4.apk,nullkeyboard.apk,…} — may include prefetched
+//   forkgram.apk materialfiles.apk when host sources/ were bundled at pack time
 // The Tag Drawer module zip is rebuilt here so it embeds the fresh F-Droid
 // APK (system/app/PixelTagDrawer/PixelTagDrawer.apk — byte-size identical
 // to the catalog's com.iwadjp.pixeltagdrawer_7.apk, so the swap is drop-in).
@@ -35,42 +36,75 @@ var PIPE = {
   buildPushSet: function (files, componentIds) {
     var M = typeof PUSH_MANIFEST !== 'undefined' ? PUSH_MANIFEST : null;
     if (!M) throw new Error('PUSH_MANIFEST missing — run pipeline/wizard/gen-pipeline-js.sh');
-    var installer = fflate.unzipSync(files['installer-full']);
+    var slimM = typeof PUSH_MANIFEST_SLIM !== 'undefined' ? PUSH_MANIFEST_SLIM : null;
+    var catId = slimM && files['installer-slim'] ? 'installer-slim' : (M.installerCatalogId || 'installer-full');
+    if (!files[catId] && files['installer-full']) catId = 'installer-full';
+    var manifest = (catId === 'installer-slim' && slimM) ? slimM : M;
+    var installer = fflate.unzipSync(files[catId]);
     var out = {};
     var i, name, path;
-    for (i = 0; i < M.installerModulePaths.length; i++) {
-      path = M.installerModulePaths[i];
+    for (i = 0; i < manifest.installerModulePaths.length; i++) {
+      path = manifest.installerModulePaths[i];
       if (!installer[path]) throw new Error('installer zip is missing ' + path);
       name = path.split('/').pop();
       out[name] = installer[path];
     }
-    for (i = 0; i < M.installerApkPaths.length; i++) {
-      path = M.installerApkPaths[i];
+    for (i = 0; i < manifest.installerApkPaths.length; i++) {
+      path = manifest.installerApkPaths[i];
       if (!installer[path]) throw new Error('installer zip is missing ' + path);
       name = path.split('/').pop();
       out[name] = installer[path];
+    }
+    var sherpaPaths = manifest.installerSherpaPaths;
+    if (sherpaPaths) {
+      for (i = 0; i < sherpaPaths.length; i++) {
+        path = sherpaPaths[i];
+        if (!installer[path]) throw new Error('installer zip is missing ' + path);
+        name = path.split('/').pop();
+        out[name] = installer[path];
+      }
     }
 
     // Tag Drawer: rebuild the module zip around the fresh F-Droid APK.
-    var tdPath = M.tagDrawerModulePath;
+    var tdPath = manifest.tagDrawerModulePath;
     var td = fflate.unzipSync(installer[tdPath]);
-    var tdEntry = M.tagDrawerApkEntry;
+    var tdEntry = manifest.tagDrawerApkEntry;
     if (!td[tdEntry]) throw new Error('Tag Drawer zip is missing ' + tdEntry);
     td[tdEntry] = files['tagdrawer'];
     out[tdPath.split('/').pop()] = fflate.zipSync(td);
 
-    if (M.wallpaperPath && installer[M.wallpaperPath]) {
-      out['flip2-wallpaper.png'] = installer[M.wallpaperPath];
+    if (manifest.wallpaperPath && installer[manifest.wallpaperPath]) {
+      out['flip2-wallpaper.png'] = installer[manifest.wallpaperPath];
     }
 
-    var renames = M.catalogRenames;
-    for (var catId in renames) {
-      if (!Object.prototype.hasOwnProperty.call(renames, catId)) continue;
-      if (!files[catId]) throw new Error('catalog file missing: ' + catId);
-      out[renames[catId]] = files[catId];
+    var renames = manifest.catalogRenames;
+    var dest;
+    var renameId;
+    for (renameId in renames) {
+      if (!Object.prototype.hasOwnProperty.call(renames, renameId)) continue;
+      dest = renames[renameId];
+      if (out[dest]) continue; // installer zip already supplied stable name (e.g. prefetch bundle)
+      if (!files[renameId]) throw new Error('catalog file missing: ' + renameId);
+      out[dest] = files[renameId];
     }
 
-    var need = M.requiredIncoming;
+    var wantSherpaEn = false;
+    var wantSherpaUk = false;
+    if (componentIds && componentIds.length) {
+      for (i = 0; i < componentIds.length; i++) {
+        if (componentIds[i] === 'sherpa-en') wantSherpaEn = true;
+        if (componentIds[i] === 'sherpa-uk') wantSherpaUk = true;
+      }
+    }
+    var need = manifest.requiredIncoming ? manifest.requiredIncoming.slice() : [];
+    if (wantSherpaEn || wantSherpaUk) {
+      var withVoices = manifest.requiredIncomingWithVoices;
+      if (withVoices) need = withVoices.slice();
+      else {
+        if (wantSherpaEn) need.push('sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2');
+        if (wantSherpaUk) need.push('sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2');
+      }
+    }
     for (i = 0; i < need.length; i++) {
       if (!out[need[i]]) throw new Error('push set incomplete: ' + need[i]);
     }
@@ -142,7 +176,7 @@ var PIPE = {
     return ADB.pushFile('/data/local/flip2/verify.sh', '0755', verifySh, null)
       .then(function () {
         var failed = null;
-        return ADB.shell('su -c "sh /data/local/flip2/verify.sh"', function (line) {
+        return ADB.shell("su 0 sh -c 'sh /data/local/flip2/verify.sh'", function (line) {
           onLog(line);
           if (/^FAIL:/.test(line)) failed = line;
         }).then(function () {
