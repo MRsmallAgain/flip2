@@ -17,6 +17,16 @@ Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voi
 
 Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Launcher3 RRO overlay**, and **recovery** after bad Magisk launcher experiments.
 
+**Latest:** [v1.3.0-alpha.3-flip2](https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.3-flip2) (public alpha). Safest first install: **Tier B** `flip2-installer-full-magisk.zip` from that release (verify `SHA256SUMS`). Screenshots, mosaic, and channel copy: **[docs/marketing/](docs/marketing/)**.
+
+<p align="center">
+  <a href="https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.3-flip2">
+    <img src="docs/marketing/v1.3.0-alpha.3/phone-tour-publish/flip2-phone-tour-mosaic-banner.png" alt="TCL Flip 2 hardware, TCL Flip2 Manager companion, 27 passed check, Launcher4 UI, Forkgram, NewPipe, F-Droid, VLC" width="100%" />
+  </a>
+</p>
+
+*Open flip · Getting started · Prepare check · homescreen & apps — see [phone-tour-publish/](docs/marketing/v1.3.0-alpha.3/phone-tour-publish/).*
+
 ## Setup wizard (Chrome on Linux)
 
 <p align="center">
@@ -30,7 +40,7 @@ cd wizard && python3 -m http.server 8000
 # Chrome → http://127.0.0.1:8000/pages/
 ```
 
-Prefer a desktop app? **`flip2 companion`** serves the same pages over `flip2://` with one-click udev and auto USB pick. Branding assets: **[docs/branding/README.md](docs/branding/README.md)** (GitHub social preview: upload `docs/branding/github-social-preview.png` in repo settings). **Press kit & launch copy:** **[docs/marketing/](docs/marketing/)**.
+Prefer a desktop app? **`flip2 companion`** (window title **TCL Flip2 Manager**) serves the same pages with one-click udev and auto USB pick — hero hardware photo at [`wizard/assets/flip2-hero-phone.png`](wizard/assets/flip2-hero-phone.png). Branding: **[docs/branding/README.md](docs/branding/README.md)** · GitHub social preview: [`docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png`](docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png) in repo Settings.
 
 **Quick start**
 
