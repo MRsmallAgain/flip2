@@ -18,6 +18,8 @@ Curated assets and channel-ready markdown for public releases. Raw phone/wizard 
 
 **Copy:** `v1.3.0-alpha.3/copy/` — release supplement, GitHub Discussion, Reddit, HN, X thread, FAQ.
 
+**Feature list (Reddit):** [`v1.3.0-alpha.3/copy/features/FEATURE-LIST.md`](v1.3.0-alpha.3/copy/features/FEATURE-LIST.md)
+
 **Live device tour (adb):** `v1.3.0-alpha.3/phone-tour/` — extra heroes (Tools, FlipMouse); full set in `~/flip2-marketing-2026-11/assets/phone-tour-2026-11-08/`. **GitHub-ready:** `phone-tour-publish/`. Re-run tour: `bash ~/flip2-marketing-2026-11/scripts/phone-tour-screenshots.sh`; mosaic: `python3 -I ~/flip2-marketing-2026-11/scripts/stitch_phone_tour_mosaic.py`.
 
 **Release:** https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.3-flip2
