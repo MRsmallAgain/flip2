@@ -74,6 +74,19 @@ HDR
     printf 'fi\n'
   done
 
+  cat <<'TDE'
+if want tagdrawer; then
+  TD=/data/adb/modules/flip2_pixel_tag_drawer
+  if [ -d "$TD" ]; then
+    rm -f "$TD/disable" 2>/dev/null
+    chmod 755 "$TD/service.sh" 2>/dev/null
+    chmod 644 "$TD/module.prop" 2>/dev/null
+    chmod 644 "$TD/system/app/PixelTagDrawer/PixelTagDrawer.apk" 2>/dev/null
+  fi
+fi
+
+TDE
+
   cat <<'FM'
 
 if want flipmouse; then
@@ -205,11 +218,29 @@ gen_verify() {
     printf '  echo "NOTE: skip %s"\n' "$name"
     printf 'fi\n'
   done
-  echo 'if want tagdrawer; then'
-  echo '  check "Tag Drawer installed" pm path com.iwadjp.pixeltagdrawer'
-  echo 'else'
-  echo '  echo "NOTE: skip tagdrawer"'
-  echo 'fi'
+  cat <<'TD'
+if want tagdrawer; then
+  tagdrawer_ok=0
+  if pm path com.iwadjp.pixeltagdrawer >/dev/null 2>&1; then
+    tagdrawer_ok=1
+  elif pm list packages com.iwadjp.pixeltagdrawer 2>/dev/null | grep -q com.iwadjp.pixeltagdrawer; then
+    tagdrawer_ok=1
+  elif [ -f /system/app/PixelTagDrawer/PixelTagDrawer.apk ]; then
+    tagdrawer_ok=1
+  elif [ -f /data/adb/modules/flip2_pixel_tag_drawer/system/app/PixelTagDrawer/PixelTagDrawer.apk ]; then
+    tagdrawer_ok=1
+  fi
+  if [ "$tagdrawer_ok" -eq 1 ]; then
+    echo "PASS: Tag Drawer installed"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: Tag Drawer installed (place flip2_pixel_tag_drawer module and reboot)"
+    FAILS=$((FAILS + 1))
+  fi
+else
+  echo "NOTE: skip tagdrawer"
+fi
+TD
   echo ""
   echo "if want home_keys; then"
   echo "# --- The five keyshortcuts match home-keys.json -------------------------------"

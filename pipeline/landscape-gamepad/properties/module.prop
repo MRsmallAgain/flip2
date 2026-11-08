@@ -1,0 +1,6 @@
+id=Flip2Gamepad
+name=Flip2 Landscape Gamepad
+version=0.1.0-flip2
+versionCode=1
+author=tim
+description=Virtual gamepad when landscape or manual mode: rotated D-pad, numpad right stick, #0* face buttons, soft keys and volume as triggers. Config: /data/local/flip2/gamepad.conf

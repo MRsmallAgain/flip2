@@ -10,6 +10,7 @@ var COMPONENT_META = {
   navoverlay: { label: 'Nav overlay', kind: 'module', moduleId: 'flip2_nav_overlay' },
   keypad: { label: 'Keypad backspace', kind: 'module', moduleId: 'flip2_keypad_backspace' },
   flipmouse: { label: 'FlipMouse', kind: 'module', moduleId: 'FlipMouse' },
+  flipmouse_arcade: { label: 'FlipMouse Arcade', kind: 'module', moduleId: 'FlipMouseArcade' },
   tagdrawer: { label: 'Tag Drawer', kind: 'module', moduleId: 'flip2_pixel_tag_drawer' },
   launcher_overlay: { label: 'Launcher overlay', kind: 'module', moduleId: 'flip2_launcher_overlay' },
   launcher4: {
@@ -47,6 +48,7 @@ var CATALOG_FOR = {
   navoverlay: ['installer-full'],
   keypad: ['installer-full'],
   flipmouse: ['installer-full'],
+  flipmouse_arcade: ['installer-full'],
   launcher_overlay: ['installer-full'],
   launcher4: ['installer-full'],
   ime: ['installer-full'],
@@ -71,6 +73,8 @@ var CATALOG_FOR = {
 var PROFILES = {
   data: null,
   selectedId: 'base',
+  // Arcade experimental: user must check the acceptance box before Start setup.
+  arcadeAccepted: false,
   // flagId -> true when the user checked it. Defaults come from profiles.json.
   flagState: {},
   // Confirmed from the pinned 15400 APK. The Companion handler ignores any
@@ -141,12 +145,27 @@ var PROFILES = {
     if (!p) throw new Error('unknown profile: ' + id);
     if (p.enabled === false) throw new Error('profile is not selectable: ' + id);
     this.selectedId = id;
+    if (id !== 'arcade') this.arcadeAccepted = false;
     for (var i = 0; i < this._listeners.length; i++) this._listeners[i](id);
     return id;
   },
 
   selected: function () {
     return this.byId(this.selectedId);
+  },
+
+  needsArcadeAcceptance: function () {
+    return this.selectedId === 'arcade' && !!(this.byId('arcade') && this.byId('arcade').experimental);
+  },
+
+  startSetupAllowed: function () {
+    if (!this.needsArcadeAcceptance()) return true;
+    return this.arcadeAccepted === true;
+  },
+
+  setArcadeAccepted: function (on) {
+    this.arcadeAccepted = !!on;
+    for (var i = 0; i < this._listeners.length; i++) this._listeners[i](this.selectedId);
   },
 
   // Full component id list. Managed is base.components concatenated with adds.

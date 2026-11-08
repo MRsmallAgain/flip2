@@ -63,9 +63,11 @@
 <section class="step on" id="step-start">
   <h2 class="visually-hidden">Start</h2>
   <div class="hero-block">
-    <div class="hero-icon" aria-hidden="true">📱</div>
+    <div class="hero-device" aria-hidden="true">
+      <img class="hero-device-img" src="../assets/flip2-hero-phone.png" alt="" width="280" height="225" decoding="async" fetchpriority="high">
+    </div>
     <p class="hero-title">Set up Flip 2</p>
-    <p class="hero-lead">Pick a profile · then set up</p>
+    <p class="hero-lead">Choose a profile, then run setup on the phone.</p>
   </div>
   <div id="tier1-root-prereq" class="warn hidden" role="status">
     <p><b>Root first</b> for this profile.</p>
@@ -73,11 +75,19 @@
       <button type="button" class="tier-jump" data-prereq-goto="root">Erase and root</button>
     </p>
   </div>
-  <p class="guide-intro"><b>Base</b> or <b>Managed</b></p>
+  <p class="guide-intro">Your profile decides which apps, Magisk modules, and phone settings this setup installs—pick one below.</p>
   <div id="profile-list"></div>
   <p id="profile-msg" class="status"></p>
   <p class="callout-forkgram">Messenger: <b>Forkgram Classic</b> only — not Client.</p>
-  <button type="button" class="big-btn" data-goto-step="prepare">Start setup</button>
+  <div id="arcade-acceptance" class="profile-flags hidden" role="group" aria-labelledby="arcade-accept-label">
+    <label class="profile-flag" id="arcade-accept-label">
+      <input type="checkbox" id="arcade-accept-cb">
+      <span><strong>I don&#39;t even like this phone. Toast it.</strong>
+        <span class="profile-flag-detail">Required to continue with the experimental Arcade profile.</span>
+      </span>
+    </label>
+  </div>
+  <button type="button" class="big-btn" id="start-setup-btn" data-goto-step="prepare">Start setup</button>
   <button type="button" class="big-btn secondary" data-goto-step="apps">Phone already done?</button>
 
   <details class="apps-panel tier-blocks-advanced">
@@ -209,12 +219,7 @@
 	    <div class="status-row"><span>Files</span><strong id="dl-hub-count">—</strong></div>
 	    <p id="dl-hub-banner" class="one-liner ok hidden">All verified</p>
 	  </div>
-	  <div class="table-scroll">
-    <table id="dl-table">
-      <thead><tr><th>File</th><th>Size</th><th>Author</th><th>Get</th><th>Status</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </div>
+	  <div id="dl-file-list" class="dl-file-list" role="list"></div>
   <input type="file" id="dl-pick" multiple class="hidden">
   <div class="action-row">
     <button id="dl-local-btn" class="hidden">Use files already on this PC</button>

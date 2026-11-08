@@ -531,12 +531,12 @@ function applyDownloadLock() {
     var el = $(id);
     if (el) el.disabled = !allowed;
   });
-  var table = $('dl-table');
-  if (!table) return;
-  var buttons = table.querySelectorAll('button');
+  var list = $('dl-file-list');
+  if (!list) return;
+  var buttons = list.querySelectorAll('button');
   var i;
   for (i = 0; i < buttons.length; i++) buttons[i].disabled = !allowed;
-  var links = table.querySelectorAll('a');
+  var links = list.querySelectorAll('a');
   for (i = 0; i < links.length; i++) {
     if (allowed) links[i].removeAttribute('aria-disabled');
     else links[i].setAttribute('aria-disabled', 'true');
@@ -550,43 +550,157 @@ function fmtSize(n) {
   return Math.round(n / 1024) + ' KiB';
 }
 
-function buildDownloadTable() {
-  var tbody = $('dl-table').tBodies[0];
-  CATALOG.list.forEach(function (f) {
-    var tr = document.createElement('tr');
-    var td0 = document.createElement('td'); td0.textContent = f.file;
-    var td1 = document.createElement('td'); td1.textContent = fmtSize(f.size);
-    var td2 = document.createElement('td'); td2.textContent = f.author;
-    var td3 = document.createElement('td');
-    if (!f.url) {
-      td3.textContent = f.upstream || 'local pin';
-    } else if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.downloadFile) {
-      // In the app, fetch it here: the old external link did nothing useful.
-      var b = document.createElement('button');
-      b.className = 'small ghost';
-      b.textContent = 'get here';
-      b.addEventListener('click', function () { fetchOne(f.id, b); });
-      td3.appendChild(b);
-    } else {
-      var a = document.createElement('a');
-      a.href = f.url; a.textContent = 'download'; a.target = '_blank'; a.rel = 'noreferrer';
-      a.addEventListener('click', function (ev) {
-        if (!downloadsAllowed()) ev.preventDefault();
-      });
-      td3.appendChild(a);
-    }
-    var td4 = document.createElement('td'); td4.textContent = '—';
-    td4.setAttribute('data-status', f.id);
-    tr.appendChild(td0); tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
-    tbody.appendChild(tr);
+var CATALOG_DISPLAY_NAME = {
+  'installer-full': 'Full installer (Magisk)',
+  'installer-slim': 'Slim installer (Magisk)',
+  neutron: 'Neutron boot image',
+  forkgram: 'Forkgram',
+  'sherpa-en': 'Sherpa STT (English)',
+  'sherpa-uk': 'Sherpa STT (multilingual)',
+  tagdrawer: 'Tag Drawer',
+  'astro-loop': 'Astro Loop',
+  bouncy: 'Bouncy Ball',
+  intertune: 'Intertune',
+  appshelf: 'AppShelf',
+  'fdroid-basic': 'F-Droid Basic',
+  newpipe: 'NewPipe',
+  vlc: 'VLC',
+  materialfiles: 'Material Files',
+  'headwind-launcher': 'Headwind MDM',
+  'where-app': 'Where'
+};
+
+function catalogDisplayName(f) {
+  if (!f) return '';
+  if (CATALOG_DISPLAY_NAME[f.id]) return CATALOG_DISPLAY_NAME[f.id];
+  if (f.id) return f.id.replace(/-/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  return f.file || '';
+}
+
+function appendDlGetAction(actions, f) {
+  if (!f.url) {
+    var hint = document.createElement('span');
+    hint.className = 'dl-file-local';
+    hint.textContent = f.upstream || 'local pin';
+    actions.appendChild(hint);
+    return;
+  }
+  if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.downloadFile) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'small ghost';
+    b.textContent = 'Get';
+    b.addEventListener('click', function () { fetchOne(f.id, b); });
+    actions.appendChild(b);
+    return;
+  }
+  var a = document.createElement('a');
+  a.href = f.url;
+  a.textContent = 'Get';
+  a.className = 'small';
+  a.target = '_blank';
+  a.rel = 'noreferrer';
+  a.addEventListener('click', function (ev) {
+    if (!downloadsAllowed()) ev.preventDefault();
   });
+  actions.appendChild(a);
+}
+
+function buildDownloadList() {
+  var root = $('dl-file-list');
+  if (!root) return;
+  root.textContent = '';
+  var ids = (typeof requiredCatalog === 'function')
+    ? requiredCatalog()
+    : CATALOG.list.map(function (f) { return f.id; });
+  ids.forEach(function (id) {
+    var f = CATALOG.byId[id];
+    if (!f) return;
+    var item = document.createElement('details');
+    item.className = 'dl-file';
+    item.setAttribute('data-catalog-id', f.id);
+
+    var summary = document.createElement('summary');
+    summary.className = 'dl-file-summary';
+
+    var title = document.createElement('span');
+    title.className = 'dl-file-title';
+    title.textContent = catalogDisplayName(f);
+
+    var meta = document.createElement('span');
+    meta.className = 'dl-file-meta';
+    meta.textContent = fmtSize(f.size);
+
+    var status = document.createElement('span');
+    status.className = 'dl-file-status';
+    status.setAttribute('data-status', f.id);
+    status.textContent = '—';
+
+    var actions = document.createElement('span');
+    actions.className = 'dl-file-actions';
+    appendDlGetAction(actions, f);
+
+    summary.appendChild(title);
+    summary.appendChild(meta);
+    summary.appendChild(status);
+    summary.appendChild(actions);
+    item.appendChild(summary);
+
+    var panel = document.createElement('div');
+    panel.className = 'dl-file-panel';
+
+    function row(label, value, mono) {
+      if (!value) return;
+      var p = document.createElement('p');
+      p.className = 'dl-file-detail';
+      var strong = document.createElement('strong');
+      strong.textContent = label + ': ';
+      p.appendChild(strong);
+      var span = document.createElement('span');
+      if (mono) span.className = 'dl-file-mono';
+      span.textContent = value;
+      p.appendChild(span);
+      panel.appendChild(p);
+    }
+
+    row('Filename', f.file, true);
+    row('Author', f.author, false);
+    if (f.license) row('License', f.license, false);
+    if (f.purpose) {
+      var purpose = document.createElement('p');
+      purpose.className = 'dl-file-detail dl-file-purpose';
+      purpose.textContent = f.purpose;
+      panel.appendChild(purpose);
+    }
+    if (f.upstream) row('Source', f.upstream, false);
+    if (f.url) {
+      var linkRow = document.createElement('p');
+      linkRow.className = 'dl-file-detail';
+      var la = document.createElement('a');
+      la.href = f.url;
+      la.target = '_blank';
+      la.rel = 'noreferrer';
+      la.textContent = 'Open download page';
+      la.className = 'dl-file-link';
+      linkRow.appendChild(la);
+      panel.appendChild(linkRow);
+    }
+
+    item.appendChild(panel);
+    root.appendChild(item);
+  });
+  applyDownloadLock();
+}
+
+function buildDownloadTable() {
+  buildDownloadList();
 }
 
 function setRow(id, text, cls) {
-  var td = document.querySelector('[data-status="' + id + '"]');
-  if (!td) return;
-  td.textContent = text;
-  td.className = cls || '';
+  var el = document.querySelector('[data-status="' + id + '"]');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'dl-file-status' + (cls ? ' status ' + cls : '');
 }
 
 function badLine(msg) {
@@ -610,7 +724,7 @@ function refreshDownloadGate() {
     $('dl-next').disabled = false;
   } else {
     setStatus('dl-msg', missing.length + ' of ' + ids.length +
-      ' still needed: ' + missing.map(function (f) { return f.file; }).join(', '), 'wait');
+      ' still needed: ' + missing.map(function (f) { return catalogDisplayName(f); }).join(', '), 'wait');
     $('dl-next').disabled = true;
   }
   updateDlHubSummary(ids, missing);

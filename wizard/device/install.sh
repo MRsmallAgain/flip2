@@ -105,6 +105,11 @@ if want flipmouse; then
 else
   echo "NOTE: skip flipmouse"
 fi
+if want flipmouse_arcade; then
+  place_module FlipMouseArcade                FlipMouseArcade.zip
+else
+  echo "NOTE: skip flipmouse_arcade"
+fi
 if want tagdrawer; then
   place_module flip2_pixel_tag_drawer         flip2_pixel_tag_drawer-magisk.zip
 else
@@ -115,6 +120,16 @@ if want launcher_overlay; then
 else
   echo "NOTE: skip launcher_overlay"
 fi
+if want tagdrawer; then
+  TD=/data/adb/modules/flip2_pixel_tag_drawer
+  if [ -d "$TD" ]; then
+    rm -f "$TD/disable" 2>/dev/null
+    chmod 755 "$TD/service.sh" 2>/dev/null
+    chmod 644 "$TD/module.prop" 2>/dev/null
+    chmod 644 "$TD/system/app/PixelTagDrawer/PixelTagDrawer.apk" 2>/dev/null
+  fi
+fi
+
 
 if want flipmouse; then
 # Nothing starts FlipMouse's daemon until Magisk service time — start it now,

@@ -52,6 +52,23 @@
       "notes": "Tier A: system/bin + init.rc + sepolicy in build-tree (rootless after boot restore). full tier: Magisk module only."
     },
     {
+      "name": "flipmouse_arcade",
+      "artifact": "magisk-module",
+      "zip": "pipeline/flipmouse-arcade/build/FlipMouseArcade.zip",
+      "build": "flip2 flipmouse-arcade build",
+      "module_id": "FlipMouseArcade",
+      "root_install": true,
+      "root_runtime": true,
+      "rootless_survives_deroot": false,
+      "reboot": false,
+      "tiers": [
+        "full",
+        "image"
+      ],
+      "install_order": 31,
+      "notes": "Arcade profile: gamepad + landscape cursor + portrait mouse. Mutually exclusive with flipmouse at runtime."
+    },
+    {
       "name": "tagdrawer",
       "artifact": "magisk-module",
       "zip": "pixel-tag-drawer/dist/flip2_pixel_tag_drawer-magisk.zip",

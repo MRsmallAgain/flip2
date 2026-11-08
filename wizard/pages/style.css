@@ -1,34 +1,36 @@
-/* TCL Flip2 Manager — lavender dusk (matches flip2 default wallpaper) */
+/* TCL Flip2 Manager — subtle blue, yellow, white */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --ink: #1a0b1f;
-  --ink-muted: #5c4a62;
-  --ink-soft: #7a6b80;
-  --bg: #faf6f9;
-  --bg-deep: #f3ecf4;
+  --ink: #1a2a3d;
+  --ink-muted: #556676;
+  --ink-soft: #7a8896;
+  --bg: #fafcfe;
+  --bg-deep: #eef3f9;
   --surface: #ffffff;
-  --surface-glass: rgba(255, 255, 255, 0.72);
-  --accent: #a02d62;
-  --accent-hover: #8a2654;
-  --accent-soft: rgba(160, 45, 98, 0.12);
-  --sunset: #f26c4f;
-  --sun-glow: #fff3d0;
+  --surface-glass: rgba(255, 255, 255, 0.78);
+  --accent: #3d6fa8;
+  --accent-hover: #2f5d8f;
+  --accent-soft: rgba(61, 111, 168, 0.12);
+  --sunset: #f5c518;
+  --sun-glow: #fffbea;
+  --sun-soft: rgba(255, 208, 76, 0.35);
   --ok: #2d8a5e;
   --ok-soft: rgba(45, 138, 94, 0.12);
   --bad: #c43d3d;
   --bad-soft: rgba(196, 61, 61, 0.1);
-  --wait: #9a6b00;
-  --wait-soft: rgba(154, 107, 0, 0.1);
-  --line: rgba(160, 45, 98, 0.14);
-  --line-strong: rgba(160, 45, 98, 0.22);
+  --wait: #c48f18;
+  --wait-soft: rgba(255, 208, 76, 0.22);
+  --wait-border: rgba(196, 143, 24, 0.28);
+  --line: rgba(61, 111, 168, 0.14);
+  --line-strong: rgba(61, 111, 168, 0.22);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-pill: 999px;
-  --shadow-sm: 0 1px 2px rgba(26, 11, 31, 0.04);
-  --shadow-md: 0 4px 24px rgba(160, 45, 98, 0.08);
-  --shadow-lg: 0 12px 40px rgba(26, 11, 31, 0.1);
+  --shadow-sm: 0 1px 2px rgba(26, 42, 61, 0.05);
+  --shadow-md: 0 4px 24px rgba(61, 111, 168, 0.1);
+  --shadow-lg: 0 12px 40px rgba(26, 42, 61, 0.1);
   --font: 'DM Sans', system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
   --btn-h: 56px;
@@ -45,9 +47,9 @@ body {
   font: 16px/1.55 var(--font);
   color: var(--ink);
   background:
-    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(242, 108, 79, 0.18), transparent 55%),
-    radial-gradient(ellipse 90% 60% at 100% 50%, rgba(160, 45, 98, 0.12), transparent 50%),
-    radial-gradient(ellipse 70% 50% at 0% 80%, rgba(160, 45, 98, 0.08), transparent 45%),
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(255, 208, 76, 0.14), transparent 55%),
+    radial-gradient(ellipse 90% 60% at 100% 50%, rgba(61, 111, 168, 0.1), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 0% 80%, rgba(61, 111, 168, 0.06), transparent 45%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
   min-height: 100vh;
 }
@@ -148,10 +150,10 @@ nav#steps span:hover:not(.on) {
 }
 
 nav#steps span.on {
-  background: linear-gradient(135deg, var(--accent) 0%, #b83670 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 2px 12px rgba(160, 45, 98, 0.35);
+  box-shadow: 0 2px 12px rgba(61, 111, 168, 0.35);
 }
 
 nav#steps span.done {
@@ -180,10 +182,137 @@ section.step[hidden] {
   display: none !important;
 }
 
-#dl-table a[aria-disabled="true"] {
+.dl-file-list a[aria-disabled="true"] {
   opacity: 0.45;
   pointer-events: none;
   cursor: not-allowed;
+}
+
+.dl-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  max-width: 100%;
+}
+
+.dl-file {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.dl-file-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 15px;
+}
+
+.dl-file-summary::-webkit-details-marker {
+  display: none;
+}
+
+.dl-file-summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid var(--ink-soft);
+  margin-right: 2px;
+  flex: none;
+  transition: transform 0.15s;
+}
+
+.dl-file[open] .dl-file-summary::before {
+  transform: rotate(90deg);
+}
+
+.dl-file-title {
+  font-weight: 600;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.dl-file-meta {
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dl-file-status {
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 5rem;
+  text-align: right;
+}
+
+.dl-file-status.status.ok {
+  color: var(--ok);
+}
+
+.dl-file-status.status.bad {
+  color: var(--bad);
+}
+
+.dl-file-status.status.wait {
+  color: var(--wait);
+}
+
+.dl-file-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dl-file-actions .small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.dl-file-local {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.dl-file-panel {
+  padding: 0 14px 14px 28px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-deep);
+}
+
+.dl-file-detail {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.dl-file-detail strong {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.dl-file-mono {
+  font-family: var(--mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.dl-file-purpose {
+  color: var(--ink);
+  margin-top: 10px;
+}
+
+.dl-file-link {
+  font-weight: 500;
 }
 
 section.step > p:first-of-type {
@@ -216,17 +345,17 @@ button {
   font-weight: 600;
   padding: 9px 16px;
   border: 1px solid transparent;
-  background: linear-gradient(135deg, var(--accent) 0%, #b83670 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
   color: #fff;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: transform 0.12s, box-shadow 0.15s, opacity 0.15s;
-  box-shadow: 0 2px 8px rgba(160, 45, 98, 0.25);
+  box-shadow: 0 2px 8px rgba(61, 111, 168, 0.25);
 }
 
 button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(160, 45, 98, 0.32);
+  box-shadow: 0 4px 14px rgba(61, 111, 168, 0.32);
 }
 
 button:active:not(:disabled) {
@@ -314,15 +443,15 @@ code {
 }
 
 pre.log {
-  background: linear-gradient(180deg, #1e1224 0%, #140a18 100%);
-  color: #e8dce8;
+  background: linear-gradient(180deg, #1a2a3d 0%, #122030 100%);
+  color: #e8eef4;
   padding: 14px 16px;
   border-radius: var(--radius-md);
   max-height: 320px;
   overflow: auto;
   white-space: pre-wrap;
   margin: 12px 0;
-  border: 1px solid rgba(160, 45, 98, 0.25);
+  border: 1px solid rgba(61, 111, 168, 0.28);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
@@ -352,8 +481,8 @@ pre.rules {
 }
 
 .warn {
-  background: linear-gradient(135deg, var(--wait-soft) 0%, rgba(255, 243, 208, 0.5) 100%);
-  border: 1px solid rgba(154, 107, 0, 0.25);
+  background: linear-gradient(135deg, var(--wait-soft) 0%, var(--sun-glow) 100%);
+  border: 1px solid var(--wait-border);
   padding: 12px 14px;
   border-radius: var(--radius-md);
   font-size: 14px;
@@ -365,7 +494,7 @@ pre.rules {
   vertical-align: 2px;
   margin-left: 8px;
   padding: 2px 10px;
-  border: 1px solid rgba(154, 107, 0, 0.3);
+  border: 1px solid var(--wait-border);
   border-radius: var(--radius-pill);
   background: var(--wait-soft);
   color: var(--wait);
@@ -395,6 +524,12 @@ pre.rules {
 
 #phone-next.note {
   margin: 12px 0 0;
+}
+
+/* Ready? / factory gates: empty status span is not shown (was a blank “pill”). */
+#gate-msg:empty,
+#factory-gate-msg:empty {
+  display: none;
 }
 
 .now {
@@ -437,8 +572,8 @@ pre.rules {
 }
 
 .now.live {
-  background: linear-gradient(135deg, var(--wait-soft) 0%, rgba(255, 243, 208, 0.4) 100%);
-  border-color: rgba(154, 107, 0, 0.25);
+  background: linear-gradient(135deg, var(--wait-soft) 0%, var(--sun-glow) 100%);
+  border-color: var(--wait-border);
 }
 
 .now.caught {
@@ -559,7 +694,7 @@ pre.rules {
   font-size: 13px;
   font-weight: 700;
   flex: none;
-  box-shadow: 0 2px 8px rgba(160, 45, 98, 0.3);
+  box-shadow: 0 2px 8px rgba(61, 111, 168, 0.3);
 }
 
 .hidden {
@@ -772,7 +907,7 @@ table.safety-paths td:first-child {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(26, 11, 31, 0.45);
+  background: rgba(26, 42, 61, 0.45);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -1141,6 +1276,36 @@ button.big-btn.secondary {
   margin: 12px 0 8px;
 }
 
+.hero-device {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 14px;
+  padding: 16px 20px 20px;
+  max-width: 280px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 251, 234, 0.55) 45%,
+    rgba(238, 243, 249, 0.85) 100%
+  );
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+}
+
+.hero-device-img {
+  display: block;
+  width: min(200px, 68vw);
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  filter:
+    drop-shadow(0 12px 20px rgba(26, 42, 61, 0.18))
+    drop-shadow(0 2px 6px rgba(61, 111, 168, 0.15))
+    saturate(1.06)
+    contrast(1.04);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -1189,7 +1354,7 @@ button.big-btn.secondary {
 
 .callout-restart {
   background: var(--wait-soft);
-  border: 1px solid rgba(154, 107, 0, 0.25);
+  border: 1px solid var(--wait-border);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   margin: 12px 0;
@@ -1351,7 +1516,7 @@ button.big-btn.secondary {
 .progress-bar span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), #b83670);
+  background: linear-gradient(90deg, var(--accent), var(--sunset));
   border-radius: 4px;
   width: 0%;
   transition: width 0.25s ease;

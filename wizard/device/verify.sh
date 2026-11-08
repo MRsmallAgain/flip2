@@ -50,8 +50,16 @@ want() {
   return 1
 }
 
-# --- FlipMouse daemon is running -------------------------------------------
-if want flipmouse; then
+# --- FlipMouse / FlipMouse Arcade daemon -------------------------------------
+if want flipmouse_arcade; then
+  if pgrep -f 'FlipMouseArcade/mouse' >/dev/null 2>&1; then
+    echo "PASS: FlipMouse Arcade daemon running"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: FlipMouse Arcade daemon running (reboot, or run install.sh again)"
+    FAILS=$((FAILS + 1))
+  fi
+elif want flipmouse; then
   if pgrep -f 'FlipMouse/mouse' >/dev/null 2>&1; then
     echo "PASS: FlipMouse daemon running"
     PASS=$((PASS + 1))
@@ -153,7 +161,23 @@ else
   echo "NOTE: skip astro_loop"
 fi
 if want tagdrawer; then
-  check "Tag Drawer installed" pm path com.iwadjp.pixeltagdrawer
+  tagdrawer_ok=0
+  if pm path com.iwadjp.pixeltagdrawer >/dev/null 2>&1; then
+    tagdrawer_ok=1
+  elif pm list packages com.iwadjp.pixeltagdrawer 2>/dev/null | grep -q com.iwadjp.pixeltagdrawer; then
+    tagdrawer_ok=1
+  elif [ -f /system/app/PixelTagDrawer/PixelTagDrawer.apk ]; then
+    tagdrawer_ok=1
+  elif [ -f /data/adb/modules/flip2_pixel_tag_drawer/system/app/PixelTagDrawer/PixelTagDrawer.apk ]; then
+    tagdrawer_ok=1
+  fi
+  if [ "$tagdrawer_ok" -eq 1 ]; then
+    echo "PASS: Tag Drawer installed"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: Tag Drawer installed (place flip2_pixel_tag_drawer module and reboot)"
+    FAILS=$((FAILS + 1))
+  fi
 else
   echo "NOTE: skip tagdrawer"
 fi

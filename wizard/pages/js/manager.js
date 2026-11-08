@@ -114,7 +114,14 @@ function initGettingStarted() {
     var btn = ev.target.closest('[data-goto-step]');
     if (!btn) return;
     var step = btn.getAttribute('data-goto-step');
-    if (step === 'prepare') showStep('credit');
+    if (step === 'prepare') {
+      if (typeof PROFILES !== 'undefined' && !PROFILES.startSetupAllowed()) {
+        syncArcadeAcceptanceUi();
+        return;
+      }
+      showStep('credit');
+      return;
+    }
     else if (step === 'profile') showStep('start');
     else showStep(step);
   });
@@ -312,6 +319,29 @@ function profileLabel(p) {
   return p.id;
 }
 
+function syncArcadeAcceptanceUi() {
+  var panel = $('arcade-acceptance');
+  var cb = $('arcade-accept-cb');
+  var startBtn = $('start-setup-btn');
+  if (!PROFILES || !PROFILES.data) return;
+  var needs = PROFILES.needsArcadeAcceptance();
+  var allowed = PROFILES.startSetupAllowed();
+  if (panel) panel.classList.toggle('hidden', !needs);
+  if (cb) {
+    cb.checked = PROFILES.arcadeAccepted;
+    cb.disabled = !needs;
+  }
+  if (startBtn) {
+    startBtn.disabled = !allowed;
+    startBtn.title = !allowed && needs
+      ? 'Check the box above to continue with Arcade.'
+      : '';
+  }
+  if (needs && !allowed) {
+    setStatus('profile-msg', 'Arcade: check the box to enable Start setup.', 'wait');
+  }
+}
+
 function renderProfiles() {
   var box = $('profile-list');
   if (!box || !PROFILES.data) return;
@@ -324,6 +354,12 @@ function renderProfiles() {
     var title = document.createElement('strong');
     title.textContent = profileLabel(p);
     card.appendChild(title);
+    if (p.experimental) {
+      var badge = document.createElement('span');
+      badge.className = 'badge-exp';
+      badge.textContent = 'Experimental';
+      card.appendChild(badge);
+    }
     var sum = document.createElement('span');
     sum.className = 'profile-summary';
     sum.textContent = p.summary || '';
@@ -383,16 +419,27 @@ function renderProfiles() {
   if (note) {
     note.textContent = 'Profile: ' + label + '.';
   }
-  setStatus('profile-msg', 'Selected: ' + label + '.', 'ok');
+  if (!PROFILES.needsArcadeAcceptance() || PROFILES.startSetupAllowed()) {
+    setStatus('profile-msg', 'Selected: ' + label + '.', 'ok');
+  }
+  syncArcadeAcceptanceUi();
 }
 
 function initProfile() {
   renderProfiles();
   if (initProfile.bound) return;
   initProfile.bound = true;
+  var arcadeCb = $('arcade-accept-cb');
+  if (arcadeCb) {
+    arcadeCb.addEventListener('change', function () {
+      PROFILES.setArcadeAccepted(arcadeCb.checked);
+      syncArcadeAcceptanceUi();
+    });
+  }
   PROFILES.onChange(function () {
     renderProfiles();
     renderApps();
+    if (typeof buildDownloadTable === 'function') buildDownloadTable();
     if (typeof refreshDownloadGate === 'function') refreshDownloadGate();
   });
 }
