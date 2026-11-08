@@ -30,7 +30,7 @@ cd wizard && python3 -m http.server 8000
 # Chrome → http://127.0.0.1:8000/pages/
 ```
 
-Prefer a desktop app? **`flip2 companion`** serves the same pages over `flip2://` with one-click udev and auto USB pick. Branding assets: **[docs/branding/README.md](docs/branding/README.md)** (GitHub social preview: upload `docs/branding/github-social-preview.png` in repo settings).
+Prefer a desktop app? **`flip2 companion`** serves the same pages over `flip2://` with one-click udev and auto USB pick. Branding assets: **[docs/branding/README.md](docs/branding/README.md)** (GitHub social preview: upload `docs/branding/github-social-preview.png` in repo settings). **Press kit & launch copy:** **[docs/marketing/](docs/marketing/)**.
 
 **Quick start**
 
