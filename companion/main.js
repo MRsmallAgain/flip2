@@ -12,9 +12,48 @@ const os = require('os');
 const path = require('path');
 const pick = require('./device-pick');
 
-const WIZARD = path.join(__dirname, '..', 'wizard');
+function wizardRoot() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'wizard');
+  }
+  return path.join(__dirname, '..', 'wizard');
+}
+let WIZARD = path.join(__dirname, '..', 'wizard');
 const RULES_NAME = '51-android-flip2-adb.rules';
 const RULES_DST = path.join('/etc/udev/rules.d', RULES_NAME);
+
+function bundledPlatformToolsDir() {
+  if (process.platform === 'win32') {
+    if (app.isPackaged) {
+      return path.join(process.resourcesPath, 'platform-tools');
+    }
+    const dev = path.join(__dirname, 'platform-tools-win');
+    if (fs.existsSync(path.join(dev, 'adb.exe'))) return dev;
+  }
+  if (process.platform === 'linux' && app.isPackaged) {
+    const bundled = path.join(process.resourcesPath, 'platform-tools');
+    if (fs.existsSync(path.join(bundled, 'adb'))) return bundled;
+  }
+  return null;
+}
+
+function adbExecutable() {
+  const fromEnv = process.env.FLIP2_ADB;
+  if (fromEnv) return fromEnv;
+  const bundled = bundledPlatformToolsDir();
+  if (bundled) {
+    const name = process.platform === 'win32' ? 'adb.exe' : 'adb';
+    const full = path.join(bundled, name);
+    if (fs.existsSync(full)) return full;
+  }
+  if (process.platform === 'win32') return 'adb.exe';
+  return 'adb';
+}
+
+function adbSpawnArgs(args) {
+  const exe = adbExecutable();
+  return { file: exe, args: args };
+}
 
 // Catalog files land here when the wizard downloads them in-app, so a retry
 // does not re-fetch 290 MB. Computed lazily: app.getPath needs a live app.
@@ -57,6 +96,9 @@ const USB_MODES = {
 };
 
 function readPhoneState() {
+  if (process.platform !== 'linux') {
+    return { mode: 'unknown', detail: 'Use adb on Connect — this panel is sysfs-only on Linux' };
+  }
   let names = [];
   try {
     names = fs.readdirSync(USB_SYS).sort();
@@ -160,13 +202,20 @@ function wireSession(ses) {
   });
 }
 
+function udevSupported() {
+  return process.platform === 'linux';
+}
+
 function udevStatus() {
+  if (!udevSupported()) {
+    return Promise.resolve({ installed: true, path: null, platform: process.platform, na: true });
+  }
   return fsp.readFile(path.join(WIZARD, RULES_NAME), 'utf8').then(function (src) {
     return fsp.readFile(RULES_DST, 'utf8').then(
-      function (cur) { return { installed: cur.trim() === src.trim(), path: RULES_DST }; },
-      function () { return { installed: false, path: RULES_DST }; }
+      function (cur) { return { installed: cur.trim() === src.trim(), path: RULES_DST, platform: 'linux' }; },
+      function () { return { installed: false, path: RULES_DST, platform: 'linux' }; }
     );
-  }, function () { return { installed: false, path: RULES_DST }; });
+  }, function () { return { installed: false, path: RULES_DST, platform: 'linux' }; });
 }
 
 // Runs one command as root through the desktop's polkit prompt. pkexec is
@@ -203,6 +252,9 @@ function rootRun(cmd) {
 // One root run: the rules file is staged in /tmp, then copied into place and
 // udev is reloaded. The password prompt is the user's own approval.
 async function installUdev() {
+  if (!udevSupported()) {
+    return { ok: true, message: 'USB rules are not used on this OS — install adb drivers (Windows) or continue.' };
+  }
   let dir = null;
   try {
     const st = await udevStatus();
@@ -233,8 +285,10 @@ async function installUdev() {
 // verified. These three handlers give the page a direct path: reuse a copy that
 // is already on this PC, or fetch it here (no CORS, no browser detour).
 
-const CATALOG_PATH = path.join(WIZARD, 'catalog.json');
-const PINS_PATH = path.join(WIZARD, 'pins.json');
+function catalogPaths() {
+  const root = wizardRoot();
+  return { catalog: path.join(root, 'catalog.json'), pins: path.join(root, 'pins.json') };
+}
 
 function mergePinFields(entry, pin) {
   if (!pin) return entry;
@@ -247,11 +301,12 @@ function mergePinFields(entry, pin) {
 }
 
 async function readCatalog() {
-  const text = await fsp.readFile(CATALOG_PATH, 'utf8');
+  const cp = catalogPaths();
+  const text = await fsp.readFile(cp.catalog, 'utf8');
   const files = JSON.parse(text).files || [];
   let pinById = {};
   try {
-    const pins = JSON.parse(await fsp.readFile(PINS_PATH, 'utf8'));
+    const pins = JSON.parse(await fsp.readFile(cp.pins, 'utf8'));
     for (const p of pins.files || []) pinById[p.id] = p;
   } catch (e) { /* pins.json optional for dev */ }
   return files.map(function (f) { return mergePinFields(f, pinById[f.id]); });
@@ -338,7 +393,8 @@ function adbRun(args, timeoutMs) {
     // adb shell copies local stdin to the phone and does not exit until that
     // pipe reaches EOF. execFile leaves stdin open, so a finished command
     // still looks hung. Ignore stdin so the client exits with the command.
-    execFile('adb', args, {
+    const spawn = adbSpawnArgs(args);
+    execFile(spawn.file, spawn.args, {
       timeout: timeoutMs || 120000,
       maxBuffer: 4 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -357,7 +413,8 @@ function adbRun(args, timeoutMs) {
 // still holds the PASS/FAIL lines the UI must show.
 function adbRunShell(args, timeoutMs) {
   return new Promise(function (resolve, reject) {
-    execFile('adb', args, {
+    const spawn = adbSpawnArgs(args);
+    execFile(spawn.file, spawn.args, {
       timeout: timeoutMs || 120000,
       maxBuffer: 4 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -1699,8 +1756,12 @@ function createWindow() {
 }
 
 app.whenReady().then(function () {
+  WIZARD = wizardRoot();
   protocol.handle('flip2', serveWizard);
   wireSession(session.defaultSession);
+  ipcMain.handle('native-platform', function () {
+    return { platform: process.platform, udevSupported: udevSupported() };
+  });
   ipcMain.handle('udev-status', udevStatus);
   ipcMain.handle('install-udev', installUdev);
   ipcMain.handle('phone-state', function () { return readPhoneState(); });

@@ -4,7 +4,7 @@
 
 `wizard/` is the **TCL Flip2 Manager**: **Start** (profile + **Start setup**), **Apps**, and **Set up** (Prepare). The sticky strip shows phone status and Prepare progress in plain language. From **Chrome on Linux** the browser path talks to the phone over USB (WebUSB for install, Web Serial for the optional rooting slice) and does not use host adb. **Flip 2 Companion** is the same pages on your PC with host adb for install, verify, udev, and Managed `profile.list`. Profiles, Headwind/Where pins, and device owner are in [MANAGER.md](MANAGER.md).
 
-Firefox does not work: it has no WebUSB. Windows and macOS get the same site later; Linux is proven first.
+Firefox does not work: it has no WebUSB. Use **Flip 2 Companion** on Windows (see [SETUP-WIZARD-WINDOWS.md](SETUP-WIZARD-WINDOWS.md)) or Chrome + drivers. **Step-by-step Prepare walkthrough:** [SETUP-WIZARD-DETAILED.md](SETUP-WIZARD-DETAILED.md).
 
 ## Run it
 

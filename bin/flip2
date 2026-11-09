@@ -73,12 +73,7 @@ case "$cmd" in
     exec python3 "$FLIP2_OVERLAY/scripts/serve-editor.py"
     ;;
   companion)
-    local_bin="$FLIP2_ROOT/companion/node_modules/.bin/electron"
-    if [[ ! -x "$local_bin" ]]; then
-      echo "companion: Electron not installed -- run npm install in $FLIP2_ROOT/companion" >&2
-      exit 1
-    fi
-    exec "$local_bin" "$FLIP2_ROOT/companion"
+    exec "$FLIP2_ROOT/companion/run-companion.sh" "$@"
     ;;
   recovery)
     exec "$FLIP2_PIPELINE/recovery/resolve.sh"

@@ -7,12 +7,45 @@ Desktop shell around the [TCL Flip2 Manager](../docs/MANAGER.md). The window tit
 
 Install and verify in Companion use host adb. Managed Apply requires Companion, because a plain browser does not write `/data/local/flip2/profile.list`. The pages are served over a private `flip2://` protocol and feature-check `window.FLIP2_NATIVE`, so they still open in a browser. Stuck on Connect or Install: [WIZARD-FAILURES.md](../docs/WIZARD-FAILURES.md).
 
-## Run
+## Run (bundled launchers — recommended)
+
+Scripts check **Node/npm**, run **`npm install`** in `companion/` when Electron is missing, warn about **adb** and Linux **udev**, then start Electron.
+
+| OS | Command |
+|----|--------|
+| **Linux / macOS** | `./companion/run-companion.sh` or `flip2 companion` |
+| **Windows** | Double-click `run-companion.bat` or `.\companion\run-companion.ps1` |
+
+```bash
+# Linux examples
+./companion/run-companion.sh
+./companion/run-companion.sh --smoke
+FLIP2_ADB=/path/to/adb ./companion/run-companion.sh
+FLIP2_COMPANION_SAFE=1 ./companion/run-companion.sh
+FLIP2_SKIP_NPM_INSTALL=1 ./companion/run-companion.sh
+```
+
+```powershell
+.\companion\run-companion.ps1
+.\companion\run-companion.ps1 -Smoke
+```
+
+**Requirements:** Node.js **18+**, npm. **adb** on PATH (or `FLIP2_ADB`) for Prepare install/verify.
+
+Manual: `cd companion && npm install && npm start`.
+
+## Windows / Linux installers
+
+On the target OS with Node.js installed:
 
 ```bash
 cd companion
 npm install
-npm start
+npm run pack:win    # Windows: NSIS + portable under dist/
+npm run pack:linux  # Linux: AppImage + unpacked dir
 ```
 
-No packaging step is provided; this runs from the repo tree like `flip2 editor` does.
+Packaged builds embed `wizard/` via `extraResources`. Put **adb** on `PATH` (or set `FLIP2_ADB` to `adb.exe` on Windows) before install/verify.
+
+**Windows checklist:** [docs/SETUP-WIZARD-WINDOWS.md](../docs/SETUP-WIZARD-WINDOWS.md)  
+**Full Prepare walkthrough:** [docs/SETUP-WIZARD-DETAILED.md](../docs/SETUP-WIZARD-DETAILED.md)

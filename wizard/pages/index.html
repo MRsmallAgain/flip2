@@ -234,11 +234,12 @@
   </div>
 </section>
 
-<!-- 3: udev pause -->
-<section class="step" id="step-udev">
-  <h2>USB rules</h2>
-  <p class="step-lead">One-time on Linux — then replug the phone.</p>
-  <pre class="rules" id="udev-file"></pre>
+	<!-- 3: udev pause -->
+	<section class="step" id="step-udev">
+	  <h2>USB rules</h2>
+	  <p class="step-lead" id="udev-lead">One-time on Linux — then replug the phone.</p>
+	  <p class="note hidden" id="udev-windows-note">On Windows, install <a href="https://developer.android.com/studio/run/oem-usb#Drivers" target="_blank" rel="noopener">Google USB Driver</a> or the TCL/MTP driver so <code>adb devices</code> shows <b>device</b> (not <b>unauthorized</b> alone). No udev file — press <b>Continue</b>.</p>
+	  <pre class="rules" id="udev-file"></pre>
   <ol>
     <li><code>sudo cp 51-android-flip2-adb.rules /etc/udev/rules.d/</code></li>
     <li><code>sudo udevadm control --reload-rules && sudo udevadm trigger</code></li>

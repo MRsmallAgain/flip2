@@ -961,21 +961,60 @@ function initDownloads() {
 // --- 3 · udev -----------------------------------------------------------------
 
 function initUdev() {
-  fetch('../51-android-flip2-adb.rules').then(function (r) {
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.text();
-  }).then(function (text) {
-    $('udev-file').textContent = text;
-  }).catch(function (e) {
-    $('udev-file').textContent = 'could not load the rules file: ' + e.message;
-  });
+  var rulesPre = $('udev-file');
+  var winNote = $('udev-windows-note');
+  var lead = $('udev-lead');
+  var section = $('step-udev');
   $('udev-done').addEventListener('click', function () { showStep('usb'); });
-  // Companion app only: one-click install via the shell (pkexec). Hidden in
-  // a plain browser, where FLIP2_NATIVE does not exist.
+  function showLinuxUdev() {
+    if (winNote) winNote.classList.add('hidden');
+    if (lead) lead.classList.remove('hidden');
+    if (rulesPre) rulesPre.classList.remove('hidden');
+    if (section) {
+      var ol = section.querySelector('ol');
+      var details = section.querySelector('details.apps-panel');
+      if (ol) ol.classList.remove('hidden');
+      if (details) details.classList.remove('hidden');
+    }
+    fetch('../51-android-flip2-adb.rules').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }).then(function (text) {
+      if (rulesPre) rulesPre.textContent = text;
+    }).catch(function (e) {
+      if (rulesPre) rulesPre.textContent = 'could not load the rules file: ' + e.message;
+    });
+  }
+  function showWindowsUdev() {
+    if (lead) lead.classList.add('hidden');
+    if (rulesPre) rulesPre.classList.add('hidden');
+    if (winNote) winNote.classList.remove('hidden');
+    if (section) {
+      var ol = section.querySelector('ol');
+      var details = section.querySelector('details.apps-panel');
+      if (ol) ol.classList.add('hidden');
+      if (details) details.classList.add('hidden');
+    }
+  }
+  var platformP = window.FLIP2_NATIVE && window.FLIP2_NATIVE.nativePlatform
+    ? window.FLIP2_NATIVE.nativePlatform()
+    : Promise.resolve({ platform: 'browser', udevSupported: true });
+  platformP.then(function (info) {
+    if (info && info.platform === 'win32') showWindowsUdev();
+    else showLinuxUdev();
+  }).catch(function () { showLinuxUdev(); });
   if (window.FLIP2_NATIVE) {
     var nbtn = $('udev-native'), nmsg = $('udev-native-msg');
-    nbtn.classList.remove('hidden');
-    nbtn.addEventListener('click', function () {
+    window.FLIP2_NATIVE.nativePlatform().then(function (info) {
+      if (!info.udevSupported) {
+        if (nbtn) nbtn.classList.add('hidden');
+        return;
+      }
+      if (nbtn) nbtn.classList.remove('hidden');
+    }).catch(function () {
+      if (nbtn) nbtn.classList.remove('hidden');
+    });
+    if (nbtn) nbtn.addEventListener('click', function () {
       nbtn.disabled = true;
       nmsg.textContent = 'waiting for the password prompt…';
       nmsg.className = 'status wait';

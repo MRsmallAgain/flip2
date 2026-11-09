@@ -1,15 +1,69 @@
 {
   "name": "flip2-companion",
-  "productName": "Flip 2 Companion",
-  "version": "1.1.0",
-  "description": "Desktop companion for the Flip 2 Linux setup wizard: the same WebUSB/Web Serial pages with a one-click udev rule install.",
+  "productName": "TCL Flip2 Manager",
+  "version": "1.2.0",
+  "description": "Desktop companion for the Flip 2 setup wizard: host adb install/verify, catalog downloads, Linux udev one-click.",
   "license": "MIT",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "start:safe": "ELECTRON_DISABLE_GPU=1 electron . --disable-gpu --disable-gpu-compositing"
+    "start:safe": "ELECTRON_DISABLE_GPU=1 electron . --disable-gpu --disable-gpu-compositing",
+    "fetch:platform-tools:win": "node scripts/fetch-platform-tools-win.mjs",
+    "prepack:win": "npm run fetch:platform-tools:win",
+    "pack:win": "electron-builder --win --x64",
+    "pack:linux": "electron-builder --linux",
+    "dist": "electron-builder"
   },
   "devDependencies": {
-    "electron": "^33.2.0"
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "unzipper": "^0.12.3"
+  },
+  "build": {
+    "appId": "com.tim.flip2.companion",
+    "productName": "TCL Flip2 Manager",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!**/*.md"
+    ],
+    "extraResources": [
+      {
+        "from": "../wizard",
+        "to": "wizard",
+        "filter": [
+          "**/*",
+          "!**/node_modules/**",
+          "!**/.git/**"
+        ]
+      },
+      {
+        "from": "platform-tools-win",
+        "to": "platform-tools",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "artifactName": "flip2-companion-${version}-win-${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "dir"
+      ],
+      "category": "Utility",
+      "artifactName": "flip2-companion-${version}-linux-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

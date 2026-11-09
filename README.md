@@ -27,7 +27,7 @@ Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Lau
 
 *Open flip · Getting started · Prepare check · homescreen & apps — see [phone-tour-publish/](docs/marketing/v1.3.0-alpha.3/phone-tour-publish/).*
 
-## Setup wizard (Chrome on Linux)
+## Setup wizard (Companion or Chrome)
 
 <p align="center">
   <img src="wizard/assets/og-wizard.png" alt="Flip 2 Linux setup wizard — six verified steps" width="720" />
@@ -40,7 +40,7 @@ cd wizard && python3 -m http.server 8000
 # Chrome → http://127.0.0.1:8000/pages/
 ```
 
-Prefer a desktop app? **`flip2 companion`** (window title **TCL Flip2 Manager**) serves the same pages with one-click udev and auto USB pick — hero hardware photo at [`wizard/assets/flip2-hero-phone.png`](wizard/assets/flip2-hero-phone.png). Branding: **[docs/branding/README.md](docs/branding/README.md)** · GitHub social preview: [`docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png`](docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png) in repo Settings.
+Prefer a desktop app? **`flip2 companion`** (window title **TCL Flip2 Manager**) serves the same pages with host adb install/verify; on Linux, one-click udev and auto USB pick. **Windows:** [SETUP-WIZARD-WINDOWS.md](docs/SETUP-WIZARD-WINDOWS.md) and `companion/` → `npm run pack:win`. **Step-by-step Prepare:** [SETUP-WIZARD-DETAILED.md](docs/SETUP-WIZARD-DETAILED.md). Hero hardware photo at [`wizard/assets/flip2-hero-phone.png`](wizard/assets/flip2-hero-phone.png). Branding: **[docs/branding/README.md](docs/branding/README.md)** · GitHub social preview: [`docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png`](docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png) in repo Settings.
 
 **Quick start**
 

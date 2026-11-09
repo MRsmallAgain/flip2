@@ -4,6 +4,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
+  nativePlatform: function () { return ipcRenderer.invoke('native-platform'); },
   udevStatus: function () { return ipcRenderer.invoke('udev-status'); },
   installUdev: function () { return ipcRenderer.invoke('install-udev'); },
   // Read-only USB mode of the phone, for the rooting step's status panel.
