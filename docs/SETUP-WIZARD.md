@@ -37,10 +37,10 @@ For a public page, serve the `wizard/` directory from any static host
 ## Prepare sections (UI labels)
 
 1. **Ready** — Credits and safety paths folded under Advanced; type **`yes`** to continue.
-2. **Get files** — Every catalog file needs verified bytes (`size` + SHA-256 in `catalog.json`, including **`sherpa-en`** and **`sherpa-uk`**). Pick downloads or use Companion to fetch. Headwind/Where are local pins for Managed only.
+2. **Get files** — Every catalog file needs verified bytes (`size` + SHA-256 in `catalog.json`, including **`sherpa-en`** and **`sherpa-uk`**). Pick downloads or use Companion to fetch. **Download all here** on a cold machine often takes **10+ minutes** (large Magisk installer zips and Sherpa tarballs verify sequentially; one progress number can sit unchanged for a long time). Headwind/Where are local pins for Managed only.
 3. **USB rules** — One-time Linux udev; Companion can install rules for you.
 4. **Connect** — USB debugging, pick phone (WebUSB or Companion host adb).
-5. **Put on phone** — Experimental push + `install.sh` as root. Companion surfaces **`FAIL:`** lines and **Install stopped**; **`pm install -r -d`** on device for downgrades. Fully quit Companion after updating the app so host fixes load.
+5. **Put on phone** — Experimental push + `install.sh` as root. **Push and install** often takes **several minutes** (large APKs, Sherpa tarballs, Magisk modules); while `install.sh` runs as root the log may stay quiet until the script finishes. Companion surfaces **`FAIL:`** lines and **Install stopped**; **`pm install -r -d`** on device for downgrades. Fully quit Companion after updating the app so host fixes load.
 6. **Check phone** — On-device `verify.sh`; UI shows pass/fail summary (`SUMMARY: N passed, M failed`) and **Restart phone** when done.
 
 Checks include Sherpa **`tokens.txt`** under `files/sherpa/en` and `files/sherpa/uk`, IME, home, apps, `stt_lang`, home keys, display size, wallpaper when present.

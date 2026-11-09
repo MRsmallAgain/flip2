@@ -863,11 +863,12 @@ function downloadAll() {
     applyDownloadLock();
     return;
   }
+  setStatus('dl-msg', 'Starting download — first run often takes 10+ minutes. Files verify one at a time…', 'wait');
   var done = 0;
   var seq = Promise.resolve();
   todo.forEach(function (id) {
     seq = seq.then(function () {
-      setStatus('dl-msg', 'downloading ' + (done + 1) + ' of ' + todo.length + '…', 'wait');
+      setStatus('dl-msg', 'downloading ' + (done + 1) + ' of ' + todo.length + '… (first run can take 10+ minutes)', 'wait');
       return fetchOne(id, null);
     }).then(function () { done += 1; });
   });
@@ -1158,15 +1159,42 @@ function initInstall() {
 
 // --- 6 · verify ---------------------------------------------------------------------
 
+function rebootDisconnectLooksOk(err) {
+  var m = String((err && err.message) || err || '');
+  if (/shell\s+reboot/i.test(m) && /command failed|device offline|no devices|ECONNRESET|broken pipe|EPIPE/i.test(m)) {
+    return true;
+  }
+  return false;
+}
+
+function rebootSentStatus(onStatus) {
+  if (onStatus) {
+    onStatus('Restart sent — the phone rebooted and USB disconnected briefly (normal).', 'ok');
+  }
+}
+
 function rebootPhone(onStatus) {
   var N = window.FLIP2_NATIVE;
   if (N && N.wizardHostShell) {
-    return N.wizardHostShell({ cmd: 'reboot', timeoutMs: 60000 }).then(function () {
-      if (onStatus) onStatus('Restart sent — the phone will disconnect from USB briefly.', 'ok');
+    return N.wizardHostShell({ cmd: 'reboot', timeoutMs: 60000 }).then(function (r) {
+      rebootSentStatus(onStatus);
+      return r;
+    }).catch(function (e) {
+      if (rebootDisconnectLooksOk(e)) {
+        rebootSentStatus(onStatus);
+        return;
+      }
+      throw e;
     });
   }
   return ADB.shell('reboot', function () {}).then(function () {
-    if (onStatus) onStatus('Restart sent — the phone will disconnect from USB briefly.', 'ok');
+    rebootSentStatus(onStatus);
+  }).catch(function (e) {
+    if (rebootDisconnectLooksOk(e)) {
+      rebootSentStatus(onStatus);
+      return;
+    }
+    throw e;
   });
 }
 

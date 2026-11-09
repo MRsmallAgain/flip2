@@ -95,10 +95,7 @@ const USB_MODES = {
   '1bbb:20ff': 'stuck',
 };
 
-function readPhoneState() {
-  if (process.platform !== 'linux') {
-    return { mode: 'unknown', detail: 'Use adb on Connect — this panel is sysfs-only on Linux' };
-  }
+function readPhoneStateLinux() {
   let names = [];
   try {
     names = fs.readdirSync(USB_SYS).sort();
@@ -126,6 +123,52 @@ function readPhoneState() {
   }
   const h = hits[0];
   return { mode: h.mode, id: h.id, port: h.port, serial: h.serial || null };
+}
+
+// Windows and macOS have no Flip2 sysfs map; host adb is the live USB signal for the strip.
+async function readPhoneStateFromAdb() {
+  try {
+    const out = await adbRun(['devices', '-l'], 15000);
+    const ready = [];
+    let unauthorized = 0;
+    for (const line of out.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || /^List of devices/i.test(trimmed)) continue;
+      const parts = trimmed.split(/\s+/);
+      const serial = parts[0];
+      const state = parts[1];
+      if (state === 'device') ready.push(serial);
+      else if (state === 'unauthorized') unauthorized += 1;
+    }
+    if (ready.length > 1) {
+      return {
+        mode: 'conflict',
+        detail: ready.length + ' phones on adb',
+        serials: ready,
+      };
+    }
+    if (ready.length === 1) {
+      return { mode: 'android', serial: ready[0], detail: 'adb device' };
+    }
+    if (unauthorized > 0) {
+      return { mode: 'android', serial: null, detail: 'adb unauthorized - accept the prompt on the phone' };
+    }
+    return { mode: 'absent', detail: 'no phone ready over adb' };
+  } catch (e) {
+    return { mode: 'unknown', detail: String((e && e.message) || e) };
+  }
+}
+
+function readPhoneState() {
+  if (process.platform !== 'linux') {
+    return { mode: 'unknown', detail: 'phone-state IPC is async off Linux' };
+  }
+  return readPhoneStateLinux();
+}
+
+async function readPhoneStateAsync() {
+  if (process.platform === 'linux') return readPhoneStateLinux();
+  return readPhoneStateFromAdb();
 }
 
 const MIME = {
@@ -446,7 +489,7 @@ async function wizardHostSu(serial, shCmd, timeoutMs) {
 
 // Host push/install uses adb + su. Fastboot and preloader are not adb targets.
 async function assertHostInstallUsbMode() {
-  const st = readPhoneState();
+  const st = await readPhoneStateAsync();
   const mode = st.mode;
   if (mode === 'fastboot') {
     throw new Error(
@@ -490,12 +533,33 @@ async function wizardHostAdbReady() {
   }
 }
 
+function isRebootShellCmd(cmd) {
+  const c = String(cmd || '').trim();
+  return c === 'reboot' || /^reboot\b/.test(c);
+}
+
+/** adb shell reboot usually drops USB before the client exits — not a real failure. */
+function isLikelyRebootDisconnectAdbError(msg) {
+  const m = String(msg || '');
+  if (/command failed/i.test(m) && /shell\s+reboot/i.test(m)) return true;
+  if (/device offline|no devices|not found|closed|ECONNRESET|broken pipe|write EPIPE/i.test(m)) return true;
+  return false;
+}
+
 async function wizardHostShell(payload) {
   const cmd = String(payload && payload.cmd || '');
   if (!cmd) throw new Error('shell: cmd required');
   const serial = await adbSerial();
-  const out = await adbRun(['-s', serial, 'shell', cmd], payload.timeoutMs || 30000);
-  return { ok: true, stdout: out };
+  try {
+    const out = await adbRun(['-s', serial, 'shell', cmd], payload.timeoutMs || 30000);
+    return { ok: true, stdout: out };
+  } catch (e) {
+    const why = e && e.message ? e.message : String(e);
+    if (isRebootShellCmd(cmd) && isLikelyRebootDisconnectAdbError(why)) {
+      return { ok: true, deviceDisconnected: true, stdout: '', note: 'device left adb during reboot (expected)' };
+    }
+    throw e;
+  }
 }
 
 const IDENTITY_PROPS = [
@@ -781,6 +845,11 @@ function normalizeProfileText(text) {
     seen[id] = true;
   }
   return lines.join('\n') + '\n';
+}
+
+/** Android /system/bin/sh rejects CRLF; Windows checkouts often store .sh as CRLF. */
+function normalizeDeviceShellText(text) {
+  return String(text == null ? '' : text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }
 
 async function wizardHostWriteProfile(payload) {
@@ -1102,7 +1171,7 @@ async function wizardHostRunInstall(payload) {
   const log = (s) => { lines.push(String(s)); };
   try {
     const serial = await adbSerial();
-    const installSh = String(payload.installSh || '');
+    const installSh = normalizeDeviceShellText(payload.installSh || '');
     if (!installSh) throw new Error('install.sh text missing');
     if (!wizardHostTmp) wizardHostTmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
     const shLocal = path.join(wizardHostTmp, 'install.sh');
@@ -1169,7 +1238,7 @@ async function wizardHostVerify(payload) {
   const log = (s) => { lines.push(String(s)); };
   try {
     const serial = await adbSerial();
-    const verifySh = String(payload.verifySh || '');
+    const verifySh = normalizeDeviceShellText(payload.verifySh || '');
     if (!verifySh) throw new Error('verify.sh text missing');
     const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
     try {
@@ -1764,7 +1833,7 @@ app.whenReady().then(function () {
   });
   ipcMain.handle('udev-status', udevStatus);
   ipcMain.handle('install-udev', installUdev);
-  ipcMain.handle('phone-state', function () { return readPhoneState(); });
+  ipcMain.handle('phone-state', function () { return readPhoneStateAsync(); });
   ipcMain.handle('local-files', function () { return localFiles(); });
   ipcMain.handle('read-local', function (_e, id, index) { return readLocal(id, index); });
   ipcMain.handle('download-file', function (_e, id) { return downloadFile(id); });

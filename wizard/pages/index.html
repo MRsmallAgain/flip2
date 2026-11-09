@@ -215,6 +215,7 @@
 	<section class="step step-compact" id="step-download">
 	  <h2>Get files</h2>
 	  <p class="step-lead">Download or pick verified copies on this PC.</p>
+	  <p class="note">The first full download can take <b>10+ minutes</b> — large installer zips and voice models verify one file at a time. The status line may sit on one number for a while; that is normal.</p>
 	  <div id="dl-hub-summary" class="status-rows hidden" aria-live="polite">
 	    <div class="status-row"><span>Files</span><strong id="dl-hub-count">—</strong></div>
 	    <p id="dl-hub-banner" class="one-liner ok hidden">All verified</p>
@@ -284,10 +285,10 @@
 <section class="step" id="step-install">
   <h2>Put on phone</h2>
   <p class="step-lead">Needs root on the phone.</p>
+  <p class="note">Pushing many files and running <code>install.sh</code> on the phone can take <b>several minutes</b> — large APKs, Sherpa models, and Magisk modules install sequentially. While <code>install.sh</code> runs as root the log may pause until the script finishes; that is normal.</p>
   <p class="callout-restart"><strong>After updating Companion</strong> fully quit and reopen so fixes load.</p>
   <details class="apps-panel">
     <summary>What install does</summary>
-    <p class="warn"><b>Experimental</b> — one device tested. Prefer release zip for first setup.</p>
     <p>Pushes to <code>/data/local/flip2/incoming/</code>, runs install script as root. Magisk may prompt restart on first boot; dialer <code>*#*#217703#*#*</code> if root fails.</p>
   </details>
   <p id="inst-profile-note" class="note"></p>
@@ -332,7 +333,7 @@
       <button type="button" id="ver-reboot" class="big-btn">Restart phone</button>
       <span id="ver-reboot-msg" class="status"></span>
     </div>
-    <p class="note">Reboot once for wallpaper and display size.</p>
+    <p class="note">Reboot once for wallpaper and display size. After <b>Restart phone</b>, USB may drop for a minute while the phone reboots — that is expected, not a failure.</p>
   </div>
   <div class="action-row">
     <button class="ghost" data-back="install">Back</button>

@@ -1,0 +1,3 @@
+# Device shell scripts must use LF — CRLF breaks Android /system/bin/sh in the wizard.
+wizard/device/*.sh text eol=lf
+pipeline/**/ondevice-install.sh text eol=lf
