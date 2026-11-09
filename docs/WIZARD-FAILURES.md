@@ -27,6 +27,8 @@ Profile matters for install. A missing `profile.list` means full base, and Headw
 | 6 | Prepare → Install: `chmod … install.sh … Permission denied` | `adb push` + shell `chmod` on root-owned file | `install -m755` from staging as root (`su 0`); run script with `su 0 sh -c` |
 | 7 | UI: red error but install **actually ran** | Companion failed after all pushes, before/during install.sh deploy; script may still be present from retry | **Continue to verify anyway** / run verify manually; see CLI below |
 | 8 | Footer factory/root **hidden** | In a browser, `unlockAdvancedFooter()` runs after a verify **attempt**. A user stuck on Install never reaches Verify. | Companion shows the **Advanced** footer without verify. Install shows **Continue to verify anyway**. In a browser, run verify once under Prepare. |
+| 9 | Install: `install.sh[N]: : inaccessible or not found` and `syntax error: unexpected 'in '` | `install.sh` / `verify.sh` checked out on Windows with **CRLF**; Android `/system/bin/sh` treats `\r` as part of lines | Repo: LF + `.gitattributes`; push strips `\r` in Companion and WebUSB pipeline. **Quit and reopen Companion** (or hard refresh) after updating. |
+| 10 | Check phone → **Restart phone**: red `Command failed: … adb … shell reboot` while phone **did** reboot | `adb shell reboot` tears down USB before the client exits; Windows reports a failed exec | Companion + UI treat reboot disconnect as success; green **Restart sent** message. Fully quit Companion after updating. |
 
 ## UI traps (no way out without knowing secrets)
 

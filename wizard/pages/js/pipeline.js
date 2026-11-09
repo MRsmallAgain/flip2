@@ -18,6 +18,11 @@
 var INCOMING = '/data/local/flip2/incoming/';
 var INSTALL_SH_REMOTE = '/data/local/flip2/install.sh';
 
+/** Android /system/bin/sh breaks on CRLF (syntax error on `in`, empty paths). */
+function normalizeDeviceShellText(text) {
+  return String(text == null ? '' : text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
 function pushPayloadBytes(raw, label) {
   if (raw == null) throw new Error('push set missing bytes for ' + (label || '(unknown)'));
   if (raw instanceof Uint8Array) return raw;
@@ -155,7 +160,7 @@ var PIPE = {
     });
     seq = seq.then(function () {
       onLog('push install.sh');
-      return ADB.pushFile(INSTALL_SH_REMOTE, '0755', installSh, null);
+      return ADB.pushFile(INSTALL_SH_REMOTE, '0755', normalizeDeviceShellText(installSh), null);
     });
     seq = seq.then(function () {
       onLog('running install.sh as root…');
@@ -173,7 +178,7 @@ var PIPE = {
   // verify.sh runs as root too; mirrors SUMMARY and rejects on exit-failure
   // signaled by a RETRY line.
   verify: function (verifySh, onLog) {
-    return ADB.pushFile('/data/local/flip2/verify.sh', '0755', verifySh, null)
+    return ADB.pushFile('/data/local/flip2/verify.sh', '0755', normalizeDeviceShellText(verifySh), null)
       .then(function () {
         var failed = null;
         return ADB.shell("su 0 sh -c 'sh /data/local/flip2/verify.sh'", function (line) {
@@ -236,7 +241,7 @@ var PIPE = {
         });
       });
       return seq.then(function () {
-        phase('running install.sh as root. Output appears when the script finishes.');
+        phase('running install.sh as root — often takes several minutes. Output appears when the script finishes.');
         onLog('running install.sh as root…');
         return N.wizardHostRunInstall({ installSh: installSh });
       }).then(function (r) {

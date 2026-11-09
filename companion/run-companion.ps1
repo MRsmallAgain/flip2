@@ -1,5 +1,5 @@
-# TCL Flip2 Manager — dependency check, npm install if needed, start Companion.
-# Usage: .\run-companion.ps1 [-Smoke] [extra electron args…]
+# TCL Flip2 Manager - dependency check, npm install if needed, start Companion.
+# Usage: .\run-companion.ps1 [-Smoke] [extra electron args...]
 param(
     [switch]$Smoke,
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -7,6 +7,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 
 $CompanionDir = $PSScriptRoot
 $Flip2Root = (Resolve-Path (Join-Path $CompanionDir '..')).Path
@@ -25,7 +26,7 @@ Write-Host '=== TCL Flip2 Manager (Companion) ==='
 Write-Host "Repo: $Flip2Root"
 
 if (-not (Test-Path (Join-Path $WizardDir 'pages'))) {
-    Die "wizard\ not found at $WizardDir — run from a full flip2 checkout."
+    Die "wizard\ not found at $WizardDir - run from a full flip2 checkout."
 }
 if (-not (Test-Path (Join-Path $CompanionDir 'package.json'))) {
     Die 'companion\package.json missing.'
@@ -53,9 +54,9 @@ $ElectronBin = Join-Path $CompanionDir 'node_modules\.bin\electron.cmd'
 $ElectronUnix = Join-Path $CompanionDir 'node_modules\.bin\electron'
 if (-not (Test-Path $ElectronBin) -and -not (Test-Path $ElectronUnix)) {
     if ($env:FLIP2_SKIP_NPM_INSTALL -eq '1') {
-        Die "Electron not installed and FLIP2_SKIP_NPM_INSTALL=1 — run: cd $CompanionDir; npm install"
+        Die "Electron not installed and FLIP2_SKIP_NPM_INSTALL=1 - run: cd $CompanionDir; npm install"
     }
-    Write-Host 'Installing Companion dependencies (first run may take a few minutes)…'
+    Write-Host 'Installing Companion dependencies (first run may take a few minutes)...'
     Push-Location $CompanionDir
     try {
         npm install --no-fund --no-audit
@@ -81,7 +82,7 @@ if (-not $adbPath) {
     if ($adbCmd) { $adbPath = $adbCmd.Source }
 }
 if (-not $adbPath) {
-    Warn 'adb not found. Run: npm run fetch:platform-tools:win  (or install Platform Tools — see docs\SETUP-WIZARD-WINDOWS.md)'
+    Warn 'adb not found. Run: npm run fetch:platform-tools:win  (or install Platform Tools - see docs\SETUP-WIZARD-WINDOWS.md)'
 } else {
     try {
         $adbVer = & $adbPath version 2>$null | Select-Object -First 1
@@ -91,7 +92,7 @@ if (-not $adbPath) {
     }
 }
 
-Warn 'On Windows, install Google USB Driver if adb devices stays empty — see docs\SETUP-WIZARD-WINDOWS.md'
+Warn 'On Windows, install Google USB Driver if adb devices stays empty - see docs\SETUP-WIZARD-WINDOWS.md'
 
 $argsList = @()
 if ($Smoke) { $argsList += '--smoke' }
@@ -100,7 +101,7 @@ if ($ElectronArgs) { $argsList += $ElectronArgs }
 $electron = $ElectronBin
 if (-not (Test-Path $electron)) { $electron = $ElectronUnix }
 
-Write-Host 'Starting TCL Flip2 Manager…'
+Write-Host 'Starting TCL Flip2 Manager...'
 Set-Location $CompanionDir
 & $electron . @argsList
 exit $LASTEXITCODE
