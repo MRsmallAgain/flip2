@@ -214,17 +214,17 @@ fi
 
 if want ime; then
 # --- IME settings (manifest 70): values mirror payload data/settings.txt ---
-settings put secure show_ime_with_hard_keyboard '1' \
+settings put secure show_ime_with_hard_keyboard '1' \
   || fail "settings: show_ime_with_hard_keyboard"
 settings put secure enabled_input_methods "$NULL_IME" \
   || fail "settings: enabled_input_methods"
 settings put secure default_input_method "$NULL_IME" \
   || fail "settings: default_input_method"
-settings put secure accessibility_soft_keyboard_mode '1' \
+settings put secure accessibility_soft_keyboard_mode '1' \
   || fail "settings: accessibility_soft_keyboard_mode"
-settings put system dtmf_tone '0' \
+settings put system dtmf_tone '0' \
   || fail "settings: dtmf_tone"
-settings put system dtmf_tone_type '0' \
+settings put system dtmf_tone_type '0' \
   || fail "settings: dtmf_tone_type"
 appops set --user 0 $NULL_PKG WRITE_SETTINGS allow \
   || fail "appops: WRITE_SETTINGS for $NULL_PKG"
@@ -255,7 +255,7 @@ fi
 
 if want display; then
 # --- display size, manifest 95: logical 321x428 on the 240x320 panel --------
-settings put global 'display_size_forced' '321,428' \
+settings put global 'display_size_forced' '321,428' \
   || fail "settings: display_size_forced"
 ok "display size 321x428 (takes effect after reboot)"
 else

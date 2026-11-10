@@ -4,10 +4,11 @@
     {
       "id": "arcade",
       "label": "Arcade",
-      "enabled": true,
+      "enabled": false,
       "experimental": true,
       "summary": "Same as Base but FlipMouse Arcade: landscape gamepad, rotated landscape cursor, portrait mouse in one daemon.",
       "warning": "Experimental — landscape gamepad stack is rough around the edges.",
+      "reason": "Temporarily disabled in the wizard — Arcade mode is not working reliably yet.",
       "components": [
         "navoverlay",
         "keypad",

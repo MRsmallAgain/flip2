@@ -137,7 +137,7 @@ done < <(jq -r '
   | select(.artifact == "user-apk" and (.tiers | index("image")))
   | select(.image_preload.system_app_dir // "" != "")
   | [.name, .image_preload.system_app_dir, .image_preload.source] | @tsv
-' "$MANIFEST")
+' "$MANIFEST" | tr -d '\r')
 
 # wallpaper: the default asset rides in system/media so the phone can copy it
 # into /data at first boot (the tree cannot write there itself).

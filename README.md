@@ -17,7 +17,7 @@ Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voi
 
 Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Launcher3 RRO overlay**, and **recovery** after bad Magisk launcher experiments.
 
-**Latest:** [v1.3.0-alpha.3-flip2](https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.3-flip2) (public alpha). Safest first install: **Tier B** `flip2-installer-full-magisk.zip` from that release (verify `SHA256SUMS`). Screenshots, mosaic, and channel copy: **[docs/marketing/](docs/marketing/)**.
+**Latest:** [v1.3.0-alpha.4-flip2](https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.4-flip2) (public alpha). Wizard: Arcade profile temporarily grayed out. Safest first install: **Tier B** `flip2-installer-full-magisk.zip` from that release (verify `SHA256SUMS`). Screenshots, mosaic, and channel copy: **[docs/marketing/](docs/marketing/)**.
 
 <p align="center">
   <a href="https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.3-flip2">

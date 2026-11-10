@@ -80,7 +80,7 @@ ROWS="$(jq -r --arg flavor "$MANIFEST_FLAVOR" '
       (.package // ""), (.module_id // ""), (.external.repo // ""),
       (.external.tag // ""), (.external.asset // ""), (.external.url // ""),
       (.asset // "") ] | join("|")
-' "$MANIFEST" | sort -n)"
+' "$MANIFEST" | tr -d '\r' | sort -n)"
 
 rm -rf "$OUT"
 mkdir -p "$OUT/META-INF/com/google/android" "$OUT/payload/data" "$OUT/payload/apks" "$OUT/payload/modules" "$OUT/payload/sherpa"
@@ -220,7 +220,20 @@ if [[ "$NO_ZIP" == 1 ]]; then
 else
   ZIP="$DIST/flip2-installer-$FLAVOR-magisk.zip"
   rm -f "$ZIP"
-  (cd "$OUT" && zip -rX "$ZIP" META-INF customize.sh module.prop service.sh payload) >/dev/null
+  FLIP2_7Z="${FLIP2_7Z:-}"
+  if [[ -z "$FLIP2_7Z" ]]; then
+    for _7z in "/c/Program Files/7-Zip/7z.exe" "/mnt/c/Program Files/7-Zip/7z.exe"; do
+      [[ -f "$_7z" ]] && FLIP2_7Z="$_7z" && break
+    done
+  fi
+  if command -v zip >/dev/null 2>&1; then
+    (cd "$OUT" && zip -rX "$ZIP" META-INF customize.sh module.prop service.sh payload) >/dev/null
+  elif [[ -n "$FLIP2_7Z" && -f "$FLIP2_7Z" ]]; then
+    (cd "$OUT" && "$FLIP2_7Z" a -tzip -mx=0 "$ZIP" META-INF customize.sh module.prop service.sh payload) >/dev/null
+  else
+    echo "zip not found (install zip or set FLIP2_7Z to 7z.exe)" >&2
+    exit 1
+  fi
   log "built $ZIP"
 fi
 log "flavor: $FLAVOR  version: $VERSION"

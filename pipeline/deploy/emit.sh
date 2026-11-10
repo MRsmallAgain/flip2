@@ -53,7 +53,7 @@ ROWS="$(jq -r --arg flavor "$EMIT_FLAVOR" '
       (.package // ""), (.module_id // ""), (.external.repo // ""),
       (.external.tag // ""), (.external.asset // ""), (.external.url // ""),
       (.asset // "") ] | join("|")
-' "$MANIFEST" | sort -n)"
+' "$MANIFEST" | tr -d '\r' | sort -n)"
 
 declare -A HKMAP=(
   [left]=keyshortcut_leftkey

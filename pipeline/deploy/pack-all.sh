@@ -62,7 +62,7 @@ while IFS=$'\t' read -r name artifact src; do
     magisk-module) copy_component "$name" "$src" "$(basename "$src")" ;;
     user-apk)      copy_component "$name" "$src" "$(basename "$src")" ;;
   esac
-done < <(jq -r '.components[] | select(.artifact != "settings-write" and ((.zip // .apk) != null)) | [.name, .artifact, (.zip // .apk)] | @tsv' "$MANIFEST")
+done < <(jq -r '.components[] | select(.artifact != "settings-write" and ((.zip // .apk) != null)) | [.name, .artifact, (.zip // .apk)] | @tsv' "$MANIFEST" | tr -d '\r')
 
 # Settings-only component: ship the JSON + a standalone apply script.
 if [[ -f "$ROOT/launcher-overlay/home-keys.json" ]]; then
