@@ -33,7 +33,7 @@ Commands:
   forkgram <sub>     Patched Forkgram APK: patch | release (BACK deletes in text fields)
   astro-loop <sub>   Astro Loop game: install (F-Droid pin, D-pad ready)
   setup <tier>       Deployment: full (rooted set in verified order) | clean
-  installer <sub>    Single-shot Magisk installer: pack [--flavor clean|full]
+  installer <sub>    Single-shot Magisk installer: pack [--flavor clean|base|full|slim|image-post]
   pack-all           Build per-component Magisk zips + APKs + SHA256SUMS bundle
   deroot             Remove flip2 root components; keep user APKs + settings
   image <sub>        Base image: prepare | build-tree
@@ -311,7 +311,7 @@ case "$cmd" in
     case "$sub" in
       pack) exec "$FLIP2_ROOT/pipeline/deploy/pack-installer.sh" "$@" ;;
       help|-h|--help)
-        echo "Usage: flip2 installer pack [--flavor clean|full|image-post] [--no-zip]"
+        echo "Usage: flip2 installer pack [--flavor clean|base|full|slim|image-post] [--no-zip]"
         echo "  Single-shot Magisk installer zip. clean = user APKs + settings only,"
         echo "  de-root friendly. full = full rooted set. image-post = after Tier A flash."
         ;;

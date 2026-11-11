@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<EOF
-Usage: emit.sh --flavor clean|full|slim|image-post --manifest PATH --home-keys PATH --root PATH --data DIR
+Usage: emit.sh --flavor clean|base|full|slim|image-post --manifest PATH --home-keys PATH --root PATH --data DIR
 
 Write payload/data settings.txt, wallpaper.txt, modules.txt, and apks.txt for the selected flavor.
 EOF
@@ -33,7 +33,7 @@ done
 }
 EMIT_FLAVOR="$FLAVOR"
 [[ "$FLAVOR" == slim ]] && EMIT_FLAVOR=full
-case "$FLAVOR" in clean|full|slim|image-post) ;; *) echo "--flavor must be clean, full, slim, or image-post" >&2; exit 1 ;; esac
+case "$FLAVOR" in clean|base|full|slim|image-post) ;; *) echo "--flavor must be clean, base, full, slim, or image-post" >&2; exit 1 ;; esac
 
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
 

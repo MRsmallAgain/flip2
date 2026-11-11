@@ -18,6 +18,15 @@ function wizardRoot() {
   }
   return path.join(__dirname, '..', 'wizard');
 }
+
+/** Wizard header phone logo — window title bar + taskbar (PNG; SVG not supported on Windows). */
+function companionIconPath() {
+  const primary = path.join(__dirname, 'icons', 'icon.png');
+  if (fs.existsSync(primary)) return primary;
+  const wizard512 = path.join(__dirname, '..', 'docs', 'branding', 'logo-512.png');
+  if (fs.existsSync(wizard512)) return wizard512;
+  return path.join(wizardRoot(), 'assets', 'favicon-32.png');
+}
 let WIZARD = path.join(__dirname, '..', 'wizard');
 const RULES_NAME = '51-android-flip2-adb.rules';
 const RULES_DST = path.join('/etc/udev/rules.d', RULES_NAME);
@@ -1710,11 +1719,13 @@ ipcMain.handle('personal-restore-messages', function (_e, payload) { return pers
 ipcMain.handle('personal-restore-apps', function () { return personalGuard(personalRestoreApps)(); });
 
 function createWindow() {
+  const iconPath = companionIconPath();
   const win = new BrowserWindow({
     width: 1020,
     height: 800,
     autoHideMenuBar: true,
     title: 'TCL Flip2 Manager',
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

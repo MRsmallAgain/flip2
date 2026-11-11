@@ -16,16 +16,17 @@ HOME_KEYS="$ROOT/launcher-overlay/home-keys.json"
 
 usage() {
   cat <<EOF
-Usage: flip2 installer pack [--flavor clean|full|image-post] [--sherpa-url name=url]\
+Usage: flip2 installer pack [--flavor clean|base|full|image-post] [--sherpa-url name=url]\
                         [--out DIR] [--no-zip]
 
 Build the single-shot flip2 Magisk installer zip. The zip is a real Magisk
 module whose one-shot service.sh runs at first boot as root: installs the
-bundled user APKs, unpacks the flip2 modules (full flavor), applies baked
+bundled user APKs, unpacks the flip2 modules (base/full flavors), applies baked
 settings, writes /data/local/flip2/deroot.sh, then removes itself.
 
-  --flavor clean|full|slim|image-post
+  --flavor clean|base|full|slim|image-post
                         clean = root-independent user APKs + settings (de-root friendly)
+                        base = wizard Base profile (FlipMouse, no Arcade/Astro Loop) + Sherpa
                         full = modules + everything + bundled Sherpa STT (default)
                         slim = same as full without bundled voice models (~200 MiB smaller)
                         image-post = after Tier A flash: GPL sideloads + IME settings only
@@ -51,7 +52,7 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
 done
-case "$FLAVOR" in clean|full|slim|image-post) ;; *) echo "--flavor must be clean, full, slim, or image-post" >&2; exit 1 ;; esac
+case "$FLAVOR" in clean|base|full|slim|image-post) ;; *) echo "--flavor must be clean, base, full, slim, or image-post" >&2; exit 1 ;; esac
 
 # slim uses full-tier manifest rows; payload flavor.txt stays "slim".
 MANIFEST_FLAVOR="$FLAVOR"
@@ -184,7 +185,7 @@ done <<< "$ROWS"
 # Sherpa-ONNX: bundle prefetched tarballs on full/clean; else --sherpa-url or wizard push.
 SHERPA_JSON="$ROOT/pipeline/deploy/sherpa-models.json"
 SRC="$ROOT/pipeline/deploy/sources"
-if [[ -f "$SHERPA_JSON" ]] && [[ "$FLAVOR" == full || "$FLAVOR" == clean ]]; then
+if [[ -f "$SHERPA_JSON" ]] && [[ "$FLAVOR" == full || "$FLAVOR" == base || "$FLAVOR" == clean ]]; then
   while IFS=$'\t' read -r inst file; do
     [[ -n "$inst" && -n "$file" ]] || continue
     if [[ -f "$SRC/$file" ]]; then

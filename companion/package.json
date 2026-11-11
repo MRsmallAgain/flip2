@@ -8,13 +8,16 @@
   "scripts": {
     "start": "electron .",
     "start:safe": "ELECTRON_DISABLE_GPU=1 electron . --disable-gpu --disable-gpu-compositing",
+    "sync:icons": "node scripts/rasterize-wizard-icon.mjs",
     "fetch:platform-tools:win": "node scripts/fetch-platform-tools-win.mjs",
-    "prepack:win": "npm run fetch:platform-tools:win",
+    "prepack:win": "npm run sync:icons && npm run fetch:platform-tools:win",
+    "prepack:linux": "npm run sync:icons",
     "pack:win": "electron-builder --win --x64",
     "pack:linux": "electron-builder --linux",
     "dist": "electron-builder"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
     "unzipper": "^0.12.3"
@@ -43,10 +46,14 @@
       {
         "from": "platform-tools-win",
         "to": "platform-tools",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
+    "icon": "icons/icon.png",
     "win": {
+      "icon": "icons/icon.png",
       "target": [
         "nsis",
         "portable"
@@ -54,6 +61,7 @@
       "artifactName": "flip2-companion-${version}-win-${arch}.${ext}"
     },
     "linux": {
+      "icon": "icons/icon.png",
       "target": [
         "AppImage",
         "dir"

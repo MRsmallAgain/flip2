@@ -13,6 +13,7 @@
       "rootless_survives_deroot": false,
       "reboot": true,
       "tiers": [
+        "base",
         "full",
         "image"
       ],
@@ -29,6 +30,7 @@
       "rootless_survives_deroot": false,
       "reboot": true,
       "tiers": [
+        "base",
         "full",
         "image"
       ],
@@ -45,6 +47,7 @@
       "rootless_survives_deroot": false,
       "reboot": false,
       "tiers": [
+        "base",
         "full",
         "image"
       ],
@@ -79,6 +82,7 @@
       "rootless_survives_deroot": false,
       "reboot": true,
       "tiers": [
+        "base",
         "full",
         "image"
       ],
@@ -95,6 +99,7 @@
       "rootless_survives_deroot": false,
       "reboot": true,
       "tiers": [
+        "base",
         "full",
         "image"
       ],
@@ -112,6 +117,7 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
         "image"
@@ -133,6 +139,7 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
         "image",
@@ -170,6 +177,7 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
         "image-post"
@@ -193,6 +201,7 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
         "image-post"
@@ -217,10 +226,11 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
-        "wizard",
-        "image"
+        "image",
+        "wizard"
       ],
       "install_order": 86,
       "image_preload": {
@@ -244,10 +254,11 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
-        "wizard",
-        "image"
+        "image",
+        "wizard"
       ],
       "install_order": 87,
       "image_preload": {
@@ -299,11 +310,12 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
-        "wizard",
         "image",
-        "image-post"
+        "image-post",
+        "wizard"
       ],
       "install_order": 88,
       "image_preload": {
@@ -327,11 +339,12 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
-        "wizard",
         "image",
-        "image-post"
+        "image-post",
+        "wizard"
       ],
       "install_order": 89,
       "notes": "Minimal F-Droid client (replaces full F-Droid in the build kit).",
@@ -356,11 +369,12 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
-        "wizard",
         "image",
-        "image-post"
+        "image-post",
+        "wizard"
       ],
       "install_order": 91,
       "image_preload": {
@@ -384,11 +398,12 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
-        "wizard",
         "image",
-        "image-post"
+        "image-post",
+        "wizard"
       ],
       "install_order": 92,
       "notes": "F-Droid org.videolan.vlc_13050404 (3.5.x) includes armeabi-v7a; newer suggested builds are arm64-only on F-Droid.",
@@ -411,6 +426,7 @@
       "rootless_survives_deroot": true,
       "reboot": false,
       "tiers": [
+        "base",
         "clean",
         "full",
         "image"
@@ -427,6 +443,7 @@
       "rootless_survives_deroot": true,
       "reboot": true,
       "tiers": [
+        "base",
         "clean",
         "full",
         "image"
@@ -447,6 +464,7 @@
       "rootless_survives_deroot": true,
       "reboot": true,
       "tiers": [
+        "base",
         "clean",
         "full",
         "image"
@@ -523,8 +541,9 @@
     "image-post": "Tier B after Tier A flash — GPL sideloads + IME settings + deroot helper; no duplicate modules/APKs",
     "clean": "Tier B clean — user APKs + settings only; installer self-removes; de-root friendly",
     "full": "Tier B full / Tier C — everything, root required",
-    "bundle": "Tier D — per-component zips + APKs + SHA256SUMS"
+    "bundle": "Tier D — per-component zips + APKs + SHA256SUMS",
+    "base": "Tier B base — wizard Base profile: FlipMouse (not Arcade), no Astro Loop; modules + Sherpa like full"
   },
-  "version": "1.3.0-alpha.4-flip2",
-  "versionCode": 20261110
+  "version": "1.3.0-alpha.5-flip2",
+  "versionCode": 20261111
 }

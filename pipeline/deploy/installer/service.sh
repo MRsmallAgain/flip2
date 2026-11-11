@@ -91,8 +91,8 @@ if [ -f "$MOD/payload/data/external-apks.txt" ]; then
   done < "$MOD/payload/data/external-apks.txt"
 fi
 
-# --- flip2 Magisk modules (full flavor only) -------------------------------
-if [ "$FLAVOR" = full ] && [ -f "$MOD/payload/data/modules.txt" ]; then
+# --- flip2 Magisk modules (base / full: rooted module unpack) ------------
+if { [ "$FLAVOR" = full ] || [ "$FLAVOR" = base ]; } && [ -f "$MOD/payload/data/modules.txt" ]; then
   # Stop the running FlipMouse supervisor + daemon first: unzip cannot replace
   # the executing mouse binary (Text file busy).
   pkill -f 'FlipMouse/service.sh' 2>/dev/null

@@ -1,7 +1,7 @@
 {
   "$comment": "Flip2 setup wizard download catalog. Every hash below was computed from the real upstream file (sha256sum), not guessed; sizes are exact byte counts. The browser verifies each download with WebCrypto SHA-256 against these pins before anything is pushed to the phone. Nothing in this catalog is stored in the repo or attached to releases \u2014 these are pointers to upstream artifacts.",
-  "version": "1.3.0-alpha.4-flip2",
-  "pinned": "2026-11-10",
+  "version": "1.3.0-alpha.5-flip2",
+  "pinned": "2026-11-11",
   "files": [
     {
       "id": "neutron",
