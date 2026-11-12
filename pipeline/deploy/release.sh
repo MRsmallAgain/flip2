@@ -21,17 +21,20 @@ Create github.com/MRsmallAgain/flip2 release v<manifest.version> from:
 
 Pack first: flip2 installer pack --flavor clean|base|full|slim|image-post; flip2 pack-all; flip2 image build-tree
 
-  --dry-run   Print gh release create command only
+  --dry-run   Print gh release create + site deploy commands only
   --notes     Release notes markdown file (required unless --dry-run)
+  --skip-site Skip flip2burn.online sync after GitHub publish (default: deploy site)
 EOF
 }
 
 DRY=0
 NOTES=""
+SKIP_SITE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1; shift ;;
     --notes) NOTES="${2:-}"; shift 2 ;;
+    --skip-site) SKIP_SITE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -67,7 +70,12 @@ fi
 
 if [[ "$DRY" -eq 1 ]]; then
   echo "gh release create \"$TAG\" --target master --title \"flip2 toolkit $TAG\" --notes-file NOTES \\"
-  printf '  %q \\\n' "${ASSETS[@]}"
+  printf '  %q \\n' "${ASSETS[@]}"
+  if [[ "$SKIP_SITE" -eq 0 ]]; then
+    echo "then: \"$ROOT/pipeline/deploy/deploy-site.sh\""
+  else
+    echo "(site deploy skipped)"
+  fi
   exit 0
 fi
 
@@ -78,3 +86,7 @@ fi
 
 gh release create "$TAG" --target master --title "flip2 toolkit $TAG" --notes-file "$NOTES" "${ASSETS[@]}"
 echo "Published $TAG"
+
+if [[ "$SKIP_SITE" -eq 0 ]]; then
+  "$ROOT/pipeline/deploy/deploy-site.sh"
+fi

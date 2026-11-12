@@ -38,7 +38,8 @@ Commands:
   deroot             Remove flip2 root components; keep user APKs + settings
   image <sub>        Base image: prepare | build-tree
   wizard <sub>       Setup wizard device scripts: render | check
-  release            Publish GitHub release from packed dist
+  release            Publish GitHub release + sync flip2burn.online (see --skip-site)
+  site <sub>         flip2burn.online wizard hosting: deploy
   source <sub>       Fetch external APK sources: fetch
 
 Environment:
@@ -417,6 +418,18 @@ case "$cmd" in
     ;;
   release)
     exec "$FLIP2_ROOT/pipeline/deploy/release.sh" "$@"
+    ;;
+  site)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      deploy) exec "$FLIP2_ROOT/pipeline/deploy/deploy-site.sh" "$@" ;;
+      help|-h|--help)
+        echo "Usage: flip2 site deploy [--dry-run] [--skip-gen]"
+        echo "  Sync wizard/ to https://flip2burn.online/ (also runs at end of flip2 release)."
+        ;;
+      *) echo "Unknown site subcommand: $sub" >&2; exit 1 ;;
+    esac
     ;;
   source)
     sub="${1:-help}"

@@ -53,7 +53,7 @@ Push `master` first. Pack assets, write release notes, then:
 flip2 release --notes /tmp/flip2-notes.md
 ```
 
-This wraps `gh release create "v<version>" --target master` with the five dist assets (both installer zips, packages zip, system-tree zip, SHA256SUMS). Use `flip2 release --dry-run` to print the command without uploading.
+This runs `gh release create "v<version>" --target master` with dist assets, then **`flip2 site deploy`** (regenerate push-manifest JS, `aws s3 sync wizard/`, CloudFront `/*` invalidation) so https://flip2burn.online/ catalog/pins match the tag. Use `flip2 release --skip-site` only when AWS is unavailable. Use `flip2 release --dry-run` to print both steps without uploading. Manual site-only refresh: `flip2 site deploy`.
 
 Match the v1.0.0 notes: a verify snippet (`sha256sum -c SHA256SUMS`), the four-tier table, and the "not included" list. Forkgram stays a separate GPL release (`flip2-13.0.2.0-r1`); the full installer downloads it. **Sherpa-ONNX** tarballs (EN + UK) are not bundled in the zip — fetch via wizard catalog or `flip2 ime sherpa` / `--sherpa-url` on pack. Say what was actually verified on the 4058G. Do not claim the cursor hold grabs the keypad unless a new on-device test showed the arrow swallowed.
 

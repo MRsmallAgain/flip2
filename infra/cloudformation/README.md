@@ -53,6 +53,10 @@ aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/*"
 
 **Entry URL:** https://flip2burn.online/ (maps to `pages/index.html`).
 
+## Release cycle (automatic)
+
+After each `flip2 release --notes …`, **`pipeline/deploy/deploy-site.sh`** runs automatically (unless `--skip-site`): runs `gen-pipeline-js.sh`, syncs `wizard/` to the stack bucket, invalidates CloudFront. Same as `flip2 site deploy`. Requires AWS CLI and stack `flip2burn-site` in `us-east-1`.
+
 ## Parameters
 
 | Parameter | Default | Notes |
