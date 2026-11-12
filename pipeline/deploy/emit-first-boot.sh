@@ -51,3 +51,20 @@ HOME_ACT="$(jq -r '.components[] | select(.name=="launcher4") | .home_activity /
 if [[ -n "$HOME_ACT" ]]; then
   printf "cmd package set-home-activity %s\n" "$HOME_ACT"
 fi
+
+echo ""
+echo "# --- gamepad.conf (image_policy.block_cursor_hold) ---"
+PKGS="$(jq -r '
+  [.components[]
+   | select((.tiers | index("image")) or (.tiers | index("full")))
+   | select(.image_policy.block_cursor_hold == true)
+   | .package
+   | select(. != null and . != "")] | unique | join(",")' "$MANIFEST")"
+if [[ -n "$PKGS" ]]; then
+  printf "mkdir -p /data/local/flip2\n"
+  printf "GP=/data/local/flip2/gamepad.conf\n"
+  printf '[ ! -f "$GP" ] && printf '\''landscape_auto=1\nenabled=0\n'\'' > "$GP"\n'
+  printf 'sed -i '\''/^block_cursor_toggle_packages=/d'\'' "$GP" 2>/dev/null || true\n'
+  printf 'echo '\''block_cursor_toggle_packages=%s'\'' >> "$GP"\n' "$PKGS"
+  printf 'chmod 0664 "$GP" 2>/dev/null || true\n'
+fi

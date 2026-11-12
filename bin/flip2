@@ -229,9 +229,24 @@ case "$cmd" in
         echo "  release [--no-install] [--uninstall]"
         echo "      Download, verify, and install the hosted patch build."
         echo "  Telegram owns hardware BACK, so the IME cannot delete there; the patch"
-        echo "  makes BACK delete in focused text fields. See pipeline/forkgram/README.md."
+        echo "  makes BACK delete in focused text fields and improves D-pad list focus."
+        echo "  See pipeline/forkgram/README.md."
         ;;
       *) echo "Unknown forkgram subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  newpipe)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      patch) exec "$FLIP2_ROOT/pipeline/newpipe/patch-newpipe.sh" "$@" ;;
+      help|-h|--help)
+        echo "Usage: flip2 newpipe {patch}"
+        echo "  patch [--apk PATH] [--no-install] [--uninstall]"
+        echo "      Build D-pad focus patch from F-Droid 0.27.7 / v1015 or device APK."
+        echo "  See pipeline/newpipe/README.md."
+        ;;
+      *) echo "Unknown newpipe subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;
   astro-loop)
@@ -246,6 +261,34 @@ case "$cmd" in
         echo "  D-pad/gamepad supported upstream; see pipeline/astro-loop/README.md."
         ;;
       *) echo "Unknown astro-loop subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  bouncy)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      patch) exec "$FLIP2_ROOT/pipeline/bouncy/patch-bouncy.sh" "$@" ;;
+      release) exec "$FLIP2_ROOT/pipeline/bouncy/release.sh" "$@" ;;
+      install)
+        if [ "${1:-}" = "--fdroid" ]; then
+          shift
+          exec "$FLIP2_ROOT/pipeline/bouncy/install-fdroid.sh" "$@"
+        fi
+        exec "$FLIP2_ROOT/pipeline/bouncy/install-patched.sh" "$@"
+        ;;
+      help|-h|--help)
+        echo "Usage: flip2 bouncy {patch|release|install}"
+        echo "  patch [--apk PATH] [--no-install] [--work DIR]"
+        echo "      Build Flip 2 controls patch (D-pad + SOFT_LEFT/SOFT_RIGHT flippers; never swapped)."
+        echo "  release"
+        echo "      Copy signed build to pipeline/deploy/sources (wizard/installer pin)."
+        echo "  install [--no-install] [--work DIR]"
+        echo "      Patch, sign, and adb install (debug signature; uninstall F-Droid first if clash)."
+        echo "  install --fdroid [--no-install]"
+        echo "      Stock F-Droid v43 only."
+        echo "  See pipeline/bouncy/README.md."
+        ;;
+      *) echo "Unknown bouncy subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;
   navoverlay)

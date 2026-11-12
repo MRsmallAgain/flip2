@@ -1,0 +1,267 @@
+--- smali/com/dozingcatsoftware/bouncy/FieldViewManager.smali
++++ smali/com/dozingcatsoftware/bouncy/FieldViewManager.smali
+@@ -54,6 +54,8 @@
+ 
+ .field private final handler:Landroid/os/Handler;
+ 
++.field flip2ResetScoreUnlimited:Z
++
+ .field independentFlippers:Z
+ 
+ .field private leftFlipperActivationMillis:Ljava/lang/Long;
+@@ -69,7 +71,7 @@
+ 
+ # direct methods
+ .method static constructor <clinit>()V
+-    .locals 8
++    .locals 10
+ 
+     const/16 v0, 0x36
+ 
+@@ -90,92 +92,120 @@
+ 
+     move-result-object v2
+ 
+-    const/4 v3, 0x3
++    const/4 v3, 0x1
++
++    invoke-static {v3}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v3
+ 
+-    new-array v4, v3, [Ljava/lang/Integer;
++    const/4 v4, 0x4
+ 
+-    const/4 v5, 0x0
++    new-array v5, v4, [Ljava/lang/Integer;
+ 
+-    aput-object v0, v4, v5
++    const/4 v6, 0x0
++
++    aput-object v0, v5, v6
+ 
+     const/4 v0, 0x1
+ 
+-    aput-object v1, v4, v0
++    aput-object v1, v5, v0
+ 
+     const/4 v1, 0x2
+ 
+-    aput-object v2, v4, v1
++    aput-object v2, v5, v1
++
++    const/4 v1, 0x3
++
++    aput-object v3, v5, v1
+ 
+     .line 302
+-    invoke-static {v4}, Ljava/util/Arrays;->asList([Ljava/lang/Object;)Ljava/util/List;
++    invoke-static {v5}, Ljava/util/Arrays;->asList([Ljava/lang/Object;)Ljava/util/List;
+ 
+-    move-result-object v2
++    move-result-object v1
+ 
+-    sput-object v2, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->LEFT_FLIPPER_KEYS:Ljava/util/List;
++    sput-object v1, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->LEFT_FLIPPER_KEYS:Ljava/util/List;
+ 
+-    const/16 v2, 0x4c
++    const/16 v1, 0x4c
+ 
+     .line 305
++    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v1
++
++    const/16 v2, 0x16
++
+     invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+ 
+     move-result-object v2
+ 
+-    const/16 v4, 0x16
++    const/16 v3, 0x67
++
++    invoke-static {v3}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v3
+ 
+-    invoke-static {v4}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    const/4 v5, 0x2
+ 
+-    move-result-object v4
++    invoke-static {v5}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+ 
+-    const/16 v6, 0x67
++    move-result-object v5
+ 
+-    invoke-static {v6}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    new-array v7, v4, [Ljava/lang/Integer;
+ 
+-    move-result-object v6
++    aput-object v1, v7, v6
+ 
+-    new-array v7, v3, [Ljava/lang/Integer;
++    aput-object v2, v7, v0
+ 
+-    aput-object v2, v7, v5
++    const/4 v0, 0x2
+ 
+-    aput-object v4, v7, v0
++    aput-object v3, v7, v0
+ 
+-    aput-object v6, v7, v1
++    const/4 v0, 0x3
++
++    aput-object v5, v7, v0
+ 
+     .line 304
+     invoke-static {v7}, Ljava/util/Arrays;->asList([Ljava/lang/Object;)Ljava/util/List;
+ 
+-    move-result-object v2
++    move-result-object v0
+ 
+-    sput-object v2, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->RIGHT_FLIPPER_KEYS:Ljava/util/List;
++    sput-object v0, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->RIGHT_FLIPPER_KEYS:Ljava/util/List;
+ 
+-    const/16 v2, 0x3e
++    const/16 v1, 0x3e
+ 
+     .line 307
++    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v1
++
++    const/16 v2, 0x42
++
+     invoke-static {v2}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+ 
+     move-result-object v2
+ 
+-    const/16 v4, 0x42
++    const/16 v3, 0x17
+ 
+-    invoke-static {v4}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    invoke-static {v3}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+ 
+-    move-result-object v4
++    move-result-object v3
+ 
+-    const/16 v6, 0x17
++    const/4 v4, 0x3
+ 
+-    invoke-static {v6}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    new-array v5, v4, [Ljava/lang/Integer;
+ 
+-    move-result-object v6
++    aput-object v1, v5, v6
+ 
+-    new-array v3, v3, [Ljava/lang/Integer;
++    const/4 v0, 0x1
+ 
+-    aput-object v2, v3, v5
++    aput-object v2, v5, v0
+ 
+-    aput-object v4, v3, v0
++    const/4 v0, 0x2
+ 
+-    aput-object v6, v3, v1
++    aput-object v3, v5, v0
+ 
+     .line 306
+-    invoke-static {v3}, Ljava/util/Arrays;->asList([Ljava/lang/Object;)Ljava/util/List;
++    invoke-static {v5}, Ljava/util/Arrays;->asList([Ljava/lang/Object;)Ljava/util/List;
+ 
+     move-result-object v0
+ 
+@@ -1334,7 +1364,7 @@
+ .end method
+ 
+ .method launchBallIfNeeded()V
+-    .locals 3
++    .locals 4
+ 
+     .line 147
+     iget-object v0, p0, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->field:Lcom/dozingcatsoftware/vectorpinball/model/Field;
+@@ -1351,6 +1381,27 @@
+ 
+     .line 150
+     :cond_0
++    iget-boolean v0, p0, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->flip2ResetScoreUnlimited:Z
++
++    if-eqz v0, :cond_1
++
++    iget-object v0, p0, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->field:Lcom/dozingcatsoftware/vectorpinball/model/Field;
++
++    invoke-virtual {v0}, Lcom/dozingcatsoftware/vectorpinball/model/Field;->getGameState()Lcom/dozingcatsoftware/vectorpinball/model/GameState;
++
++    move-result-object v1
++
++    invoke-virtual {v1}, Lcom/dozingcatsoftware/vectorpinball/model/GameState;->hasUnlimitedBalls()Z
++
++    move-result v2
++
++    if-eqz v2, :cond_1
++
++    const-wide/16 v2, 0x0
++
++    invoke-virtual {v1, v2, v3}, Lcom/dozingcatsoftware/vectorpinball/model/GameState;->setScore(J)V
++
++    :cond_1
+     iget-object v0, p0, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->field:Lcom/dozingcatsoftware/vectorpinball/model/Field;
+ 
+     invoke-virtual {v0}, Lcom/dozingcatsoftware/vectorpinball/model/Field;->launchBallIfNeeded()Z
+@@ -1375,6 +1426,14 @@
+ 
+     return-void
+ .end method
++
++.method public setFlip2ResetScoreUnlimited(Z)V
++    .locals 0
++
++    iput-boolean p1, p0, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->flip2ResetScoreUnlimited:Z
++
++    return-void
++.end method
+ 
+ .method public setIndependentFlippers(Z)V
+     .locals 0
+--- smali/com/dozingcatsoftware/bouncy/BouncyActivity.smali
++++ smali/com/dozingcatsoftware/bouncy/BouncyActivity.smali
+@@ -3331,6 +3331,16 @@
+ 
+     invoke-virtual {v1, v2}, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->setIndependentFlippers(Z)V
+ 
++    const-string v2, "flip2_reset_score_unlimited"
++
++    const/4 v3, 0x0
++
++    invoke-interface {v0, v2, v3}, Landroid/content/SharedPreferences;->getBoolean(Ljava/lang/String;Z)Z
++
++    move-result v2
++
++    invoke-virtual {v1, v2}, Lcom/dozingcatsoftware/bouncy/FieldViewManager;->setFlip2ResetScoreUnlimited(Z)V
++
+     .line 626
+     iget-object v1, p0, Lcom/dozingcatsoftware/bouncy/BouncyActivity;->scoreView:Lcom/dozingcatsoftware/bouncy/ScoreView;
+ 
+--- res/xml/preferences.xml
++++ res/xml/preferences.xml
+@@ -5,6 +5,7 @@
+         <CheckBoxPreference android:enabled="true" android:title="@string/sound_pref_title" android:key="sound" android:defaultValue="true" />
+         <CheckBoxPreference android:enabled="true" android:title="@string/music_pref_title" android:key="music" android:defaultValue="true" />
+         <CheckBoxPreference android:enabled="true" android:title="@string/haptic_feedback_pref_title" android:key="haptic" android:defaultValue="false" />
++        <CheckBoxPreference android:enabled="true" android:title="@string/flip2_reset_score_unlimited_pref_title" android:key="flip2_reset_score_unlimited" android:defaultValue="false" android:summary="@string/flip2_reset_score_unlimited_pref_summary" />
+         <CheckBoxPreference android:enabled="true" android:title="@string/independent_flippers_pref_title" android:key="independentFlippers" android:defaultValue="true" android:summaryOn="@string/independent_flippers_pref_summary_on" android:summaryOff="@string/independent_flippers_pref_summary_off" />
+         <CheckBoxPreference android:enabled="true" android:title="@string/zoom_pref_title" android:key="zoom" android:defaultValue="true" />
+         <ListPreference android:entries="@array/game_speed_pref_entries" android:title="@string/game_speed_pref_title" android:key="gameSpeed" android:defaultValue="normal" android:entryValues="@array/game_speed_pref_values" />
+--- res/values/strings.xml
++++ res/values/strings.xml
+@@ -47,6 +47,8 @@
+     <string name="end_game_button_label">End Game</string>
+     <string name="extra_ball_received_message">Extra Ball!</string>
+     <string name="game_over_message">Game Over</string>
++    <string name="flip2_reset_score_unlimited_pref_title">Reset score each ball (unlimited mode)</string>
++    <string name="flip2_reset_score_unlimited_pref_summary">When Unlimited Balls is on, set score to zero every time a new ball is launched.</string>
+     <string name="game_speed_pref_title">Game speed</string>
+     <string name="green_ramp_bonus_message">Green ramp +%1$d%%</string>
+     <string name="hand_bonus_increased_message">Hand bonus increased</string>

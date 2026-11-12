@@ -94,6 +94,82 @@
 #define POUND_CODE 523
 #define DEL_CODE 138
 
+static char cfg_block_cursor_pkgs[512];
+
+static void cfg_load_block_cursor(void)
+{
+  FILE *f = fopen(GAMEPAD_CONFIG, "r");
+  cfg_block_cursor_pkgs[0] = '\0';
+  if (!f)
+    return;
+  char line[256];
+  while (fgets(line, sizeof line, f))
+  {
+    if (strncmp(line, "block_cursor_toggle_packages=", 29) == 0)
+    {
+      char *val = line + 29;
+      size_t n = strcspn(val, "\r\n");
+      if (n >= sizeof cfg_block_cursor_pkgs)
+        n = sizeof cfg_block_cursor_pkgs - 1;
+      memcpy(cfg_block_cursor_pkgs, val, n);
+      cfg_block_cursor_pkgs[n] = '\0';
+    }
+  }
+  fclose(f);
+}
+
+static int focus_line_has_blocklisted_pkg(const char *buf)
+{
+  const char *pkg = cfg_block_cursor_pkgs;
+  for (;;)
+  {
+    const char *comma = strchr(pkg, ',');
+    size_t len = comma ? (size_t)(comma - pkg) : strlen(pkg);
+    if (len > 0 && len < 200)
+    {
+      char name[200];
+      memcpy(name, pkg, len);
+      name[len] = '\0';
+      if (strstr(buf, name))
+        return 1;
+    }
+    if (!comma)
+      break;
+    pkg = comma + 1;
+  }
+  return 0;
+}
+
+static int foreground_in_blocklist(void)
+{
+  if (!cfg_block_cursor_pkgs[0])
+    return 0;
+  const char *cmds[] = {
+      "dumpsys activity activities 2>/dev/null | grep ResumedActivity | head -1",
+      "dumpsys window 2>/dev/null | grep mCurrentFocus | grep -v 'mCurrentFocus=null' | head -1",
+      NULL};
+  for (int i = 0; cmds[i]; i++)
+  {
+    FILE *p = popen(cmds[i], "r");
+    if (!p)
+      continue;
+    char buf[512];
+    int hit = 0;
+    if (fgets(buf, sizeof buf, p) && focus_line_has_blocklisted_pkg(buf))
+      hit = 1;
+    pclose(p);
+    if (hit)
+      return 1;
+  }
+  return 0;
+}
+
+static int cursor_hold_blocked(void)
+{
+  cfg_load_block_cursor();
+  return foreground_in_blocklist();
+}
+
 /* Event action return codes */
 typedef enum
 {
@@ -683,7 +759,7 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
         long long held = now_ms() - app_state.mouse.softhold_since;
         app_state.mouse.softhold_since = 0;
         log_message("softkey held %lldms (passive)", held);
-        if (held >= HOLD_TOGGLE_MS)
+        if (held >= HOLD_TOGGLE_MS && !cursor_hold_blocked())
           mouse_activate();
       }
     }

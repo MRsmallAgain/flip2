@@ -153,6 +153,7 @@ typedef struct
   input_mode_t mode;
   int cfg_manual_gp;
   int cfg_landscape_auto;
+  char cfg_block_cursor_pkgs[512];
   int landscape_cursor_override;
   long long last_landscape_poll;
   FILE *log_fp;
@@ -395,6 +396,7 @@ static void cfg_load_gamepad(void)
   FILE *f = fopen(GAMEPAD_CONFIG, "r");
   app_state.cfg_manual_gp = 0;
   app_state.cfg_landscape_auto = 1;
+  app_state.cfg_block_cursor_pkgs[0] = '\0';
   if (!f)
     return;
   char line[256];
@@ -402,8 +404,17 @@ static void cfg_load_gamepad(void)
   {
     if (strncmp(line, "enabled=", 8) == 0)
       app_state.cfg_manual_gp = (line[8] == '1');
-    if (strncmp(line, "landscape_auto=", 15) == 0)
+    else if (strncmp(line, "landscape_auto=", 15) == 0)
       app_state.cfg_landscape_auto = (line[15] == '1');
+    else if (strncmp(line, "block_cursor_toggle_packages=", 29) == 0)
+    {
+      char *val = line + 29;
+      size_t n = strcspn(val, "\r\n");
+      if (n >= sizeof app_state.cfg_block_cursor_pkgs)
+        n = sizeof app_state.cfg_block_cursor_pkgs - 1;
+      memcpy(app_state.cfg_block_cursor_pkgs, val, n);
+      app_state.cfg_block_cursor_pkgs[n] = '\0';
+    }
   }
   fclose(f);
 }
@@ -422,6 +433,58 @@ static int landscape_now(void)
   }
   pclose(p);
   return land;
+}
+
+static int focus_line_has_blocklisted_pkg(const char *buf)
+{
+  const char *pkg = app_state.cfg_block_cursor_pkgs;
+  for (;;)
+  {
+    const char *comma = strchr(pkg, ',');
+    size_t len = comma ? (size_t)(comma - pkg) : strlen(pkg);
+    if (len > 0 && len < 200)
+    {
+      char name[200];
+      memcpy(name, pkg, len);
+      name[len] = '\0';
+      if (strstr(buf, name))
+        return 1;
+    }
+    if (!comma)
+      break;
+    pkg = comma + 1;
+  }
+  return 0;
+}
+
+static int foreground_in_blocklist(void)
+{
+  if (!app_state.cfg_block_cursor_pkgs[0])
+    return 0;
+  const char *cmds[] = {
+      "dumpsys activity activities 2>/dev/null | grep ResumedActivity | head -1",
+      "dumpsys window 2>/dev/null | grep mCurrentFocus | grep -v 'mCurrentFocus=null' | head -1",
+      NULL};
+  for (int i = 0; cmds[i]; i++)
+  {
+    FILE *p = popen(cmds[i], "r");
+    if (!p)
+      continue;
+    char buf[512];
+    int hit = 0;
+    if (fgets(buf, sizeof buf, p) && focus_line_has_blocklisted_pkg(buf))
+      hit = 1;
+    pclose(p);
+    if (hit)
+      return 1;
+  }
+  return 0;
+}
+
+static int cursor_hold_blocked(void)
+{
+  cfg_load_gamepad();
+  return foreground_in_blocklist();
 }
 
 static input_mode_t mode_wanted(void)
@@ -953,7 +1016,7 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
       {
         long long held = now_ms() - app_state.mouse.softhold_since;
         app_state.mouse.softhold_since = 0;
-        if (held >= HOLD_TOGGLE_MS)
+        if (held >= HOLD_TOGGLE_MS && !cursor_hold_blocked())
           mouse_activate();
       }
     }
@@ -976,7 +1039,7 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
       {
         long long held = now_ms() - app_state.gamepad.right_hold_since;
         app_state.gamepad.right_hold_since = 0;
-        if (held >= HOLD_TOGGLE_MS)
+        if (held >= HOLD_TOGGLE_MS && !cursor_hold_blocked())
         {
           app_state.landscape_cursor_override = 1;
           sync_apply_mode();

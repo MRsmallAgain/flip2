@@ -2,6 +2,16 @@
 
 Curated assets and channel-ready markdown for public releases. Raw phone/wizard photos stay on your PC (`~/flip2-marketing-2026-11/`); only redacted or UI-safe files belong here.
 
+## v1.4.0-alpha.1
+
+| Asset | Use |
+|-------|-----|
+| Reuse `v1.3.0-alpha.3/phone-tour-publish/*` until refreshed | Phone tour / mosaic |
+
+**Copy:** `v1.4.0-alpha.1/copy/release-v1.4.0-alpha.1-supplement.md` — GitHub release body; Windows `.exe` primary path.
+
+**Release:** https://github.com/MRsmallAgain/flip2/releases/tag/v1.4.0-alpha.2-flip2
+
 ## v1.3.0-alpha.3
 
 | Asset | Use |

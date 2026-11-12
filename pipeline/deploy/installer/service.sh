@@ -135,6 +135,27 @@ apply_file "$MOD/payload/data/settings.txt"
 apply_file "$MOD/payload/data/appops.txt"
 apply_file "$MOD/payload/data/permissions.txt"
 
+# --- gamepad.conf (manifest image_policy.block_cursor_hold) ------------------
+if [ -f "$MOD/payload/data/gamepad.conf" ]; then
+  mkdir -p /data/local/flip2
+  GP=/data/local/flip2/gamepad.conf
+  if [ ! -f "$GP" ]; then
+    printf 'landscape_auto=1\nenabled=0\n' > "$GP"
+  fi
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    key="${line%%=*}"
+    case "$key" in
+    block_cursor_toggle_packages)
+      sed -i "/^block_cursor_toggle_packages=/d" "$GP" 2>/dev/null || true
+      echo "$line" >> "$GP"
+      echo "gamepad.conf: $line"
+      ;;
+    esac
+  done < "$MOD/payload/data/gamepad.conf"
+  chmod 0664 "$GP" 2>/dev/null
+fi
+
 # --- default HOME ----------------------------------------------------------
 if cmd package set-home-activity com.tim.flip2.launcher4/com.android.launcher3.Launcher >/dev/null 2>&1; then
   echo "HOME set to launcher4"

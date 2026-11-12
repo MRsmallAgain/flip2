@@ -795,6 +795,62 @@ table.safety-paths td:first-child {
   margin: 0 0 4px;
 }
 
+.get-ready-panel > summary.get-ready-summary {
+  cursor: pointer;
+  justify-content: flex-start;
+}
+
+.get-ready-summary .now-label {
+  flex-shrink: 0;
+}
+
+.get-ready-summary #strip-phone {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.get-ready-summary-msg {
+  flex: 0 1 auto;
+  max-width: 14rem;
+  font-size: 12px;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.get-ready-connect {
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.get-ready-connect.hidden {
+  display: none;
+}
+
+.strip-actions--prepare-download .strip-action-jump,
+.strip-actions--prepare-download .strip-action-udev,
+.strip-actions--prepare-download .strip-action-usb,
+.strip-actions--prepare-download .strip-action-refresh {
+  display: none;
+}
+
+.strip-actions--udev-only .strip-action-jump,
+.strip-actions--udev-only .strip-action-usb,
+.strip-actions--udev-only .strip-action-refresh {
+  display: none;
+}
+
+.strip-actions--usb-step .strip-action-jump,
+.strip-actions--usb-step .strip-action-udev {
+  display: none;
+}
+
+#step-download #credit-status-rows {
+  margin-bottom: 12px;
+}
+
 .step-compact {
   max-width: 52em;
 }

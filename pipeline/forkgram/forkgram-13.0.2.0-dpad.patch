@@ -1,0 +1,33 @@
+--- a/smali_classes3/org/telegram/ui/Components/mb1.smali
++++ b/smali_classes3/org/telegram/ui/Components/mb1.smali
+@@ -581,6 +581,13 @@
+     invoke-super {p0, p2}, Landroidx/recyclerview/widget/RecyclerView;->setOnScrollListener(Landroidx/recyclerview/widget/RecyclerView$t;)V
+ 
+     .line 37
++    # flip2: D-pad traverse Telegram list (RecyclerListView / mb1)
++    const/4 p2, 0x1
++    invoke-virtual {p0, p2}, Landroid/view/View;->setFocusable(Z)V
++    invoke-virtual {p0, p2}, Landroid/view/View;->setFocusableInTouchMode(Z)V
++    const/high16 p2, 0x40000
++    invoke-virtual {p0, p2}, Landroid/view/ViewGroup;->setDescendantFocusability(I)V
++
+     new-instance p2, Lorg/telegram/ui/Components/mb1$s;
+ 
+     invoke-direct {p2, p0, p1}, Lorg/telegram/ui/Components/mb1$s;-><init>(Lorg/telegram/ui/Components/mb1;Landroid/content/Context;)V
+--- a/smali_classes4/org/telegram/ui/LaunchActivity.smali
++++ b/smali_classes4/org/telegram/ui/LaunchActivity.smali
+@@ -84138,6 +84138,14 @@
+     .line 1
+     invoke-super {p0}, Landroidx/fragment/app/u;->onResume()V
+ 
++    # flip2: allow D-pad focus when hardware keys appear (Flip 2 keypad)
++    invoke-virtual {p0}, Landroid/app/Activity;->getWindow()Landroid/view/Window;
++    move-result-object v0
++    invoke-virtual {v0}, Landroid/view/Window;->getDecorView()Landroid/view/View;
++    move-result-object v0
++    const/4 v1, 0x1
++    invoke-virtual {v0, v1}, Landroid/view/View;->setFocusableInTouchMode(Z)V
++
+     .line 2
+     .line 3
+     .line 4

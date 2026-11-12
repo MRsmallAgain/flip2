@@ -2,36 +2,39 @@
 
 Windows checklist for **TCL Flip2 Manager** (Flip 2 Companion). Full step-by-step: [SETUP-WIZARD-DETAILED.md](SETUP-WIZARD-DETAILED.md). Read [SAFETY.md](SAFETY.md) first.
 
-## One-time PC setup
+## Primary install — Windows `.exe` (recommended)
 
-1. **Clone or download** [flip2](https://github.com/MRsmallAgain/flip2) (you need `companion/` and `wizard/` — the installer bundles both).
-2. **adb** — the **Windows installer** (NSIS/portable from `npm run pack:win`) bundles Google **Platform Tools** under the app’s `resources\platform-tools\` (`adb.exe` + USB DLLs). No separate adb install needed for Companion install/verify. Override with `FLIP2_ADB` if you use another copy.
-3. **From source on Windows** — run `npm run fetch:platform-tools:win` once in `companion/` (or let `npm run pack:win` do it via `prepack:win`); launchers set `FLIP2_ADB` to `companion\platform-tools-win\adb.exe` when present.
-4. **USB driver** — install [Google USB Driver](https://developer.android.com/studio/run/oem-usb#Drivers) (or OEM driver) so Device Manager shows the phone without a warning triangle when USB debugging is on.
-5. **Node.js** — only if you run from source instead of a release `.exe`.
+On Windows, use the **release installer** — not the browser wizard or a from-source `npm start` unless you are developing.
 
-## Run Companion
+1. Download **`flip2-companion-1.4.0-alpha.1-win-x64.exe`** (NSIS) or the portable **`.exe`** from this release on [GitHub Releases](https://github.com/MRsmallAgain/flip2/releases) (`Assets` → Windows installer or portable).
+2. Run the installer (or the portable `.exe`). Window title: **TCL Flip2 Manager**.
+3. **No separate adb install** — the app bundles Google **Platform Tools** under `resources\platform-tools\` (`adb.exe` + USB DLLs). Override only if needed with env var **`FLIP2_ADB`** pointing at another `adb.exe`.
+4. Install [Google USB Driver](https://developer.android.com/studio/run/oem-usb#Drivers) (or OEM driver) so Device Manager shows the phone without a warning triangle when USB debugging is on.
+5. Open **Set up** → follow **Prepare** (host adb for downloads, connect, install, verify). **Do not** run Linux udev steps on Windows.
 
-**Release installer** (after `npm run pack:win` on Windows or a published artifact):
-
-- Run `flip2-companion-*-win-x64.exe` (NSIS) or the portable build from `companion/dist/`.
-- Window title: **TCL Flip2 Manager**.
-
-**From source:**
-
-```powershell
-cd companion
-npm install
-npm start
-```
-
-Build installers:
+Build the same `.exe` yourself on a Windows PC:
 
 ```powershell
 cd companion
 npm install
 npm run pack:win
+# dist\flip2-companion-<version>-win-x64.exe (NSIS + portable)
 ```
+
+`prepack:win` fetches platform-tools into `companion\platform-tools-win\` automatically.
+
+## Run from source (optional)
+
+Only if you are hacking on Companion or no release `.exe` is published yet:
+
+```powershell
+cd companion
+npm install
+npm run fetch:platform-tools:win
+npm start
+```
+
+Launchers set `FLIP2_ADB` to `companion\platform-tools-win\adb.exe` when present. **Node.js** required.
 
 ## Prepare differences on Windows
 

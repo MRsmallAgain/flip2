@@ -246,6 +246,7 @@
     {
       "name": "bouncy",
       "artifact": "user-apk",
+      "build": "flip2 bouncy patch --no-install && flip2 bouncy release",
       "package": "com.dozingcatsoftware.bouncy",
       "incoming": "bouncy.apk",
       "label": "Bouncy Ball",
@@ -261,14 +262,17 @@
         "wizard"
       ],
       "install_order": 87,
+      "image_policy": {
+        "block_cursor_hold": true
+      },
       "image_preload": {
         "system_app_dir": "Bouncy",
         "source": "sources/com.dozingcatsoftware.bouncy_43.apk"
       },
       "external": {
-        "url": "https://f-droid.org/repo/com.dozingcatsoftware.bouncy_43.apk",
+        "note": "Flip2-patched v43 from pipeline/bouncy (F-Droid base + debug sign); F-Droid pin: sources/com.dozingcatsoftware.bouncy_43-fdroid.apk",
         "asset": "com.dozingcatsoftware.bouncy_43.apk",
-        "sha256": "ffda0d9cb0b1b2aa58be9559dda891c4fa24391bc481d297a8e3d96c31f62721"
+        "sha256": "8e1e0b394753291f2bfb0a1b7c7adb1fc543bd221baffea5a7845cd368031950"
       }
     },
     {
@@ -544,6 +548,6 @@
     "bundle": "Tier D — per-component zips + APKs + SHA256SUMS",
     "base": "Tier B base — wizard Base profile: FlipMouse (not Arcade), no Astro Loop; modules + Sherpa like full"
   },
-  "version": "1.3.0-alpha.5-flip2",
-  "versionCode": 20261111
+  "version": "1.4.0-alpha.2-flip2",
+  "versionCode": 20261112
 }

@@ -1,0 +1,43 @@
+--- a/smali/org/schabi/newpipe/MainActivity.smali
++++ b/smali/org/schabi/newpipe/MainActivity.smali
+@@ -4494,6 +4494,14 @@
+     .line 8
+     invoke-super {p0}, Landroidx/fragment/app/FragmentActivity;->onResume()V
+ 
++    # flip2: D-pad focus on hardware keypad (Flip 2)
++    invoke-virtual {p0}, Landroid/app/Activity;->getWindow()Landroid/view/Window;
++    move-result-object v0
++    invoke-virtual {v0}, Landroid/view/Window;->getDecorView()Landroid/view/View;
++    move-result-object v0
++    const/4 v1, 0x1
++    invoke-virtual {v0, v1}, Landroid/view/View;->setFocusableInTouchMode(Z)V
++
+     .line 9
+     .line 10
+     .line 11
+--- a/smali/org/schabi/newpipe/views/NewPipeRecyclerView.smali
++++ b/smali/org/schabi/newpipe/views/NewPipeRecyclerView.smali
+@@ -55,6 +55,7 @@
+     .line 20
+     .line 21
+     invoke-virtual {p0, p1}, Landroid/view/View;->setFocusable(Z)V
++    invoke-virtual {p0, p1}, Landroid/view/View;->setFocusableInTouchMode(Z)V
+ 
+     .line 22
+     .line 23
+@@ -98,6 +99,7 @@
+ 
+     .line 34
+     invoke-virtual {p0, p1}, Landroid/view/View;->setFocusable(Z)V
++    invoke-virtual {p0, p1}, Landroid/view/View;->setFocusableInTouchMode(Z)V
+ 
+     const/high16 p1, 0x40000
+ 
+@@ -134,6 +136,7 @@
+ 
+     .line 40
+     invoke-virtual {p0, p1}, Landroid/view/View;->setFocusable(Z)V
++    invoke-virtual {p0, p1}, Landroid/view/View;->setFocusableInTouchMode(Z)V
+ 
+     const/high16 p1, 0x40000
+ 

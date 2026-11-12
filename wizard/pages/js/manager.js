@@ -96,7 +96,7 @@ function initFrontNav() {
   for (n = 0; n < spans.length; n++) {
     spans[n].addEventListener('click', function () {
       var step = this.getAttribute('data-step');
-      showStep(step === 'prepare' ? 'credit' : step);
+      showStep(step);
     });
   }
 }
@@ -119,7 +119,7 @@ function initGettingStarted() {
         syncArcadeAcceptanceUi();
         return;
       }
-      showStep('credit');
+      showStep('prepare');
       return;
     }
     else if (step === 'profile') showStep('start');
@@ -238,8 +238,22 @@ function refreshPhone() {
   if (!N || !N.wizardHostAdbReady) {
     phoneHostRootState = null;
     setTier1RootPrereqVisible(false);
-    factRow(box, 'Companion', 'Open this page in the Flip 2 Companion app to read the phone.', 'wait');
-    setStatus('phone-msg', 'Host adb status needs Flip 2 Companion.', 'wait');
+    var hasWebUsb = typeof navigator !== 'undefined' && navigator.usb;
+    factRow(
+      box,
+      hasWebUsb ? 'Browser' : 'Desktop',
+      hasWebUsb
+        ? 'Host adb (Refresh, model, root) is only in Flip 2 Companion. Prepare → Connect → Pick phone uses WebUSB in Chrome.'
+        : 'Use Chrome on Linux for WebUSB, or Flip 2 Companion for host adb.',
+      'wait'
+    );
+    setStatus(
+      'phone-msg',
+      hasWebUsb
+        ? 'Not an error — use Companion for Refresh, or Set up → Connect for WebUSB.'
+        : 'Use Chrome or Flip 2 Companion.',
+      'wait'
+    );
     return;
   }
   setStatus('phone-msg', 'reading the phone\u2026', 'wait');
@@ -302,7 +316,7 @@ function refreshPhone() {
 
 function initPhone() {
   $('phone-refresh').addEventListener('click', refreshPhone);
-  $('phone-prepare').addEventListener('click', function () { showStep('credit'); });
+  $('phone-prepare').addEventListener('click', function () { showStep('download'); });
   var udevBtn = $('phone-udev');
   if (udevBtn) udevBtn.addEventListener('click', function () { showStep('udev'); });
   var usbBtn = $('phone-usb');

@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Patch Forkgram for the TCL Flip 2 null-keyboard setup.
 #
-# Adds BACK-to-delete in focused text fields and stops Telegram from hiding the
-# IME / pretending a hardware keyboard is present. See README.md in this dir.
+# Adds BACK-to-delete in focused text fields, IME visibility, and D-pad list focus.
+# See README.md in this dir.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 PKG="org.forkgram.classic"
 EXPECTED_VERSION="13.0.2.0"
-PATCH_FILE="$HERE/forkgram-$EXPECTED_VERSION-back.patch"
+PATCH_BACK="$HERE/forkgram-$EXPECTED_VERSION-back.patch"
+PATCH_DPAD="$HERE/forkgram-$EXPECTED_VERSION-dpad.patch"
 
 WORK="${WORK:-/tmp/forkgram-patch}"
 SRC_APK=""
@@ -125,8 +126,13 @@ java -jar "$APKTOOL" d -r -f -o "$DEC" "$SRC_APK" >"$WORK/decode.log" 2>&1 \
   || die "apktool decode failed (see $WORK/decode.log)"
 
 log "Applying BACK-to-delete / IME patches"
-if ! ( cd "$DEC" && patch -p1 --batch --forward < "$PATCH_FILE" ); then
-  die "patch did not apply — wrong Forkgram version? (expected $EXPECTED_VERSION)"
+if ! ( cd "$DEC" && patch -p1 --batch --forward < "$PATCH_BACK" ); then
+  die "back patch did not apply — wrong Forkgram version? (expected $EXPECTED_VERSION)"
+fi
+
+log "Applying D-pad / list focus patches"
+if ! ( cd "$DEC" && patch -p1 --batch --forward < "$PATCH_DPAD" ); then
+  die "dpad patch did not apply — wrong Forkgram version? (expected $EXPECTED_VERSION)"
 fi
 
 log "Building"

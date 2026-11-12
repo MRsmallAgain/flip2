@@ -125,3 +125,13 @@ while IFS='|' read -r _order name artifact zip apk pkg mid _erepo _etag _easset 
         printf "settings put %s %s '%s'\n" "$ns" "$key" "${val:-}"
       done >> "$DATA/settings.txt"
 done <<< "$ROWS"
+
+PKGS="$(jq -r --arg flavor "$EMIT_FLAVOR" '
+  [.components[]
+   | select([.tiers[]] | index($flavor))
+   | select(.image_policy.block_cursor_hold == true)
+   | .package
+   | select(. != null and . != "")] | unique | join(",")' "$MANIFEST")"
+if [[ -n "$PKGS" ]]; then
+  echo "block_cursor_toggle_packages=$PKGS" >> "$DATA/gamepad.conf"
+fi

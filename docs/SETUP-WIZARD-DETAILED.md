@@ -15,7 +15,7 @@ Step-by-step guide for **Prepare** (Set up) on **Linux**, **Windows**, and **mac
 | OS | Best experience |
 |----|-----------------|
 | Linux | **Flip 2 Companion** (`flip2 companion`) — udev one-click, host adb install/verify |
-| Windows | **Companion** installer or `npm start` from repo + **Platform Tools adb** on `PATH` |
+| Windows | **Release `flip2-companion-*-win-x64.exe`** from GitHub (bundled adb) — see [SETUP-WIZARD-WINDOWS.md](SETUP-WIZARD-WINDOWS.md) |
 | Any | Chrome + local HTTP server — WebUSB install (experimental vs Companion host adb) |
 
 Firefox does not support WebUSB; use Chrome or Companion.
@@ -41,19 +41,19 @@ export PATH="$HOME/.local/share/flip2/bin:$PATH"   # Linux; adjust path on Windo
 flip2 companion
 ```
 
-**Windows installer (after you build or download a release artifact):**
+**Windows (primary — release `.exe`):**
 
-1. Install [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) and add the folder containing `adb.exe` to your **user** `PATH`, or set env var `FLIP2_ADB` to the full path to `adb.exe`.
-2. Run `flip2-companion-*-win-x64.exe` (NSIS) or the portable `.exe` from `companion/dist/` after `npm run pack:win` on a Windows machine.
-3. Launch **TCL Flip2 Manager**.
+1. Download **`flip2-companion-*-win-x64.exe`** from [GitHub Releases](https://github.com/MRsmallAgain/flip2/releases) (NSIS installer or portable).
+2. Run the installer or portable `.exe`. Launch **TCL Flip2 Manager** — **adb is bundled**; no separate Platform Tools install unless you override with `FLIP2_ADB`.
+3. Install [Google USB Driver](https://developer.android.com/studio/run/oem-usb#Drivers) if Device Manager shows a warning on the phone.
 
-**Build Windows package (on Windows):**
+**Build Windows package (developers, on Windows):**
 
-```bash
+```powershell
 cd companion
 npm install
 npm run pack:win
-# Outputs: dist/flip2-companion-<version>-win-x64.exe (NSIS), portable .exe
+# dist\flip2-companion-<version>-win-x64.exe (NSIS + portable)
 ```
 
 The packaged app bundles `wizard/` under `resources/wizard`; you do not need a separate HTTP server.

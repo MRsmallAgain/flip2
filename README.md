@@ -17,10 +17,10 @@ Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voi
 
 Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Launcher3 RRO overlay**, and **recovery** after bad Magisk launcher experiments.
 
-**Latest:** [v1.3.0-alpha.5-flip2](https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.5-flip2) (public alpha). **Tier B `base`** installer matches wizard Base (FlipMouse, no Arcade/Astro Loop). Wizard: Arcade profile temporarily grayed out. Pack: `flip2 installer pack --flavor base|full|slim`. Screenshots, mosaic, and channel copy: **[docs/marketing/](docs/marketing/)**.
+**Latest:** [v1.4.0-alpha.2-flip2](https://github.com/MRsmallAgain/flip2/releases/tag/v1.4.0-alpha.2-flip2) (public alpha). Safest first install: **Tier B** `flip2-installer-full-magisk.zip` from that release (verify `SHA256SUMS`). **Tier B `base`** installer matches wizard Base (FlipMouse, no Arcade/Astro Loop). Pack: `flip2 installer pack --flavor base|full|slim`. **Windows:** **TCL Flip2 Manager** from release **`flip2-companion-*-win-x64.exe`** — [SETUP-WIZARD-WINDOWS.md](docs/SETUP-WIZARD-WINDOWS.md). Screenshots, mosaic, and channel copy: **[docs/marketing/](docs/marketing/)**.
 
 <p align="center">
-  <a href="https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.3-flip2">
+  <a href="https://github.com/MRsmallAgain/flip2/releases/tag/v1.4.0-alpha.2-flip2">
     <img src="docs/marketing/v1.3.0-alpha.3/phone-tour-publish/flip2-phone-tour-mosaic-banner.png" alt="TCL Flip 2 hardware, TCL Flip2 Manager companion, 27 passed check, Launcher4 UI, Forkgram, NewPipe, F-Droid, VLC" width="100%" />
   </a>
 </p>
@@ -40,7 +40,7 @@ cd wizard && python3 -m http.server 8000
 # Chrome → http://127.0.0.1:8000/pages/
 ```
 
-Prefer a desktop app? **`flip2 companion`** (window title **TCL Flip2 Manager**) serves the same pages with host adb install/verify; on Linux, one-click udev and auto USB pick. **Windows:** [SETUP-WIZARD-WINDOWS.md](docs/SETUP-WIZARD-WINDOWS.md) and `companion/` → `npm run pack:win`. **Step-by-step Prepare:** [SETUP-WIZARD-DETAILED.md](docs/SETUP-WIZARD-DETAILED.md). Hero hardware photo at [`wizard/assets/flip2-hero-phone.png`](wizard/assets/flip2-hero-phone.png). Branding: **[docs/branding/README.md](docs/branding/README.md)** · GitHub social preview: [`docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png`](docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png) in repo Settings.
+Prefer a desktop app? **`flip2 companion`** (window title **TCL Flip2 Manager**) serves the same pages with host adb install/verify; on Linux, one-click udev and auto USB pick. **Windows:** download the release **`flip2-companion-*-win-x64.exe`** (primary) — [SETUP-WIZARD-WINDOWS.md](docs/SETUP-WIZARD-WINDOWS.md). **Step-by-step Prepare:** [SETUP-WIZARD-DETAILED.md](docs/SETUP-WIZARD-DETAILED.md). Hero hardware photo at [`wizard/assets/flip2-hero-phone.png`](wizard/assets/flip2-hero-phone.png). Branding: **[docs/branding/README.md](docs/branding/README.md)** · GitHub social preview: [`docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png`](docs/marketing/v1.3.0-alpha.3/github-social-preview-2026-11.png) in repo Settings.
 
 **Quick start**
 

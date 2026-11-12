@@ -6,7 +6,7 @@
 //   CATALOG/loadCatalog/sha256Hex, ADBKEY, ADB, PIPE, PROFILES, BOOTROM.
 
 var ORDER = ['start', 'apps', 'prepare'];
-var PREPARE = ['credit', 'download', 'udev', 'usb', 'install', 'verify'];
+var PREPARE = ['download', 'udev', 'usb', 'install', 'verify'];
 var REACHED = { start: true };
 var VERIFIED = {};            // catalog id -> ArrayBuffer of a hash-checked file
 var INSTALL_SH = null;        // text of ../device/install.sh
@@ -18,13 +18,46 @@ function $(id) { return document.getElementById(id); }
 var shownStep = null;
 
 var PREPARE_LABELS = {
-  credit: 'Ready',
   download: 'Get files',
   udev: 'USB rules',
   usb: 'Connect',
   install: 'Put on phone',
   verify: 'Check'
 };
+
+function phoneReadyForGetReady() {
+  if (stripLastReady && stripLastReady.ok) return true;
+  if (!window.FLIP2_NATIVE && ADB.device) return true;
+  return false;
+}
+
+function updateGetReadyCollapse() {
+  var details = $('get-ready-details');
+  if (!details) return;
+  if (phoneReadyForGetReady()) details.removeAttribute('open');
+}
+
+function updateStripPhoneChrome(name) {
+  var actions = document.querySelector('.strip-phone-actions');
+  var facts = $('phone-facts');
+  var next = $('phone-next');
+  var connectBtn = $('get-ready-connect');
+  var inPrepare = PREPARE.indexOf(name) >= 0;
+  if (actions) {
+    actions.classList.toggle('strip-actions--prepare-download', name === 'download');
+    actions.classList.toggle('strip-actions--udev-only', name === 'udev');
+    actions.classList.toggle('strip-actions--usb-step', name === 'usb');
+  }
+  if (connectBtn && window.FLIP2_NATIVE) {
+    connectBtn.classList.add('hidden');
+  } else if (connectBtn) {
+    connectBtn.classList.remove('hidden');
+  }
+  if (facts && inPrepare && name === 'download') facts.classList.add('hidden');
+  else if (facts) facts.classList.remove('hidden');
+  if (next) next.classList.toggle('hidden', inPrepare && name === 'download');
+  updateGetReadyCollapse();
+}
 
 function updatePrepareStrip(name) {
   var row = $('strip-prepare');
@@ -33,16 +66,18 @@ function updatePrepareStrip(name) {
   var idx = PREPARE.indexOf(name);
   if (idx < 0) {
     row.classList.add('hidden');
+    updateStripPhoneChrome(name);
     return;
   }
   row.classList.remove('hidden');
   setStatus('strip-prepare-label',
-    (idx + 1) + ' of ' + PREPARE.length + ' - ' + (PREPARE_LABELS[name] || name), '');
+    (idx + 1) + ' of ' + PREPARE.length + ' — ' + (PREPARE_LABELS[name] || name), '');
   bar.style.width = Math.round(((idx + 1) / PREPARE.length) * 100) + '%';
+  updateStripPhoneChrome(name);
 }
 
 function showStep(name) {
-  if (name === 'prepare') name = 'credit';
+  if (name === 'prepare' || name === 'credit') name = 'download';
   var prepare = PREPARE.indexOf(name) >= 0;
   var pill = prepare ? 'prepare' : name;
   var i = ORDER.indexOf(pill), n;
@@ -78,7 +113,7 @@ function showStep(name) {
   });
   shownStep = name;
   updatePrepareStrip(name);
-  if (name === 'credit') updateCreditStatusRows();
+  if (name === 'download') updateCreditStatusRows();
   // The first call is the page load. Later calls jump to that section
   // without hiding the rest of the page. Instant, because a smooth jump
   // started from a pill click is ignored in this window.
@@ -507,15 +542,15 @@ function buildCreditTable() {
 }
 
 function initGate() {
-  var input = $('gate-input'), btn = $('gate-btn');
+  var input = $('gate-input');
+  if (!input) return;
   input.addEventListener('input', function () {
-    btn.disabled = input.value.trim().toLowerCase() !== 'yes';
+    var allowed = input.value.trim().toLowerCase() === 'yes';
+    if (allowed) setStatus('gate-msg', 'Downloads unlocked.', 'ok');
+    else setStatus('gate-msg', '', '');
     applyDownloadLock();
   });
-  btn.addEventListener('click', function () {
-    setStatus('gate-msg', 'Downloads allowed. Go to Files.', 'ok');
-    showStep('download');
-  });
+  applyDownloadLock();
 }
 
 function downloadsAllowed() {
@@ -728,7 +763,7 @@ function refreshDownloadGate() {
     $('dl-next').disabled = true;
   }
   updateDlHubSummary(ids, missing);
-  if (shownStep === 'credit') updateCreditStatusRows();
+  if (shownStep === 'download') updateCreditStatusRows();
   return missing;
 }
 
@@ -1052,6 +1087,84 @@ function enableUsbContinue(message, cls) {
   $('usb-next').disabled = false;
 }
 
+function onWebUsbAdbReady() {
+  stripLastReady = { ok: true };
+  setStatus('strip-phone', 'phone ready (WebUSB)', 'ok');
+  var hint = $('strip-hint');
+  if (hint) {
+    hint.textContent =
+      'Connected over WebUSB. Set up continues below; install needs root on the phone.';
+  }
+  setStripBox('caught');
+  setStatus('phone-msg', 'Phone on WebUSB adb.', 'ok');
+  updateGetReadyCollapse();
+  if (shownStep === 'download') updateCreditStatusRows();
+}
+
+var webUsbConnectGen = 0;
+
+function connectWebUsbAdb(options) {
+  options = options || {};
+  var showChooser = options.showChooserOnEmpty !== false;
+  var statusEl = options.statusEl || 'usb-msg';
+  var gen = ++webUsbConnectGen;
+  if (!navigator.usb) {
+    if (!options.silent) {
+      setStatus(statusEl, 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
+    }
+    return Promise.reject(new Error('no WebUSB'));
+  }
+  if (!options.silent) {
+    setStatus(statusEl, options.connectingMsg || 'connecting…', 'wait');
+  }
+  return ADBKEY.load().then(function () {
+    if (gen !== webUsbConnectGen) return Promise.reject(new Error('superseded'));
+    var pickP = showChooser ? ADB.pick() : ADB.pickFromGranted();
+    return pickP.then(function () {
+      if (gen !== webUsbConnectGen) return Promise.reject(new Error('superseded'));
+      var logEl = $('usb-log');
+      if (logEl) logEl.classList.remove('hidden');
+      ADB.log = adbLog;
+      return ADB.connect();
+    });
+  }).then(function () {
+    if (gen !== webUsbConnectGen) return false;
+    if (!options.silent) {
+      if (statusEl === 'usb-msg') enableUsbContinue('Connected over ADB.', 'ok');
+      else if (statusEl === 'phone-msg') setStatus('phone-msg', 'Connected over ADB.', 'ok');
+    }
+    probeRooted();
+    if (!window.FLIP2_NATIVE) onWebUsbAdbReady();
+    return true;
+  }).catch(function (e) {
+    if (gen !== webUsbConnectGen) return false;
+    if (e && e.noGranted) {
+      if (!options.silent) {
+        setStatus(statusEl, 'No phone selected — plug in, pick the device, allow USB debugging.', 'wait');
+      }
+      return false;
+    }
+    if (e && e.message === 'superseded') return false;
+    if (!options.silent) {
+      var msg = usbError(e);
+      if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostAdbReady) {
+        msg += ' Or press Check host adb — Companion install does not need WebUSB.';
+      }
+      setStatus(statusEl, msg, 'bad');
+    }
+    return Promise.reject(e);
+  });
+}
+
+function autoConnectWebUsbOnLoad() {
+  if (window.FLIP2_NATIVE || !navigator.usb) return;
+  connectWebUsbAdb({
+    silent: true,
+    showChooserOnEmpty: false,
+    statusEl: 'phone-msg'
+  }).catch(function () {});
+}
+
 function checkHostAdb() {
   var N = window.FLIP2_NATIVE;
   if (!N || !N.wizardHostAdbReady) {
@@ -1094,29 +1207,32 @@ function initUsb() {
     checkHostAdb();
   }
   $('usb-btn').addEventListener('click', function () {
-    if (!navigator.usb) {
-      setStatus('usb-msg', 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
-      return;
-    }
-    setStatus('usb-msg', 'picking…', 'wait');
-    ADBKEY.load().then(function () {
-      return ADB.pick();
-    }).then(function () {
-      $('usb-log').classList.remove('hidden');
-      ADB.log = adbLog;
-      return ADB.connect();
-    }).then(function () {
-      enableUsbContinue('Connected over ADB.', 'ok');
-      probeRooted();
-    }).catch(function (e) {
-      var msg = usbError(e);
-      if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostAdbReady) {
-        msg += ' Or press Check host adb — Companion install does not need WebUSB.';
-      }
-      setStatus('usb-msg', msg, 'bad');
-    });
+    var btn = $('usb-btn');
+    btn.disabled = true;
+    connectWebUsbAdb({
+      connectingMsg: 'picking…',
+      showChooserOnEmpty: true
+    }).finally(function () { btn.disabled = false; });
   });
   $('usb-next').addEventListener('click', function () { showStep('install'); });
+  autoConnectWebUsbOnLoad();
+}
+
+function initGetReady() {
+  var connectBtn = $('get-ready-connect');
+  if (!connectBtn) return;
+  connectBtn.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (window.FLIP2_NATIVE) return;
+    connectBtn.disabled = true;
+    connectWebUsbAdb({
+      connectingMsg: 'connecting…',
+      showChooserOnEmpty: true,
+      statusEl: 'phone-msg'
+    }).finally(function () { connectBtn.disabled = false; });
+  });
+  if (window.FLIP2_NATIVE) connectBtn.classList.add('hidden');
 }
 
 // --- 5 · install ------------------------------------------------------------------
@@ -1546,15 +1662,21 @@ function paintStripPhone(mode, ready) {
   if (hintEl) hintEl.textContent = hint;
   setStripBox(box);
   if (mode === 'fastboot' && isRootingFlashStage()) clearStripInstall();
-  if (shownStep === 'credit') updateCreditStatusRows();
+  updateGetReadyCollapse();
+  if (shownStep === 'download') updateCreditStatusRows();
 }
 
 function pollStripPhone() {
   var N = window.FLIP2_NATIVE;
   if (!N || !N.phoneState) {
-    setStatus('strip-phone', 'needs Flip 2 Companion', 'wait');
+    var hasWebUsb = typeof navigator !== 'undefined' && navigator.usb;
+    setStatus('strip-phone', hasWebUsb ? 'browser — no host adb' : 'needs Chrome or Companion', 'wait');
     var plain = $('strip-hint');
-    if (plain) plain.textContent = 'Open this page in Flip 2 Companion to see the live phone status. This bar stays at the top while you scroll.';
+    if (plain) {
+      plain.textContent = hasWebUsb
+        ? 'Expand Get ready and press Connect phone (WebUSB), or use Set up → Connect. Companion gives host adb, Managed Apply, and easier downloads.'
+        : 'Use Chrome on Linux, or open this site inside Flip 2 Companion for host adb.';
+    }
     setStripBox('live');
     return;
   }
@@ -2260,6 +2382,7 @@ function init() {
     initFactory();
     initFrontNav();
     initGettingStarted();
+    initGetReady();
     initPhone();
     initProfile();
     initApps();

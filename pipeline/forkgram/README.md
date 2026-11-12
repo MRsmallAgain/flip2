@@ -1,4 +1,4 @@
-# Forkgram patch — BACK-to-delete + IME visibility
+# Forkgram patch — BACK-to-delete, IME visibility, D-pad focus
 
 Forkgram (`org.forkgram.classic`) is the Telegram client used on this device.
 Two Telegram behaviours break the Flip 2 null-keyboard setup:
@@ -34,6 +34,21 @@ no separate DEL key. Chat delete is handled in **`n20.onBackPressed()`** first.
 
 Both the physical BACK key and the on-screen nav-bar BACK deliver
 `KEYCODE_BACK`, so the same handlers cover both.
+
+`forkgram-13.0.2.0-dpad.patch` (apply **after** `back.patch`) improves keypad navigation:
+
+| File | Change |
+| --- | --- |
+| `Components/mb1.smali` | Telegram chat/dialog list (`RecyclerListView`): `setFocusable` + `focusableInTouchMode`, `FOCUS_AFTER_DESCENDANTS` |
+| `ui/LaunchActivity.smali` | `onResume`: decor `setFocusableInTouchMode(true)` so D-pad can take focus on Flip 2 |
+
+**D-pad verify (device):** chat list DPAD up/down moves focus; OK opens chat; BACK-delete still works in composer (regression).
+
+### D-pad patterns (benchmark, 2026-11-10)
+
+- **Intertune** (`dev.skye.intertune`): Compose `FocusRequester` + root view focus flags — good library UX on keypad; reference only (not patched).
+- **NewPipe** (`org.schabi.newpipe`): ships `NewPipeRecyclerView` + `FocusOverlayView` but touch-mode can block hardware focus; see `pipeline/newpipe/`.
+- **Forkgram**: custom-drawn list cells; list focus needs `mb1` + activity focus-in-touch-mode, not a global focus-bridge.
 
 ## Hosted build
 

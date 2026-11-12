@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/pages/">
 <title>TCL Flip2 Manager</title>
 <meta name="description" content="Phone, profile, and apps for a rooted TCL Flip 2. Verifies downloads before install. Factory reset stays on the phone.">
 <meta property="og:title" content="TCL Flip2 Manager">
@@ -28,23 +29,26 @@
 	    <span data-step="apps">Apps</span>
 	    <span data-step="prepare">Set up</span>
 	  </nav>
-  <div id="live-strip" class="now live" aria-live="polite">
-    <details id="strip-phone-details" class="strip-phone-details">
-      <summary class="strip-phone-summary">
-        <span class="now-label">Phone</span>
+	  <div id="live-strip" class="now live" aria-live="polite">
+	    <details id="get-ready-details" class="strip-phone-details get-ready-panel">
+      <summary class="strip-phone-summary get-ready-summary">
+        <span class="now-label">Get ready</span>
         <span id="strip-phone" class="status wait">Checking USB…</span>
+        <button type="button" id="get-ready-connect" class="small get-ready-connect">Connect phone</button>
+        <span id="phone-msg" class="status get-ready-summary-msg"></span>
       </summary>
-      <div id="phone-facts" class="now strip-phone-facts"></div>
-      <p id="phone-next" class="note hidden"></p>
-      <div class="action-row action-row--compact strip-phone-actions">
-        <button type="button" id="phone-refresh" class="small">Refresh</button>
-        <button type="button" id="phone-prepare" class="ghost small">Prepare</button>
-        <button type="button" id="phone-udev" class="ghost small">USB rules</button>
-        <button type="button" id="phone-usb" class="ghost small">USB debugging</button>
-        <span id="phone-msg" class="status"></span>
-      </div>
-    </details>
-    <p id="strip-hint" class="now-hint hidden">Updates while scrolling.</p>
+      <div class="get-ready-body">
+        <p id="strip-hint" class="now-hint">Plug in the phone and allow USB debugging.</p>
+        <div id="phone-facts" class="now strip-phone-facts"></div>
+        <p id="phone-next" class="note hidden"></p>
+        <div class="action-row action-row--compact strip-phone-actions">
+          <button type="button" id="phone-refresh" class="small ghost strip-action-refresh">Refresh</button>
+	          <button type="button" id="phone-prepare" class="ghost small strip-action-jump">Set up</button>
+	          <button type="button" id="phone-udev" class="ghost small strip-action-udev">USB rules</button>
+          <button type="button" id="phone-usb" class="ghost small strip-action-usb">USB step</button>
+        </div>
+	      </div>
+	    </details>
     <div id="strip-install-row" class="now-row hidden">
       <span class="now-label">Install</span>
       <span id="strip-install" class="status"></span>
@@ -173,43 +177,7 @@
   </details>
 </section>
 
-<!-- 1: credit gate -->
-	<section class="step step-compact" id="step-credit">
-	  <h2>Ready?</h2>
-	  <p class="step-lead">Type <b>yes</b> to continue.</p>
-	  <div id="credit-status-rows" class="status-rows" aria-live="polite">
-	    <div class="status-row"><span><span class="status-dot wait" id="credit-dot-phone"></span>Phone</span><strong id="credit-val-phone">Checking…</strong></div>
-	    <div class="status-row"><span><span class="status-dot wait" id="credit-dot-profile"></span>Profile</span><strong id="credit-val-profile">—</strong></div>
-	    <div class="status-row"><span><span class="status-dot wait" id="credit-dot-files"></span>Files</span><strong id="credit-val-files">—</strong></div>
-	  </div>
-	  <details class="apps-panel">
-    <summary>Credits (authors &amp; links)</summary>
-    <div class="table-scroll">
-      <table id="credit-table">
-        <thead><tr><th>What</th><th>Credit</th><th>Link</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </details>
-  <details class="apps-panel">
-    <summary>Safety paths</summary>
-    <table class="safety-paths">
-      <thead><tr><th>Path</th><th>Flashes?</th><th>Wipes?</th></tr></thead>
-      <tbody>
-        <tr><td><b>Prepare install</b></td><td>No</td><td>No</td></tr>
-        <tr><td><b>Release zip</b></td><td>No</td><td>No</td></tr>
-        <tr><td><b>Tier 3: erase and root</b></td><td><code>boot</code></td><td><b>Yes</b></td></tr>
-        <tr><td><b>Tier 3: return to factory</b></td><td><code>boot</code></td><td>On phone</td></tr>
-      </tbody>
-    </table>
-    <p class="warn">Prepare: no super/system/preloader. Tier 3: <code>docs/SAFETY.md</code>.</p>
-  </details>
-  <div class="gate-row">
-    <label class="inline">Type <b>yes</b>: <input id="gate-input" autocomplete="off" size="6"></label>
-    <button id="gate-btn" class="big-btn" disabled>Continue</button>
-    <span id="gate-msg" class="note"></span>
-  </div>
-</section>
+<section class="step step-compact hidden" id="step-credit" hidden aria-hidden="true"></section>
 
 <!-- 2: downloads + checksums -->
 	<section class="step step-compact" id="step-download">
@@ -230,7 +198,7 @@
   </div>
   <div id="dl-results"></div>
   <div class="action-row">
-    <button class="ghost" data-back="credit">Back</button>
+    <button class="ghost" data-back="start">Back</button>
     <button id="dl-next" class="big-btn" disabled>Continue</button>
   </div>
 </section>

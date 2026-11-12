@@ -32,11 +32,44 @@ var ADB = {
   connectResolve: null,
   log: function () {},          // main.js replaces this
 
+  pickFromGranted: function () {
+    var self = this;
+    return navigator.usb.getDevices().then(function (list) {
+      var granted = (list || []).filter(function (d) {
+        return d.vendorId === 0x1bbb;
+      });
+      if (granted.length > 1) {
+        granted = granted.filter(function (d) { return d.productId !== 0x2000; });
+      }
+      if (granted.length === 1) {
+        self.device = granted[0];
+        return granted[0];
+      }
+      var err = new Error('no granted WebUSB device');
+      err.noGranted = true;
+      throw err;
+    });
+  },
+
   pick: function () {
     var self = this;
-    return navigator.usb.requestDevice({ filters: [
-      { classCode: 255, subclassCode: 66, protocolCode: 1 }
-    ]}).then(function (d) { self.device = d; return d; });
+    var filters = [{ classCode: 255, subclassCode: 66, protocolCode: 1 }];
+    return navigator.usb.getDevices().then(function (list) {
+      var granted = (list || []).filter(function (d) {
+        return d.vendorId === 0x1bbb;
+      });
+      if (granted.length > 1) {
+        granted = granted.filter(function (d) { return d.productId !== 0x2000; });
+      }
+      if (granted.length === 1) {
+        self.device = granted[0];
+        return granted[0];
+      }
+      return navigator.usb.requestDevice({ filters: filters }).then(function (d) {
+        self.device = d;
+        return d;
+      });
+    });
   },
 
   findAdbIface: function () {
@@ -86,7 +119,15 @@ var ADB = {
   _waitConnected: function () {
     var self = this;
     return new Promise(function (resolve, reject) {
-      self.connectResolve = { resolve: resolve, reject: reject };
+      var t = setTimeout(function () {
+        if (!self.connectResolve) return;
+        self.connectResolve = null;
+        reject(new Error('timed out waiting for ADB — accept the USB debugging prompt on the phone'));
+      }, 45000);
+      self.connectResolve = {
+        resolve: function () { clearTimeout(t); resolve(); },
+        reject: function (e) { clearTimeout(t); reject(e); }
+      };
     });
   },
 

@@ -1,0 +1,318 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Static hosting for the Flip2 setup wizard at https://flip2burn.online/
+  (S3 origin, CloudFront, ACM certificate in us-east-1, Route 53).
+
+# Deploy in us-east-1: ACM certificates for CloudFront must live in us-east-1.
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: flip2burn.online
+    Description: Apex domain served by CloudFront (must match ACM certificate).
+
+  IncludeWww:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Also issue ACM + Route53 for www subdomain.
+
+  CreateHostedZone:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: If true, create a new public Route 53 hosted zone for DomainName.
+
+  ExistingHostedZoneId:
+    Type: String
+    Default: ''
+    Description: Hosted zone ID when CreateHostedZone is false.
+
+  PriceClass:
+    Type: String
+    Default: PriceClass_100
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
+    Description: CloudFront edge price class.
+
+Conditions:
+  CreateZone: !Equals [!Ref CreateHostedZone, 'true']
+  UseExistingZone: !Equals [!Ref CreateHostedZone, 'false']
+  WithWww: !Equals [!Ref IncludeWww, 'true']
+  HaveExistingZoneId: !Not [!Equals [!Ref ExistingHostedZoneId, '']]
+  UseExistingZoneWithId: !And
+    - !Condition UseExistingZone
+    - !Condition HaveExistingZoneId
+  CreateZoneWithWww: !And
+    - !Condition CreateZone
+    - !Condition WithWww
+  ExistingZoneWithWww: !And
+    - !Condition UseExistingZoneWithId
+    - !Condition WithWww
+
+Resources:
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'flip2burn-wizard-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      Tags:
+        - Key: Project
+          Value: flip2-wizard
+
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Condition: CreateZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Sub 'Flip2 wizard - ${DomainName}'
+
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames: !If
+        - WithWww
+        - [!Ref DomainName, !Sub 'www.${DomainName}']
+        - [!Ref DomainName]
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !If
+            - CreateZone
+            - !Ref HostedZone
+            - !Ref ExistingHostedZoneId
+        - !If
+          - WithWww
+          - DomainName: !Sub 'www.${DomainName}'
+            HostedZoneId: !If
+              - CreateZone
+              - !Ref HostedZone
+              - !Ref ExistingHostedZoneId
+          - !Ref AWS::NoValue
+      Tags:
+        - Key: Project
+          Value: flip2-wizard
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub 'flip2burn-oac-${AWS::AccountId}'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  UriRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub 'flip2burn-uri-${AWS::AccountId}'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Map / to /pages/index.html
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          if (uri === '/' || uri === '') {
+            request.uri = '/pages/index.html';
+          } else if (uri.endsWith('/')) {
+            request.uri = uri + 'index.html';
+          }
+          return request;
+        }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: !Ref PriceClass
+        Comment: !Sub 'Flip2 setup wizard - ${DomainName}'
+        Aliases: !If
+          - WithWww
+          - [!Ref DomainName, !Sub 'www.${DomainName}']
+          - [!Ref DomainName]
+        ViewerCertificate:
+          AcmCertificateArn: !Ref Certificate
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+        DefaultRootObject: pages/index.html
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt UriRewriteFunction.FunctionMetadata.FunctionARN
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !Ref OriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+      Tags:
+        - Key: Project
+          Value: flip2-wizard
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: Distribution
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${SiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+  DnsApexA:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateZone
+    Properties:
+      HostedZoneId: !Ref HostedZone
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+  DnsApexAAAA:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateZone
+    Properties:
+      HostedZoneId: !Ref HostedZone
+      Name: !Ref DomainName
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+  DnsApexAExisting:
+    Type: AWS::Route53::RecordSet
+    Condition: UseExistingZoneWithId
+    Properties:
+      HostedZoneId: !Ref ExistingHostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+  DnsApexAAAAExisting:
+    Type: AWS::Route53::RecordSet
+    Condition: UseExistingZoneWithId
+    Properties:
+      HostedZoneId: !Ref ExistingHostedZoneId
+      Name: !Ref DomainName
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+  DnsWwwA:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateZoneWithWww
+    Properties:
+      HostedZoneId: !Ref HostedZone
+      Name: !Sub 'www.${DomainName}'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+  DnsWwwAAAA:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateZoneWithWww
+    Properties:
+      HostedZoneId: !Ref HostedZone
+      Name: !Sub 'www.${DomainName}'
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+  DnsWwwAExisting:
+    Type: AWS::Route53::RecordSet
+    Condition: ExistingZoneWithWww
+    Properties:
+      HostedZoneId: !Ref ExistingHostedZoneId
+      Name: !Sub 'www.${DomainName}'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+  DnsWwwAAAAExisting:
+    Type: AWS::Route53::RecordSet
+    Condition: ExistingZoneWithWww
+    Properties:
+      HostedZoneId: !Ref ExistingHostedZoneId
+      Name: !Sub 'www.${DomainName}'
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: false
+
+Outputs:
+  SiteURL:
+    Description: Wizard entry (HTTPS)
+    Value: !Sub 'https://${DomainName}/'
+
+  WizardPagesURL:
+    Value: !Sub 'https://${DomainName}/pages/'
+
+  BucketName:
+    Value: !Ref SiteBucket
+
+  DistributionId:
+    Value: !Ref Distribution
+
+  CloudFrontDomain:
+    Value: !GetAtt Distribution.DomainName
+
+  HostedZoneId:
+    Value: !If [CreateZone, !Ref HostedZone, !Ref ExistingHostedZoneId]
+
+  NameServers:
+    Condition: CreateZone
+    Description: Set at registrar if domain is outside Route 53
+    Value: !Join [', ', !GetAtt HostedZone.NameServers]
+
+  CertificateArn:
+    Value: !Ref Certificate

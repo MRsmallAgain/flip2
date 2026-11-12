@@ -117,13 +117,21 @@ vmouse:
 # --- apps -------------------------------------------------------------------
 
 forkgram:
-  description: Patched Forkgram (BACK deletes in text fields) — device-APK patch or hosted release
+  description: Patched Forkgram (BACK/IME + D-pad list focus) — device-APK patch or hosted release
   requires: [adb, apktool, apksigner]
   cli: flip2 forkgram {patch|release}
   scripts:
     - pipeline/forkgram/patch-forkgram.sh
     - pipeline/forkgram/install-release.sh
-  notes: patched APK hosted only in MRsmallAgain/TelegramAndroid fork release (GPL); not in this repo
+  notes: back.patch + dpad.patch; hosted APK in MRsmallAgain/TelegramAndroid (GPL); cut r2 after dpad verify
+
+newpipe:
+  description: Patched NewPipe (D-pad focus on Flip 2) — local patch from F-Droid v1015
+  requires: [adb, apktool, apksigner]
+  cli: flip2 newpipe {patch}
+  scripts:
+    - pipeline/newpipe/patch-newpipe.sh
+  notes: stock catalog APK until debug-signed build is pinned; Intertune is benchmark only
 
 display:
   description: Global density / font / screen-compat
