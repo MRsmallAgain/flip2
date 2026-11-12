@@ -182,7 +182,38 @@
 <!-- 2: downloads + checksums -->
 	<section class="step step-compact" id="step-download">
 	  <h2>Get files</h2>
-	  <p class="step-lead">Download or pick verified copies on this PC.</p>
+	  <p class="step-lead">Confirm profile and consent, then download or pick verified copies on this PC.</p>
+	  <div id="credit-status-rows" class="status-rows" aria-live="polite">
+	    <div class="status-row"><span><span class="status-dot wait" id="credit-dot-phone"></span>Phone</span><strong id="credit-val-phone">—</strong></div>
+	    <div class="status-row"><span><span class="status-dot wait" id="credit-dot-profile"></span>Profile</span><strong id="credit-val-profile">—</strong></div>
+	    <div class="status-row"><span><span class="status-dot wait" id="credit-dot-files"></span>Files</span><strong id="credit-val-files">—</strong></div>
+	  </div>
+	  <div class="gate-row">
+	    <label class="inline">Type <b>yes</b> to allow downloads: <input id="gate-input" autocomplete="off" size="6"></label>
+	    <span id="gate-msg" class="note"></span>
+	  </div>
+	  <details class="apps-panel">
+	    <summary>Credits (authors &amp; links)</summary>
+	    <div class="table-scroll">
+	      <table id="credit-table">
+	        <thead><tr><th>What</th><th>Credit</th><th>Link</th></tr></thead>
+	        <tbody></tbody>
+	      </table>
+	    </div>
+	  </details>
+	  <details class="apps-panel">
+	    <summary>Safety paths</summary>
+	    <table class="safety-paths">
+	      <thead><tr><th>Path</th><th>Flashes?</th><th>Wipes?</th></tr></thead>
+	      <tbody>
+	        <tr><td><b>Prepare install</b></td><td>No</td><td>No</td></tr>
+	        <tr><td><b>Release zip</b></td><td>No</td><td>No</td></tr>
+	        <tr><td><b>Tier 3: erase and root</b></td><td><code>boot</code></td><td><b>Yes</b></td></tr>
+	        <tr><td><b>Tier 3: return to factory</b></td><td><code>boot</code></td><td>On phone</td></tr>
+	      </tbody>
+	    </table>
+	    <p class="warn">Prepare: no super/system/preloader. Tier 3: <code>docs/SAFETY.md</code>.</p>
+	  </details>
 	  <p class="note">The first full download can take <b>10+ minutes</b> — large installer zips and voice models verify one file at a time. The status line may sit on one number for a while; that is normal.</p>
 	  <div id="dl-hub-summary" class="status-rows hidden" aria-live="polite">
 	    <div class="status-row"><span>Files</span><strong id="dl-hub-count">—</strong></div>
