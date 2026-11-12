@@ -513,7 +513,9 @@ function catalogLinkLabel(f) {
 }
 
 function buildCreditTable() {
-  var tbody = $('credit-table').tBodies[0];
+  var table = $('credit-table');
+  if (!table || !table.tBodies || !table.tBodies[0]) return;
+  var tbody = table.tBodies[0];
   CATALOG.list.forEach(function (f) {
     var tr = document.createElement('tr');
     var td0 = document.createElement('td');
