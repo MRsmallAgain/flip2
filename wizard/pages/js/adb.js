@@ -519,8 +519,15 @@ var ADB = {
           if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
           resolve();
           // Release the pty ourselves. adbd keeps it open until every child
-          // holding it exits, which for a backgrounded daemon is never.
-          if (!st.closed) st.close();
+          // holding it exits, which for a backgrounded daemon is never. The
+          // CLSE write can fail if the device is already gone; that must not
+          // surface as an unhandled rejection after we have resolved.
+          if (!st.closed) {
+            try {
+              var p = st.close();
+              if (p && typeof p.catch === 'function') p.catch(function () {});
+            } catch (e) { /* already closed */ }
+          }
         }
         function emit(line) {
           if (onLine) onLine(line);

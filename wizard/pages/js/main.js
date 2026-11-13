@@ -441,7 +441,7 @@ function runPushAndInstallCore() {
   var installShText = typeof INSTALL_SH === 'string' ? INSTALL_SH : new TextDecoder().decode(INSTALL_SH);
   var pushP = useHost
     ? PIPE.hostPushAndInstall(pushSet, installShText, log, PROFILES.profileText(), onPhase)
-    : PIPE.pushAndInstall(pushSet, INSTALL_SH, log, PROFILES.profileText(), onPhase);
+    : PIPE.pushAndInstall(pushSet, installShText, log, PROFILES.profileText(), onPhase);
   pushP.then(function () {
     // Cleanup must not start before the install finishes: the browser path
     // ingests from the staging directory that cleanup removes.
@@ -1436,7 +1436,7 @@ function initVerify() {
     if (logPre) logPre.textContent = '';
     var log = makeLog('ver-log');
     var verifyShText = typeof VERIFY_SH === 'string' ? VERIFY_SH : new TextDecoder().decode(VERIFY_SH);
-    var verifyP = useHost ? PIPE.hostVerify(verifyShText, log) : PIPE.verify(VERIFY_SH, log);
+    var verifyP = useHost ? PIPE.hostVerify(verifyShText, log) : PIPE.verify(verifyShText, log);
     verifyP.then(function () {
       setStatus('ver-msg', 'All checks passed.', 'ok');
       updateVerifyCelebrate(true, logPre);
