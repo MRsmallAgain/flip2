@@ -29,7 +29,7 @@ The **manager** (Phone, Profile, Apps, and Prepare: credits, files, udev, connec
 ## Recommended order for a daily driver
 
 1. If the phone is **not** rooted: either accept a **full wipe** and use the **rooting slice** (type `erase`), **or** root by another method you trust — then continue.
-2. Install flip2 with the **GitHub release full installer zip** (Magisk) **or** Apps → Apply or Prepare → Install after you understand the experimental banner. Base does not need Headwind. Managed does, and device owner is a separate step after you type `manage`.
+2. Install flip2 with the **full installer zip** (Magisk) — `flip2-installer-full-magisk.zip` from <https://flip2burn.online/packages/>, pinned in <https://flip2burn.online/catalog.json> — **or** Apps → Apply or Prepare → Install after you understand the experimental banner. Base does not need Headwind. Managed does, and device owner is a separate step after you type `manage`.
 3. Run **verify** (Apps → Run verify, or Prepare → Verify). **Reboot once.** Use the phone; keep a **boot backup** (factory slice) before experimenting with boot images.
 
 ## Hash verification

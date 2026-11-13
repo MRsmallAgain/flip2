@@ -38,7 +38,7 @@ Commands:
   deroot             Remove flip2 root components; keep user APKs + settings
   image <sub>        Base image: prepare | build-tree
   wizard <sub>       Setup wizard device scripts: render | check
-  release            Publish GitHub release + sync flip2burn.online (see --skip-site)
+  release            Publish release (GitLab; assets link into the mirror) + sync site
   site <sub>         flip2burn.online wizard hosting: deploy
   source <sub>       Fetch external APK sources: fetch
 
