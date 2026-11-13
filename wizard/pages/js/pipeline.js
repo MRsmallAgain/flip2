@@ -176,13 +176,18 @@ var PIPE = {
 
   // pushSet: map name -> Uint8Array. Runs install.sh at the end. onLog gets
   // every progress and script line; stops on the first FAIL line and rejects
-  // so main.js can offer Retry.
-  pushAndInstall: function (pushSet, installSh, onLog, profileText) {
+  // so main.js can offer Retry. onPhase, when given, gets the same short
+  // progress sentences the host path emits, so both paths drive the strip.
+  pushAndInstall: function (pushSet, installSh, onLog, profileText, onPhase) {
     if (!DP) {
       return Promise.reject(new Error('DEVICE_PATHS missing — run pipeline/wizard/gen-pipeline-js.sh'));
     }
+    function phase(text) {
+      if (typeof onPhase === 'function') onPhase(text);
+    }
     // adbd's shell user cannot create files under the stage root, so the page
     // prepares the shell-writable staging area and install.sh ingests it.
+    phase('preparing staging area…');
     onLog('prepare staging area…');
     var seq = PIPE.shellChecked(
       'rm -rf ' + DP.shellStaging + ' 2>/dev/null; mkdir -p ' + DP.shellStagingIncoming,
@@ -202,6 +207,7 @@ var PIPE = {
     var done = 0;
     names.forEach(function (nm) {
       seq = seq.then(function () {
+        phase('pushing file ' + (done + 1) + ' of ' + names.length + ': ' + nm + '…');
         var u8 = pushPayloadBytes(pushSet[nm], nm);
         onLog('push ' + nm + ' (' + Math.round(u8.length / 1024) + ' KiB)…');
         return ADB.pushFile(DP.shellStagingIncoming + '/' + nm, '0644', u8, null)
@@ -213,9 +219,12 @@ var PIPE = {
       return ADB.pushFile(DP.shellStagingInstallSh, '0755', textBytes(installSh), null);
     });
     seq = seq.then(function () {
+      phase('running install.sh as root — often takes several minutes…');
       onLog('running install.sh as root…');
-      // install.sh's last act is "DONE: install complete"; ADB.shell gives no
-      // exit status, so that line — or a FAIL — is the verdict.
+      // install.sh's last act is "DONE: install complete"; ADB.shell reports no
+      // exit status, so that line — or a FAIL — is the verdict. Settle on it:
+      // install.sh backgrounds the FlipMouse supervisor, and adbd never closes
+      // a pty that a live daemon still holds, so waiting for the close hangs.
       var failed = null;
       var complete = false;
       return ADB.shell("su 0 sh -c 'sh " + DP.shellStagingInstallSh + "'", function (line) {
@@ -223,6 +232,9 @@ var PIPE = {
         if (/^FAIL:/.test(line)) failed = line;
         if (/^DONE: install complete$/.test(line)) complete = true;
         onLog(line);
+      }, {
+        settleOn: function (line) { return /^(DONE: install complete|FAIL:)/.test(line); },
+        idleTimeoutMs: 15 * 60 * 1000
       }).then(function () {
         if (failed) throw new Error(failed);
         if (!complete) throw new Error('install.sh stopped before DONE — see the log above');
@@ -245,11 +257,16 @@ var PIPE = {
       .then(function () {
         var failed = null;
         var summary = false;
+        // Same pty contract as install: settle on the SUMMARY line (or the
+        // first FAIL) instead of waiting for a close that may never come.
         return ADB.shell("su 0 sh -c 'sh " + DP.shellStagingVerifySh + "'", function (line) {
           if (line == null) return;
           if (/^FAIL:/.test(line)) failed = line;
           if (/^SUMMARY: /.test(line)) summary = true;
           onLog(line);
+        }, {
+          settleOn: function (line) { return /^(SUMMARY: |FAIL:)/.test(line); },
+          idleTimeoutMs: 10 * 60 * 1000
         }).then(function () {
           if (failed) throw new Error(failed);
           if (!summary) throw new Error('verify.sh ended without a SUMMARY line');

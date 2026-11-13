@@ -421,23 +421,27 @@ function runPushAndInstallCore() {
     setStatus('inst-msg', 'pushing ' + Object.keys(pushSet).length + ' files…', 'wait');
     setStripInstall('Install running', 'wait');
   }
+  // Both paths report phases, so the strip always moves: the browser path used
+  // to leave it frozen at "Building push set…" until the promise settled, which
+  // read as a hang while install.sh was already working.
+  function onPhase(text) {
+    setStatus('inst-msg', text, 'wait');
+    setStripInstall(text, 'wait');
+    var m = String(text || '').match(/(\d+)\s*of\s*(\d+)/i);
+    if (m && pushTotal) {
+      var n = parseInt(m[1], 10);
+      var t = parseInt(m[2], 10) || pushTotal;
+      setInstallProgress(15 + Math.round((n / t) * 75), text);
+    } else if (/install/i.test(text)) {
+      setInstallProgress(92, text);
+    } else {
+      setInstallProgress(40, text);
+    }
+  }
   var installShText = typeof INSTALL_SH === 'string' ? INSTALL_SH : new TextDecoder().decode(INSTALL_SH);
   var pushP = useHost
-    ? PIPE.hostPushAndInstall(pushSet, installShText, log, PROFILES.profileText(), function (text) {
-        setStatus('inst-msg', text, 'wait');
-        setStripInstall(text, 'wait');
-        var m = String(text || '').match(/(\d+)\s*of\s*(\d+)/i);
-        if (m && pushTotal) {
-          var n = parseInt(m[1], 10);
-          var t = parseInt(m[2], 10) || pushTotal;
-          setInstallProgress(15 + Math.round((n / t) * 75), text);
-        } else if (/install/i.test(text)) {
-          setInstallProgress(92, text);
-        } else {
-          setInstallProgress(40, text);
-        }
-      })
-    : PIPE.pushAndInstall(pushSet, INSTALL_SH, log, PROFILES.profileText());
+    ? PIPE.hostPushAndInstall(pushSet, installShText, log, PROFILES.profileText(), onPhase)
+    : PIPE.pushAndInstall(pushSet, INSTALL_SH, log, PROFILES.profileText(), onPhase);
   pushP.then(function () {
     // Cleanup must not start before the install finishes: the browser path
     // ingests from the staging directory that cleanup removes.

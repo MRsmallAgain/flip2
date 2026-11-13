@@ -499,24 +499,66 @@ var ADB = {
     return Promise.all(ps);
   },
 
-  // shell: resolves when the remote closes; every line goes to onLine.
-  shell: function (cmd, onLine) {
+  // shell: streams every line to onLine and resolves when the remote closes.
+  // opts.settleOn(line) ends the command on a marker line: the pty can outlive
+  // the script (install.sh backgrounds the FlipMouse supervisor), and adbd then
+  // never sends the close, so waiting for it hangs the caller forever.
+  // opts.idleTimeoutMs turns a wedged shell into a prompt, readable failure.
+  shell: function (cmd, onLine, opts) {
     var self = this;
+    var settle = opts && typeof opts.settleOn === 'function' ? opts.settleOn : null;
+    var idleMs = opts && opts.idleTimeoutMs ? opts.idleTimeoutMs : 0;
     return this.open('shell:' + cmd).then(function (st) {
       return new Promise(function (resolve) {
         var carry = '';
-        st.ondata = function (chunk) {
-          carry += new TextDecoder().decode(chunk);
+        var settled = false;
+        var idleTimer = null;
+        function finish() {
+          if (settled) return;
+          settled = true;
+          if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+          resolve();
+          // Release the pty ourselves. adbd keeps it open until every child
+          // holding it exits, which for a backgrounded daemon is never.
+          if (!st.closed) st.close();
+        }
+        function emit(line) {
+          if (onLine) onLine(line);
+          if (settle && settle(line)) finish();
+        }
+        // Device shells are ptys, so lines end \r\n. A trailing CR would make
+        // an anchored match like /^DONE: install complete$/ never fire.
+        function drain(final) {
           var nl;
-          while ((nl = carry.indexOf('\n')) >= 0) {
-            var line = carry.slice(0, nl); carry = carry.slice(nl + 1);
-            if (onLine) onLine(line);
+          while (!settled && (nl = carry.indexOf('\n')) >= 0) {
+            emit(carry.slice(0, nl).replace(/\r$/, ''));
+            carry = carry.slice(nl + 1);
           }
+          if (final && !settled && carry.length) {
+            var tail = carry.replace(/\r$/, '');
+            carry = '';
+            emit(tail);
+          }
+        }
+        function armIdle() {
+          if (!idleMs || settled) return;
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(function () {
+            if (onLine) onLine('(no output for ' + Math.round(idleMs / 1000) + ' s — giving up on this shell)');
+            finish();
+          }, idleMs);
+        }
+        st.ondata = function (chunk) {
+          if (settled) return;
+          armIdle();
+          carry += new TextDecoder().decode(chunk);
+          drain(false);
         };
         st.onclose = function () {
-          if (carry.length && onLine) onLine(carry);
-          resolve();
+          drain(true);
+          finish();
         };
+        armIdle();
       });
     });
   },

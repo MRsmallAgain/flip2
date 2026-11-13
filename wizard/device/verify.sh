@@ -35,7 +35,6 @@ check() {  # check <label> <command...>
 # BEGIN GENERATED PATHS
 # --- on-device paths (generated from pipeline/wizard/device-paths.json) ------
 PROFILE=/data/local/flip2/profile.list
-IN=/data/local/flip2/incoming
 WP_DEV=/data/system/users/0/wallpaper
 # END GENERATED PATHS
 want() {
@@ -245,6 +244,27 @@ fi
 else
   echo "NOTE: skip display"
 fi
+
+if want wallpaper; then
+# --- Wallpaper: a preference, so a mismatch is a NOTE, never a FAIL ----------
+# See docs/WALLPAPER.md: install.sh fills an empty slot and leaves an existing
+# file alone, so 'differs from the default' is the expected result for anyone
+# who chose their own image. 'flip2 wallpaper apply' is the deliberate override.
+WP_DEFAULT_MD5=d0eb46bc33e2751940150abf72b93c5f
+if [ ! -f "$WP_DEV" ]; then
+  echo "NOTE: no wallpaper file yet (install fills an empty slot; a reboot may be pending)"
+else
+  WP_NOW=$(md5sum "$WP_DEV" 2>/dev/null | cut -d' ' -f1)
+  if [ "$WP_NOW" = "$WP_DEFAULT_MD5" ]; then
+    echo "PASS: wallpaper is the flip2 default"
+    PASS=$((PASS + 1))
+  else
+    echo "NOTE: this phone has its own wallpaper — fine (flip2 wallpaper apply restores the default)"
+  fi
+fi
+else
+  echo "NOTE: skip wallpaper"
+fi
 # END GENERATED
 
 # Headwind is managed-only and stays outside the generator on purpose.
@@ -367,26 +387,10 @@ else
   echo "NOTE: skip ime settings"
 fi
 
-# --- Wallpaper (optional: only checked when the installer shipped an asset) --
-# This ROM has no `cmd wallpaper`; the file at /data/system/users/0/wallpaper is
-# what the framework loads at boot. A phone that was installed before the asset
-# existed keeps whatever wallpaper the user has, so absence is a NOTE.
-if want wallpaper; then
-  WP_HOST=$IN/flip2-wallpaper.png
-  if [ -f "$WP_HOST" ]; then
-    if [ -f "$WP_DEV" ] && cmp -s "$WP_HOST" "$WP_DEV"; then
-      echo "PASS: wallpaper is the flip2 default"
-      PASS=$((PASS + 1))
-    else
-      echo "FAIL: wallpaper does not match the shipped flip2-wallpaper.png (reboot, or apply with 'flip2 wallpaper apply')"
-      FAILS=$((FAILS + 1))
-    fi
-  else
-    echo "NOTE: no shipped wallpaper asset in incoming/; skipping that check"
-  fi
-else
-  echo "NOTE: skip wallpaper"
-fi
+# The wallpaper check is generated (pipeline/wizard/render.sh, gen_verify): it
+# compares the live file against the default's md5, baked in at render time
+# because cleanup consumes incoming/ before verify runs. A phone showing its
+# own background is the correct end state there — NOTE, never FAIL.
 
 echo ""
 echo "SUMMARY: $PASS passed, $FAILS failed"

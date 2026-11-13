@@ -32,8 +32,8 @@
 # BEGIN GENERATED PATHS
 # --- on-device paths (generated from pipeline/wizard/device-paths.json) ------
 PROFILE=/data/local/flip2/profile.list
-IN=/data/local/flip2/incoming
 WP_DEV=/data/system/users/0/wallpaper
+IN=/data/local/flip2/incoming
 STAGE=/data/local/flip2
 INSTALL_SH=/data/local/flip2/install.sh
 SHELL_STAGING=/data/local/tmp/flip2-staging
@@ -347,18 +347,35 @@ else
 fi
 
 if want wallpaper; then
-# --- wallpaper: default background, copied where the framework reads it -----
+# --- wallpaper: fill an empty slot, never replace a choice -------------------
+# A wallpaper is a user preference, not a build artifact — see
+# docs/WALLPAPER.md. Only write when there is nothing there yet; an existing
+# file is its owner's (stock or their own image) and an install must leave it
+# byte-for-byte alone. `flip2 wallpaper apply` is the deliberate override.
+# Every branch here ends in ok or NOTE: a background that could not be written
+# is not a broken install, and must never stop the steps after it. The order
+# matters too — the idempotent "already the default" case is decided by the
+# bytes, not by the stamp, so a re-run reports what is actually on the phone.
 WP=$IN/flip2-wallpaper.png
 WPDST=$WP_DEV
-if [ -f "$WP" ] && [ ! -f "$STAGE/.wallpaper-applied" ]; then
-  cp "$WP" "$WPDST" || fail "wallpaper copy"
+WPSTAMP=$STAGE/.wallpaper-applied
+if [ ! -f "$WP" ]; then
+  echo "NOTE: no flip2-wallpaper.png in this push; keeping the current wallpaper"
+elif cmp -s "$WP" "$WPDST"; then
+  touch "$WPSTAMP"
+  ok "wallpaper is already the flip2 default"
+elif [ -f "$WPSTAMP" ]; then
+  echo "NOTE: wallpaper set by an earlier run; keeping whatever this phone has now"
+elif [ -f "$WPDST" ]; then
+  echo "NOTE: keeping this phone's own wallpaper; run 'flip2 wallpaper apply' for the default"
+elif cp "$WP" "$WPDST"; then
   chown system:system "$WPDST" 2>/dev/null
   chmod 600 "$WPDST"
   restorecon "$WPDST" 2>/dev/null
-  touch "$STAGE/.wallpaper-applied"
+  touch "$WPSTAMP"
   ok "wallpaper installed (shows after reboot)"
 else
-  echo "NOTE: no flip2-wallpaper.png in incoming/; keeping the current wallpaper"
+  echo "NOTE: could not set the default wallpaper; install unaffected — run 'flip2 wallpaper apply' later"
 fi
 else
   echo "NOTE: skip wallpaper"

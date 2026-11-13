@@ -7,8 +7,18 @@ HOME_KEYS="$ROOT/launcher-overlay/home-keys.json"
 DEVICE_PATHS="$ROOT/pipeline/wizard/device-paths.json"
 INSTALL="$ROOT/wizard/device/install.sh"
 VERIFY="$ROOT/wizard/device/verify.sh"
+WP_ASSET="$ROOT/pipeline/wallpaper/assets/flip2-wallpaper.png"
 
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
+
+# The verifier compares the live wallpaper file against this hash instead of
+# against incoming/, which cleanup removes. Baked in at render time so a phone
+# can be checked at any point after install. The asset is a tracked source file
+# (docs/WALLPAPER.md), so a missing one is a broken tree, not a runtime state —
+# fail here rather than emit a check that can never decide anything.
+[ -f "$WP_ASSET" ] || { echo "missing wallpaper asset: $WP_ASSET" >&2; exit 1; }
+WP_MD5="$(md5sum "$WP_ASSET" | cut -d' ' -f1)"
+[ -n "$WP_MD5" ] || { echo "could not hash $WP_ASSET" >&2; exit 1; }
 
 # On-device paths come from device-paths.json: the browser bundle
 # (pages/js/device-paths.js) and these scripts must never disagree.
@@ -25,17 +35,20 @@ gen_paths_common() {
   cat <<EOF
 # --- on-device paths (generated from pipeline/wizard/device-paths.json) ------
 PROFILE=$(dp profileList)
-IN=$(dp incomingDir)
 WP_DEV=$(dp wallpaperDevice)
 EOF
 }
 
-# install.sh additionally needs the ingest paths. adbd's shell user cannot
-# create files under the stage root (SELinux: system_data_file) even at mode
-# 0777, so the page stages into a shell-writable dir and root installs from it.
+# install.sh additionally needs incoming/ and the ingest paths. adbd's shell
+# user cannot create files under the stage root (SELinux: system_data_file)
+# even at mode 0777, so the page stages into a shell-writable dir and root
+# installs from it. verify.sh declares no IN: the wallpaper check uses the md5
+# of the default baked in at render time, because cleanup empties incoming/
+# before verify runs.
 gen_paths_install() {
   gen_paths_common
   cat <<EOF
+IN=$(dp incomingDir)
 STAGE=$(dp stageRoot)
 INSTALL_SH=$(dp installSh)
 SHELL_STAGING=$(dp shellStaging)
@@ -294,18 +307,35 @@ FM
   echo ""
   cat <<'WP'
 if want wallpaper; then
-# --- wallpaper: default background, copied where the framework reads it -----
+# --- wallpaper: fill an empty slot, never replace a choice -------------------
+# A wallpaper is a user preference, not a build artifact — see
+# docs/WALLPAPER.md. Only write when there is nothing there yet; an existing
+# file is its owner's (stock or their own image) and an install must leave it
+# byte-for-byte alone. `flip2 wallpaper apply` is the deliberate override.
+# Every branch here ends in ok or NOTE: a background that could not be written
+# is not a broken install, and must never stop the steps after it. The order
+# matters too — the idempotent "already the default" case is decided by the
+# bytes, not by the stamp, so a re-run reports what is actually on the phone.
 WP=$IN/flip2-wallpaper.png
 WPDST=$WP_DEV
-if [ -f "$WP" ] && [ ! -f "$STAGE/.wallpaper-applied" ]; then
-  cp "$WP" "$WPDST" || fail "wallpaper copy"
+WPSTAMP=$STAGE/.wallpaper-applied
+if [ ! -f "$WP" ]; then
+  echo "NOTE: no flip2-wallpaper.png in this push; keeping the current wallpaper"
+elif cmp -s "$WP" "$WPDST"; then
+  touch "$WPSTAMP"
+  ok "wallpaper is already the flip2 default"
+elif [ -f "$WPSTAMP" ]; then
+  echo "NOTE: wallpaper set by an earlier run; keeping whatever this phone has now"
+elif [ -f "$WPDST" ]; then
+  echo "NOTE: keeping this phone's own wallpaper; run 'flip2 wallpaper apply' for the default"
+elif cp "$WP" "$WPDST"; then
   chown system:system "$WPDST" 2>/dev/null
   chmod 600 "$WPDST"
   restorecon "$WPDST" 2>/dev/null
-  touch "$STAGE/.wallpaper-applied"
+  touch "$WPSTAMP"
   ok "wallpaper installed (shows after reboot)"
 else
-  echo "NOTE: no flip2-wallpaper.png in incoming/; keeping the current wallpaper"
+  echo "NOTE: could not set the default wallpaper; install unaffected — run 'flip2 wallpaper apply' later"
 fi
 else
   echo "NOTE: skip wallpaper"
@@ -400,6 +430,31 @@ TD
   echo 'fi'
   echo "else"
   echo '  echo "NOTE: skip display"'
+  echo "fi"
+  echo ""
+  # Wallpaper: install.sh only fills an empty slot, so a phone showing its own
+  # background is the correct end state, not a defect. PASS when the live file
+  # is the flip2 default (hash baked in at render time, so incoming/ — which
+  # cleanup removes — is not needed); NOTE for anything else, never FAIL.
+  echo "if want wallpaper; then"
+  echo "# --- Wallpaper: a preference, so a mismatch is a NOTE, never a FAIL ----------"
+  echo "# See docs/WALLPAPER.md: install.sh fills an empty slot and leaves an existing"
+  echo "# file alone, so 'differs from the default' is the expected result for anyone"
+  echo "# who chose their own image. 'flip2 wallpaper apply' is the deliberate override."
+  echo "WP_DEFAULT_MD5=$WP_MD5"
+  echo 'if [ ! -f "$WP_DEV" ]; then'
+  echo '  echo "NOTE: no wallpaper file yet (install fills an empty slot; a reboot may be pending)"'
+  echo "else"
+  echo "  WP_NOW=\$(md5sum \"\$WP_DEV\" 2>/dev/null | cut -d' ' -f1)"
+  echo '  if [ "$WP_NOW" = "$WP_DEFAULT_MD5" ]; then'
+  echo '    echo "PASS: wallpaper is the flip2 default"'
+  echo '    PASS=$((PASS + 1))'
+  echo "  else"
+  echo '    echo "NOTE: this phone has its own wallpaper — fine (flip2 wallpaper apply restores the default)"'
+  echo "  fi"
+  echo "fi"
+  echo "else"
+  echo '  echo "NOTE: skip wallpaper"'
   echo "fi"
 }
 
