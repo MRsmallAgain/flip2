@@ -155,19 +155,25 @@ var PIPE = {
     return out;
   },
 
-  // ADB.shell() resolves when the remote stream closes and never reports the
-  // exit status, so a fire-and-forget mkdir or rm logs OK even after a
-  // Permission denied. Every state-changing step echoes "<marker>:$?" and is
-  // rejected unless the marker comes back with 0.
+  // ADB.shell() reports no exit status, so a fire-and-forget mkdir or rm logs
+  // OK even after a Permission denied. Every state-changing step echoes
+  // "<marker>:$?" and is rejected unless the marker comes back with 0. That
+  // marker also settles the shell: it is the last thing the command prints, and
+  // a step that leaves a child holding the pty would otherwise never close.
   shellChecked: function (cmd, marker, onLog) {
     var rc = null;
     var tag = marker + ':';
+    function isMarker(line) {
+      var at = line.lastIndexOf(tag);
+      return at >= 0 && /^[0-9]+$/.test(line.slice(at + tag.length));
+    }
     return ADB.shell(cmd + ' 2>&1; echo "' + tag + '$?"', function (line) {
       if (line == null) return;
-      var at = line.lastIndexOf(tag);
-      var tail = at >= 0 ? line.slice(at + tag.length) : '';
-      if (at >= 0 && /^[0-9]+$/.test(tail)) { rc = parseInt(tail, 10); return; }
+      if (isMarker(line)) { rc = parseInt(line.slice(line.lastIndexOf(tag) + tag.length), 10); return; }
       if (line) onLog(line);
+    }, {
+      settleOn: isMarker,
+      idleTimeoutMs: 60 * 1000
     }).then(function () {
       if (rc === null) throw new Error('no exit status from: ' + cmd);
       if (rc !== 0) throw new Error('exit ' + rc + ': ' + cmd);
