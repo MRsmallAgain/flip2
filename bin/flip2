@@ -38,6 +38,7 @@ Commands:
   deroot             Remove flip2 root components; keep user APKs + settings
   image <sub>        Base image: prepare | build-tree
   wizard <sub>       Setup wizard device scripts: render | check
+  ci                 Run the device-free gates (same script CI runs)
   release            Publish release (GitLab; assets link into the mirror) + sync site
   site <sub>         flip2burn.online wizard hosting: deploy
   source <sub>       Fetch external APK sources: fetch
@@ -431,6 +432,11 @@ case "$cmd" in
         ;;
       *) echo "Unknown wizard subcommand: $sub" >&2; exit 1 ;;
     esac
+    ;;
+  ci)
+    # Same script the pipeline runs (.gitlab-ci.yml). Kept as a subcommand so
+    # the gates can be run by hand without knowing the path.
+    exec bash "$FLIP2_ROOT/pipeline/ci/gates.sh" "$@"
     ;;
   release)
     exec "$FLIP2_ROOT/pipeline/deploy/release.sh" "$@"
