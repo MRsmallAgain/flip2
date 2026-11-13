@@ -83,8 +83,9 @@ Open **Set up** or **Start setup** after choosing **Base** or **Managed** on **S
 
 ### 1 · Ready
 
-- Expand credits/safety if you want upstream links.
-- Type **`yes`** exactly (lowercase) to unlock downloads.
+- Open **Credits** and review each maintainer's repository and license. This is required, not optional reading.
+- Thank them for their work — this whole setup is built on it.
+- Type **`yes`** exactly (lowercase) to unlock downloads. Typing it confirms that review.
 
 Nothing fetches from the network until this gate passes.
 
