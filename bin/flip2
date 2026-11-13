@@ -408,10 +408,14 @@ case "$cmd" in
         echo "DRIFT: run flip2 wizard render and commit" >&2
         exit 1
         ;;
+      debug-usb)
+        exec "$FLIP2_ROOT/pipeline/wizard/debug-usb.sh" "$@"
+        ;;
       help|-h|--help)
-        echo "Usage: flip2 wizard {render|check}"
-        echo "  render — regenerate install.sh and verify.sh GENERATED regions from manifest.json"
-        echo "  check  — fail if a render would change committed device scripts"
+        echo "Usage: flip2 wizard {render|check|debug-usb}"
+        echo "  render     — regenerate install.sh and verify.sh GENERATED regions from manifest.json"
+        echo "  check      — fail if a render would change committed device scripts"
+        echo "  debug-usb  — host USB/adb diagnosis for WebUSB wizard (phone plugged in)"
         ;;
       *) echo "Unknown wizard subcommand: $sub" >&2; exit 1 ;;
     esac
