@@ -57,6 +57,7 @@ var ADB = {
   tokensSeen: 0, pubSent: false,
   connectResolve: null,
   connectPendingAuth: false,
+  authChain: null,
   _adbAlt: 0,
   log: function () {},          // main.js replaces this
 
@@ -115,6 +116,7 @@ var ADB = {
     var self = this;
     this.tokensSeen = 0; this.pubSent = false;
     this.connectPendingAuth = false;
+    this.authChain = null;
     this._loggedUsbIn = false;
     this.streams = {}; this.nextId = 1; this._acc = [];
     this.out = null; this.inp = null;
@@ -286,9 +288,14 @@ var ADB = {
 
   _dispatch: function (cmd, arg0, arg1, data) {
     var self = this;
-    if (cmd === A_CNXN || cmd === A_AUTH) {
+    if (cmd === A_CNXN) {
       this.log('← ' + adbCmdName(cmd) + ' a0=' + arg0 + ' a1=' + arg1 +
         (data && data.length ? ' data=' + data.length : ''));
+    } else if (cmd === A_AUTH && arg0 === 1) {
+      if (this.tokensSeen < 2) {
+        this.log('← AUTH token (signing…) a1=' + arg1 +
+          (data && data.length ? ' data=' + data.length : ''));
+      }
     }
     if (cmd === A_CNXN) {
       this.maxData = Math.min(arg1, 256 * 1024);
@@ -309,24 +316,30 @@ var ADB = {
       this.tokensSeen++;
       var token = data;
       var nth = this.tokensSeen;
-      if (nth === 1) {
-        this.log('Signing with saved browser key…');
+      if (nth > 3) {
+        if (nth === 4) {
+          self.log('FAIL: AUTH loop — adbd keeps rejecting the key.');
+          self.log('Settings → Developer options → Revoke USB debugging authorizations,');
+          self.log('then unplug/replug, Connect again, tap Allow with Always allow.');
+          self.log('Or clear site data for flip2burn.online (new browser key).');
+          self._failConnect(new Error('AUTH loop — revoke USB authorizations on phone or reset browser adb key'));
+        }
+        return;
       }
-      ADBKEY.sign(token).then(function (sig) {
+      var prev = this.authChain || Promise.resolve();
+      this.authChain = prev.then(function () {
+        if (nth === 1) {
+          self.log('Signing with saved browser key…');
+        } else if (nth === 2) {
+          self.log('Second token — signature rejected, sending public key…');
+        }
+        return ADBKEY.sign(token);
+      }).then(function (sig) {
         return self._send(A_AUTH, 2, 0, new Uint8Array(sig));
       }).then(function () {
         if (nth === 1) {
           self.log('Sent signature; waiting for adbd…');
-          return new Promise(function (resolve) {
-            setTimeout(function () {
-              if (!self.pubSent) {
-                self.log('No second AUTH token — sending public key (Flip2 / fresh host key).');
-                resolve(self._sendPubkeyAndPrompt());
-              } else {
-                resolve();
-              }
-            }, 800);
-          });
+          return;
         }
         if (nth >= 2 && !self.pubSent) {
           return self._sendPubkeyAndPrompt();

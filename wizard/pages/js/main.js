@@ -505,13 +505,26 @@ function onAdbAuthPrompt() {
   }
 }
 
+var adbAuthUiShown = false;
+
 function onAdbHandshakeProgress(line) {
   if (line.indexOf('USB data from phone') >= 0) {
     setStatus('phone-msg', 'Talking to adbd — check phone if prompted.', 'wait');
     setStatus('strip-phone', 'USB linked — check phone', 'wait');
-  } else if (line.indexOf('← AUTH') >= 0 || line.indexOf('Signing with') >= 0) {
-    onAdbAuthPrompt();
+  } else if (line.indexOf('AUTH loop') >= 0) {
+    setStatus('phone-msg', 'ADB key mismatch — see log (revoke or reset key).', 'bad');
+    setStatus('strip-phone', 'AUTH loop — see log', 'bad');
+    adbAuthUiShown = false;
   } else if (line.indexOf('Sent RSA') >= 0 || line.indexOf('>>> Unlock') >= 0) {
+    if (!adbAuthUiShown) {
+      adbAuthUiShown = true;
+      onAdbAuthPrompt();
+    }
+  } else if (
+    !adbAuthUiShown &&
+    (line.indexOf('Second token') >= 0 || line.indexOf('Signing with saved browser') >= 0)
+  ) {
+    adbAuthUiShown = true;
     onAdbAuthPrompt();
   }
 }
@@ -1141,6 +1154,7 @@ function connectWebUsbAdb(options) {
   var showChooser = options.showChooserOnEmpty !== false;
   var statusEl = options.statusEl || 'usb-msg';
   var gen = ++webUsbConnectGen;
+  adbAuthUiShown = false;
   if (!navigator.usb) {
     if (!options.silent) {
       setStatus(statusEl, 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
