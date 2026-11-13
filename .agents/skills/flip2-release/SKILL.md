@@ -45,7 +45,10 @@ the exact files it is about to publish (`ASSET_NAMES` in
 Before uploading, confirm the keyboard inside the full installer:
 
 - `lib/armeabi-v7a/libc++_shared.so` is in `payload/apks/nullkeyboard.apk` (Sherpa ONNX runtime needs it).
-- `aapt dump badging` shows the version you meant to ship (`2.6.0` / versionCode 34 for 1.1.0-flip2).
+- `aapt dump badging` shows the version in
+  `pipeline/ime/null-keyboard/AndroidManifest.xml` (`versionCode`/`versionName`).
+  Read it from there rather than trusting a number written down here — that is
+  how the hardcoded `1.1.0-flip2` in this file went stale.
 
 ## Publish
 
