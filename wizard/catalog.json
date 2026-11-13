@@ -1,12 +1,12 @@
 {
   "$comment": "Flip2 setup wizard download catalog. Every hash below was computed from the real upstream file (sha256sum), not guessed; sizes are exact byte counts. The browser verifies each download with WebCrypto SHA-256 against these pins before anything is pushed to the phone. Nothing in this catalog is stored in the repo or attached to releases \u2014 these are pointers to upstream artifacts.",
   "version": "1.4.0-alpha.2-flip2",
-  "pinned": "2026-11-11",
+  "pinned": "2026-11-13",
   "files": [
     {
       "id": "neutron",
       "file": "neutron.img",
-      "purpose": "Custom boot image (root boot). Flashed to the boot partition ONLY, and only after the user unlocks the bootloader — a step that erases the phone. Never flash super, vbmeta, system, product, or the preloader; never write the EMMC_BOOT header. neutron-noavb.img is NOT used.",
+      "purpose": "Custom boot image (root boot). Flashed to the boot partition ONLY, and only after the user unlocks the bootloader \u2014 a step that erases the phone. Never flash super, vbmeta, system, product, or the preloader; never write the EMMC_BOOT header. neutron-noavb.img is NOT used.",
       "url": "https://github.com/neutronscott/flip2/releases/download/v2024.09.17.kefs/neutron.img",
       "size": 25165824,
       "sha256": "31237917ef51fa6e7ee588da1cfc84bb378859de2d49681fdd4f84290841d3c1",
@@ -19,8 +19,8 @@
       "file": "flip2-installer-full-magisk.zip",
       "purpose": "Flip2 Magisk installer (full): prefetched APKs, Sherpa STT tarballs, modules, home keys, 321x428, wallpaper. Self-removes after first boot. Release v1.4.0-alpha.2-flip2.",
       "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.4.0-alpha.2-flip2/flip2-installer-full-magisk.zip",
-      "size": 392511504,
-      "sha256": "52732ac4045edc21a2b3f9b60a8d1d588eedb90ceb1d57daf2373e9b486ab4f4",
+      "size": 392511528,
+      "sha256": "c29757b2d3d2ff56d66a5988f6e4caec613708a637276f73adf2d51598ef28b6",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "github.com/MRsmallAgain/flip2 release 1.4.0-alpha.2-flip2"
@@ -32,8 +32,8 @@
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "github.com/MRsmallAgain/flip2 release 1.4.0-alpha.2-flip2",
       "file": "flip2-installer-slim-magisk.zip",
-      "size": 178406639,
-      "sha256": "454a8685423038a9156e319732e529da905084443cdc2713d18ab8cc5afa059a",
+      "size": 178406663,
+      "sha256": "e4e1c51d146ec3daf1fb7f0dee9447be257d06c1362bfc3ea987bbfb719c28fa",
       "purpose": "Flip2 Magisk installer (slim): same stack as full without bundled Sherpa voices; use catalog sherpa-en/uk if needed. Release v1.4.0-alpha.2-flip2."
     },
     {
@@ -61,7 +61,7 @@
     {
       "id": "sherpa-uk",
       "file": "sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2",
-      "purpose": "Sherpa-ONNX offline NeMo int8 pack (Ukrainian via stt_lang=uk). Extracted to files/sherpa/uk/; decode on stop — no streaming partials for UK.",
+      "purpose": "Sherpa-ONNX offline NeMo int8 pack (Ukrainian via stt_lang=uk). Extracted to files/sherpa/uk/; decode on stop \u2014 no streaming partials for UK.",
       "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2",
       "size": 106546673,
       "sha256": "06072bad277f0f4c29cc866d7c62b0e47936da39afafeae453faa925025ccad6",
@@ -72,7 +72,7 @@
     {
       "id": "tagdrawer",
       "file": "com.iwadjp.pixeltagdrawer_7.apk",
-      "purpose": "Pixel Tag Drawer v7 (0.1.6) — photo tag browser wired to the Home-key Up shortcut.",
+      "purpose": "Pixel Tag Drawer v7 (0.1.6) \u2014 photo tag browser wired to the Home-key Up shortcut.",
       "url": "https://f-droid.org/repo/com.iwadjp.pixeltagdrawer_7.apk",
       "size": 8433539,
       "sha256": "8215454c5b7c8b1465cbc82f304f1cc448fb0c93b63ffc7d15f16b31ce7f6435",
@@ -83,7 +83,7 @@
     {
       "id": "astro-loop",
       "file": "com.astroloop.game_6.apk",
-      "purpose": "Astro Loop v1.5 (versionCode 6) — GPLv3 roguelike shooter; D-pad/gamepad input built in; pure Kotlin, no native libs (Flip2 32-bit ARM). Optional demo game alongside Bouncy.",
+      "purpose": "Astro Loop v1.5 (versionCode 6) \u2014 GPLv3 roguelike shooter; D-pad/gamepad input built in; pure Kotlin, no native libs (Flip2 32-bit ARM). Optional demo game alongside Bouncy.",
       "url": "https://f-droid.org/repo/com.astroloop.game_6.apk",
       "size": 52950747,
       "sha256": "79aa83482f64f7ae0bc245aa3550bc0e231fecdc046cb783b818917e418f6cf7",
@@ -94,9 +94,9 @@
     {
       "id": "bouncy",
       "file": "com.dozingcatsoftware.bouncy_43.apk",
-      "purpose": "Bouncy Ball v43 (1.16.0) — Flip2 patch: D-pad + SOFT_LEFT/SOFT_RIGHT flippers, optional unlimited-mode score reset per ball.",
+      "purpose": "Bouncy Ball v43 (1.16.0) \u2014 Flip2 patch: D-pad + SOFT_LEFT/SOFT_RIGHT flippers, optional unlimited-mode score reset per ball.",
       "size": 3251116,
-      "sha256": "8e1e0b394753291f2bfb0a1b7c7adb1fc543bd221baffea5a7845cd368031950",
+      "sha256": "76e4c67eb23af7d8a6c934dca5cfcffae6d6c3164290500111be12b4f0916814",
       "license": "GPL-3.0",
       "author": "dozingcatsoftware (F-Droid base; Flip2 controls patch)",
       "upstream": "f-droid.org com.dozingcatsoftware.bouncy version 43 + pipeline/bouncy"
@@ -104,7 +104,7 @@
     {
       "id": "intertune",
       "file": "dev.skye.intertune_96.apk",
-      "purpose": "Intertune v96 (0.12.1) — music player wired to the Home-key Left shortcut.",
+      "purpose": "Intertune v96 (0.12.1) \u2014 music player wired to the Home-key Left shortcut.",
       "url": "https://f-droid.org/repo/dev.skye.intertune_96.apk",
       "size": 14504398,
       "sha256": "64779316cc70046276c03964358dc7a7471dca9c7f2b24e1c4a79966745638fe",
@@ -115,7 +115,7 @@
     {
       "id": "appshelf",
       "file": "io.github.xtratter.appshelf_90.apk",
-      "purpose": "AppShelf v90 — lightweight app drawer; optional alongside Pixel Tag Drawer system module.",
+      "purpose": "AppShelf v90 \u2014 lightweight app drawer; optional alongside Pixel Tag Drawer system module.",
       "url": "https://f-droid.org/repo/io.github.xtratter.appshelf_90.apk",
       "size": 234809,
       "sha256": "755caa9ea46f2364313a604e9793e2856421454d08e4012b5c9776468a3442a9",
@@ -126,7 +126,7 @@
     {
       "id": "fdroid-basic",
       "file": "org.fdroid.basic_2000052.apk",
-      "purpose": "F-Droid Basic v2.0.2 — minimal F-Droid client for installing and updating FOSS apps on device.",
+      "purpose": "F-Droid Basic v2.0.2 \u2014 minimal F-Droid client for installing and updating FOSS apps on device.",
       "url": "https://f-droid.org/repo/org.fdroid.basic_2000052.apk",
       "size": 8753583,
       "sha256": "bbc4a34a7f65b200f9e40c4c74af4745de5cdbff45752ac0172916deb9f3c97d",
@@ -137,7 +137,7 @@
     {
       "id": "newpipe",
       "file": "org.schabi.newpipe_1015.apk",
-      "purpose": "NewPipe v0.27.7 — lightweight YouTube/media client (no Google Play Services).",
+      "purpose": "NewPipe v0.27.7 \u2014 lightweight YouTube/media client (no Google Play Services).",
       "url": "https://f-droid.org/repo/org.schabi.newpipe_1015.apk",
       "size": 11507122,
       "sha256": "1d66d19eedbab969b1be2e44e0ea35f5f8921cbe83b5c5ac810767ca1a84b7e8",
@@ -148,7 +148,7 @@
     {
       "id": "vlc",
       "file": "org.videolan.vlc_13050404.apk",
-      "purpose": "VLC for Android 3.5.x (F-Droid 13050404) — video/audio playback with armeabi-v7a for Flip2 4058G.",
+      "purpose": "VLC for Android 3.5.x (F-Droid 13050404) \u2014 video/audio playback with armeabi-v7a for Flip2 4058G.",
       "url": "https://f-droid.org/repo/org.videolan.vlc_13050404.apk",
       "size": 35933852,
       "sha256": "e208deebfd2bbf45258770f89a763f2e94994f1365900bc72f1559388d5eb763",
@@ -159,7 +159,7 @@
     {
       "id": "materialfiles",
       "file": "me.zhanghai.android.files_40.apk",
-      "purpose": "Material Files v1.7.5 — root-capable GUI file manager for the Tools folder, so /data/adb and Magisk modules are browsable on the phone itself.",
+      "purpose": "Material Files v1.7.5 \u2014 root-capable GUI file manager for the Tools folder, so /data/adb and Magisk modules are browsable on the phone itself.",
       "url": "https://f-droid.org/repo/me.zhanghai.android.files_40.apk",
       "size": 10944578,
       "sha256": "2fe900bf43d725b655008d438f5ca46d0da0f301e3784403b5b96c3fc2df6e8a",
@@ -192,12 +192,23 @@
       "profiles": [
         "managed"
       ]
+    },
+    {
+      "id": "installer-base",
+      "file": "flip2-installer-base-magisk.zip",
+      "purpose": "Flip2 Magisk installer (base): wizard Base profile + Sherpa.",
+      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.4.0-alpha.2-flip2/flip2-installer-base-magisk.zip",
+      "size": 340184872,
+      "sha256": "2d75f9bc855b2f11b72b01f0a908e43b3f9b3666d2646da98fc8ca808da40b3a",
+      "license": "See flip2 repo",
+      "author": "MRsmallAgain (flip2 project)",
+      "upstream": "github.com/MRsmallAgain/flip2 release 1.4.0-alpha.2-flip2"
     }
   ],
   "not_downloaded": [
     {
       "id": "chrome",
-      "reason": "Menu slot 7 stays org.chromium.chrome — already on the phone; the wizard never downloads a browser."
+      "reason": "Menu slot 7 stays org.chromium.chrome \u2014 already on the phone; the wizard never downloads a browser."
     }
   ]
 }

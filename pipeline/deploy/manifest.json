@@ -272,7 +272,7 @@
       "external": {
         "note": "Flip2-patched v43 from pipeline/bouncy (F-Droid base + debug sign); F-Droid pin: sources/com.dozingcatsoftware.bouncy_43-fdroid.apk",
         "asset": "com.dozingcatsoftware.bouncy_43.apk",
-        "sha256": "8e1e0b394753291f2bfb0a1b7c7adb1fc543bd221baffea5a7845cd368031950"
+        "sha256": "76e4c67eb23af7d8a6c934dca5cfcffae6d6c3164290500111be12b4f0916814"
       }
     },
     {
