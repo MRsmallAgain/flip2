@@ -1,5 +1,13 @@
 # X thread — Flip2 v1.3.0-alpha.3 (8–12 posts)
 
+> **2026-11-13 — the GitHub account behind these links was suspended.** Every
+> `github.com/MRsmallAgain` URL below now returns 404. The toolkit itself is
+> unaffected: start at <https://flip2burn.online/>, downloads under
+> `https://flip2burn.online/packages/`, pins in
+> <https://flip2burn.online/catalog.json>, source on
+> <https://gitlab.com/mrsmallagain-group/flip2>. Details: [MOVED.md](../../MOVED.md).
+> The text below is unchanged from publication.
+
 **Chosen tagline:** TCL Flip 2 toolkit — dumbphone power, Linux manager, honest alpha.
 
 ---

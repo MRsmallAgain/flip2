@@ -1,5 +1,13 @@
 # Flip2 marketing FAQ (v1.3.0-alpha.3)
 
+> **2026-11-13 — the GitHub account behind these links was suspended.** Every
+> `github.com/MRsmallAgain` URL below now returns 404. The toolkit itself is
+> unaffected: start at <https://flip2burn.online/>, downloads under
+> `https://flip2burn.online/packages/`, pins in
+> <https://flip2burn.online/catalog.json>, source on
+> <https://gitlab.com/mrsmallagain-group/flip2>. Details: [MOVED.md](../../MOVED.md).
+> The text below is unchanged from publication.
+
 ## Which phone?
 
 **TCL Flip 2** (Gflip6). USB vendor **1bbb:0c01**. Requires USB debugging; full tier needs **Magisk/root**.

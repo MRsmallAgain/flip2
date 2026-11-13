@@ -1,3 +1,11 @@
+> **2026-11-13 — the GitHub account behind these links was suspended.** Every
+> `github.com/MRsmallAgain` URL below now returns 404. The toolkit itself is
+> unaffected: start at <https://flip2burn.online/>, downloads under
+> `https://flip2burn.online/packages/`, pins in
+> <https://flip2burn.online/catalog.json>, source on
+> <https://gitlab.com/mrsmallagain-group/flip2>. Details: [MOVED.md](../../MOVED.md).
+> The text below is unchanged from publication.
+
 ## Flip2 toolkit — public alpha
 
 Turn a **TCL Flip 2** into a pocket dumbphone powerhouse: **T9 + offline voice** on the real keypad, a **virtual mouse** on the D-pad, **Tag Drawer** app launcher, a clean **custom launcher**, and a hardened **Forkgram** client — installed **one Magisk zip, one boot**, or stepped through **TCL Flip2 Manager** on Chrome/Linux, with a **de-root path that actually works**.

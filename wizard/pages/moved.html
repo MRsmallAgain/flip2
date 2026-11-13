@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/pages/">
+<title>Flip2 toolkit — the project moved off GitHub</title>
+<meta name="description" content="The GitHub account behind the Flip2 toolkit was suspended on 2026-11-13. Files, pins and the wizard are all served from flip2burn.online.">
+<meta property="og:title" content="Flip2 toolkit — the project moved off GitHub">
+<meta property="og:description" content="Same files, same SHA-256 pins, new home. Start here.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="../assets/og-wizard.png">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  .moved-main { max-width: 880px; margin: 0 auto; padding: 24px; }
+  .moved-main h2 { font-size: 17px; margin: 30px 0 8px; }
+  .moved-main p, .moved-main li { color: var(--ink-muted); }
+  .moved-main code { font-family: var(--mono); font-size: 13px; }
+  .moved-main pre {
+    padding: 14px 16px; overflow-x: auto; border-radius: var(--radius-md);
+    background: var(--surface); border: 1px solid var(--line);
+    font-family: var(--mono); font-size: 13px; line-height: 1.6;
+  }
+  .moved-main table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .moved-main th, .moved-main td {
+    text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .moved-main th { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .moved-cta {
+    display: inline-block; margin: 4px 0 8px; padding: 10px 18px;
+    border-radius: var(--radius-pill); background: var(--accent); color: #fff;
+    font-weight: 600; text-decoration: none;
+  }
+  .moved-cta:hover { background: var(--accent-hover); }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <img src="../assets/logo.svg" alt="" width="40" height="40" class="header-logo">
+  <div>
+    <h1>The project moved off GitHub</h1>
+    <p class="sub">The toolkit is fine. The links changed.</p>
+  </div>
+</header>
+
+<main class="moved-main">
+  <p class="note">
+    <b>2026-11-13</b> — the GitHub account that hosted this project was suspended.
+    Every <code>github.com/MRsmallAgain</code> URL now returns 404: the repository,
+    its releases, and raw file links alike. The cause is not public; GitHub Support
+    is the only party who can explain it.
+  </p>
+
+  <p><a class="moved-cta" href="/pages/">Open the setup wizard →</a></p>
+
+  <h2>Where things are now</h2>
+  <table>
+    <tr><th>Setup wizard</th><td><a href="https://flip2burn.online/">flip2burn.online</a> — start here</td></tr>
+    <tr><th>Downloads</th><td><code>https://flip2burn.online/packages/&lt;filename&gt;</code></td></tr>
+    <tr><th>Index of every file, with size and SHA-256</th><td><a href="../catalog.json">catalog.json</a></td></tr>
+    <tr><th>Source</th><td><a href="https://gitlab.com/mrsmallagain-group/flip2">gitlab.com/mrsmallagain-group/flip2</a> (private for now)</td></tr>
+  </table>
+
+  <p>
+    Two things worth knowing about the mirror: it is <b>not a stopgap</b> — it holds
+    the same bytes, hash-verified by downloading them back, and it is what the
+    browser wizard always fetched from. And <code>packages/</code> has <b>no directory
+    listing</b> (403 by design); <code>catalog.json</code> is the index.
+    CloudFront serves <code>accept-ranges</code>, so the 395&nbsp;MB complete installer resumes
+    rather than restarting.
+  </p>
+
+  <h2>Safest first install</h2>
+  <p>
+    <code>flip2-installer-full-magisk.zip</code> — 395,628,118 bytes, SHA-256
+    <code>298b46685ed97fcad763bb2ae39ca48e58efb83b2102f1f60af0d6fce8a4317b</code>.
+    Flash it once in the Magisk app, then reboot.
+  </p>
+  <p class="note">
+    <b>Before any of that:</b> full features need <b>root/Magisk</b>, and the wizard’s
+    <i>Put on phone</i> step is still <b>experimental</b> — for a first install prefer the
+    complete installer zip above. Unlocking the bootloader <b>erases the phone</b>. Never
+    write <code>super</code>, <code>vbmeta</code>, <code>system</code>, <code>product</code> or the
+    preloader, and never touch the <code>EMMC_BOOT</code> header. There is no verified boot on
+    this device and no way to restore it; a backup you have not tested is not a backup.
+  </p>
+<pre>curl -fLO https://flip2burn.online/packages/flip2-installer-full-magisk.zip
+sha256sum flip2-installer-full-magisk.zip
+# 298b46685ed97fcad763bb2ae39ca48e58efb83b2102f1f60af0d6fce8a4317b</pre>
+
+  <h2>What is still broken</h2>
+  <ul>
+    <li><b>GitHub release binaries</b> — gone with the account. The mirror replaces them.</li>
+    <li><b>The Forkgram fork</b> (<code>MRsmallAgain/TelegramAndroid</code>) — unreachable, so
+      <i>republishing</i> the patched APK is blocked. The APK itself is mirrored and installs
+      fine; <code>flip2 forkgram release</code> verifies it against the catalog pin.</li>
+    <li><b><code>flip2 release</code></b> — drives <code>gh</code>, so publishing a release needs a
+      new home or a GitLab backend. Known, not yet done.</li>
+  </ul>
+
+  <h2>If you arrived from an old link</h2>
+  <p>
+    Everything the old release pages pointed at is on the mirror under the same
+    filenames. <a href="../catalog.json">catalog.json</a> is the authoritative list — if a
+    name is not in there, it was never published.
+  </p>
+</main>
+
+<footer>
+  <p>TCL Flip2 Manager · runs on your PC · <a href="/pages/">back to the wizard</a></p>
+</footer>
+</body>
+</html>

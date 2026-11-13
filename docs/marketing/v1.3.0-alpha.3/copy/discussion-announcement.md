@@ -1,5 +1,13 @@
 # Flip2 toolkit v1.3.0-alpha.3 — public alpha, feedback welcome
 
+> **2026-11-13 — the GitHub account behind these links was suspended.** Every
+> `github.com/MRsmallAgain` URL below now returns 404. The toolkit itself is
+> unaffected: start at <https://flip2burn.online/>, downloads under
+> `https://flip2burn.online/packages/`, pins in
+> <https://flip2burn.online/catalog.json>, source on
+> <https://gitlab.com/mrsmallagain-group/flip2>. Details: [MOVED.md](../../MOVED.md).
+> The text below is unchanged from publication.
+
 We just tagged **v1.3.0-alpha.3-flip2** as the latest release on [MRsmallAgain/flip2](https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.3-flip2): tooling to turn a **TCL Flip 2** into a serious dumbphone setup while staying honest about alpha status and safety.
 
 ## Who this is for
