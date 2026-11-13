@@ -23,11 +23,15 @@ Requires **Pillow** (`python3-pil`).
 | `../wizard/assets/og-wizard.png` | **1200×630** — Open Graph when linking the wizard page |
 | `../wizard/assets/logo.svg` | Copy of vector logo for static hosts |
 
-## GitHub social preview
+## Social preview
 
-1. Open **github.com/MRsmallAgain/flip2** → **Settings** → **General** → **Social preview**.
+The file keeps its `github-` name, but any host's project settings take it the same way:
+
+1. Open the project on your git host (currently `gitlab.com/mrsmallagain-group/flip2`) → project settings → social / Open Graph preview.
 2. Upload `docs/branding/github-social-preview.png`.
 3. Save. Links to the repo on Slack/Discord/X will show the card.
+
+The wizard page is already independent of this: `wizard/pages/index.html` points at `../assets/og-wizard.png`, which ships with the site.
 
 ## Wizard / Chrome
 

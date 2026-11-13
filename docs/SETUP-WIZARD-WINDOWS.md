@@ -6,7 +6,7 @@ Windows checklist for **TCL Flip2 Manager** (Flip 2 Companion). Full step-by-ste
 
 On Windows, use the **release installer** — not the browser wizard or a from-source `npm start` unless you are developing.
 
-1. Download **`flip2-companion-1.4.0-alpha.1-win-x64.exe`** (NSIS) or the portable **`.exe`** from this release on [GitHub Releases](https://github.com/MRsmallAgain/flip2/releases) (`Assets` → Windows installer or portable).
+1. Build **`flip2-companion-<version>-win-x64.exe`** (NSIS installer or portable) — see the build step below. No prebuilt Windows `.exe` is published at the moment.
 2. Run the installer (or the portable `.exe`). Window title: **TCL Flip2 Manager**.
 3. **No separate adb install** — the app bundles Google **Platform Tools** under `resources\platform-tools\` (`adb.exe` + USB DLLs). Override only if needed with env var **`FLIP2_ADB`** pointing at another `adb.exe`.
 4. Install [Google USB Driver](https://developer.android.com/studio/run/oem-usb#Drivers) (or OEM driver) so Device Manager shows the phone without a warning triangle when USB debugging is on.
@@ -64,4 +64,4 @@ You should see one serial and `device`. If you see `unauthorized`, unlock the ph
 
 ## Conservative install without wizard
 
-Download **flip2-installer-full-magisk.zip** from [Releases](https://github.com/MRsmallAgain/flip2/releases), verify `SHA256SUMS`, flash in Magisk — no PC adb required for that path.
+Download **flip2-installer-full-magisk.zip** from the [package mirror](https://flip2burn.online/packages/flip2-installer-full-magisk.zip), verify its SHA-256 against `wizard/catalog.json`, flash in Magisk — no PC adb required for that path.

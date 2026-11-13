@@ -25,7 +25,7 @@ sha256sum -c SHA256SUMS
 
 ## Not included in the toolkit zip
 
-- **Forkgram** — separate GPL release ([TelegramAndroid](https://github.com/MRsmallAgain/TelegramAndroid) tag `flip2-13.0.2.0-r1`); full installer can prefetch when sources are present at pack time.
+- **Forkgram** — separate GPL release ([patched APK on the package mirror](https://flip2burn.online/packages/forkgram-13.0.2.0-flip2-patched.apk), fork tag `flip2-13.0.2.0-r1`); full installer can prefetch when sources are present at pack time.
 - **Sherpa ONNX models** — download via wizard catalog (`sherpa-en`, `sherpa-uk`) or `flip2 ime sherpa`.
 
 ## Install

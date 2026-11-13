@@ -8,7 +8,7 @@ Step-by-step guide for **Prepare** (Set up) on **Linux**, **Windows**, and **mac
 |-------------|-----|
 | **Rooted TCL Flip 2** (Magisk) for full wizard install | `install.sh` runs as `su` and writes under `/data` |
 | **USB debugging** enabled on the phone | Host adb or WebUSB needs an authorized device |
-| **Conservative path?** | Use **Tier B** `flip2-installer-full-magisk.zip` from [Releases](https://github.com/MRsmallAgain/flip2/releases) (verify `SHA256SUMS`) — no PC wizard required |
+| **Conservative path?** | Use **Tier B** [`flip2-installer-full-magisk.zip`](https://flip2burn.online/packages/flip2-installer-full-magisk.zip) (verify its SHA-256 against `wizard/catalog.json`) — no PC wizard required |
 
 **Recommended PC paths**
 
@@ -29,7 +29,7 @@ Firefox does not support WebUSB; use Chrome or Companion.
 **From source (Linux / Windows / macOS with Node.js):**
 
 ```bash
-cd /path/to/flip2/companion   # clone: git clone https://github.com/MRsmallAgain/flip2
+cd /path/to/flip2/companion   # from a clone of the repo (gitlab.com/mrsmallagain-group/flip2, currently private)
 npm install
 npm start
 ```
@@ -43,7 +43,7 @@ flip2 companion
 
 **Windows (primary — release `.exe`):**
 
-1. Download **`flip2-companion-*-win-x64.exe`** from [GitHub Releases](https://github.com/MRsmallAgain/flip2/releases) (NSIS installer or portable).
+1. Build the installer with `npm run pack:win` (below). No prebuilt Windows `.exe` is published at the moment.
 2. Run the installer or portable `.exe`. Launch **TCL Flip2 Manager** — **adb is bundled**; no separate Platform Tools install unless you override with `FLIP2_ADB`.
 3. Install [Google USB Driver](https://developer.android.com/studio/run/oem-usb#Drivers) if Device Manager shows a warning on the phone.
 

@@ -17,10 +17,10 @@ Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voi
 
 Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Launcher3 RRO overlay**, and **recovery** after bad Magisk launcher experiments.
 
-**Latest:** [v1.4.0-alpha.2-flip2](https://github.com/MRsmallAgain/flip2/releases/tag/v1.4.0-alpha.2-flip2) (public alpha). Safest first install: **Tier B** `flip2-installer-full-magisk.zip` from that release (verify `SHA256SUMS`). **Tier B `base`** installer matches wizard Base (FlipMouse, no Arcade/Astro Loop). Pack: `flip2 installer pack --flavor base|full|slim`. **Windows:** **TCL Flip2 Manager** from release **`flip2-companion-*-win-x64.exe`** — [SETUP-WIZARD-WINDOWS.md](docs/SETUP-WIZARD-WINDOWS.md). Screenshots, mosaic, and channel copy: **[docs/marketing/](docs/marketing/)**.
+**Latest:** v1.4.0-alpha.2-flip2 (public alpha). Safest first install: **Tier B** [`flip2-installer-full-magisk.zip`](https://flip2burn.online/packages/flip2-installer-full-magisk.zip) — verify its SHA-256 against [`wizard/catalog.json`](wizard/catalog.json). **Tier B `base`** installer matches wizard Base (FlipMouse, no Arcade/Astro Loop). Pack: `flip2 installer pack --flavor base|full|slim`. **Windows:** **TCL Flip2 Manager** from release **`flip2-companion-*-win-x64.exe`** — [SETUP-WIZARD-WINDOWS.md](docs/SETUP-WIZARD-WINDOWS.md). Screenshots, mosaic, and channel copy: **[docs/marketing/](docs/marketing/)**.
 
 <p align="center">
-  <a href="https://github.com/MRsmallAgain/flip2/releases/tag/v1.4.0-alpha.2-flip2">
+  <a href="https://flip2burn.online/">
     <img src="docs/marketing/v1.3.0-alpha.3/phone-tour-publish/flip2-phone-tour-mosaic-banner.png" alt="TCL Flip 2 hardware, TCL Flip2 Manager companion, 27 passed check, Launcher4 UI, Forkgram, NewPipe, F-Droid, VLC" width="100%" />
   </a>
 </p>
@@ -33,7 +33,7 @@ Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Lau
   <img src="wizard/assets/og-wizard.png" alt="Flip 2 Linux setup wizard — six verified steps" width="720" />
 </p>
 
-No CLI? The **[browser setup wizard](docs/SETUP-WIZARD.md)** (`wizard/`) is **TCL Flip2 Manager** on your PC: pick Base/Managed → **Start setup** → Ready (`yes`) → get files (Sherpa tarballs pinned) → connect → put on phone → check. Read **[SAFETY.md](docs/SAFETY.md)** first. For a conservative first install, use the **Tier B full installer zip** from [Releases](https://github.com/MRsmallAgain/flip2/releases); the wizard automates the same payload but marks install as experimental.
+No CLI? The **[browser setup wizard](docs/SETUP-WIZARD.md)** (`wizard/`) is **TCL Flip2 Manager** on your PC: pick Base/Managed → **Start setup** → Ready (`yes`) → get files (Sherpa tarballs pinned) → connect → put on phone → check. Read **[SAFETY.md](docs/SAFETY.md)** first. For a conservative first install, use the **Tier B full installer zip** from the [package mirror](https://flip2burn.online/packages/flip2-installer-full-magisk.zip) — verify its SHA-256 against [`wizard/catalog.json`](wizard/catalog.json); the wizard automates the same payload but marks install as experimental.
 
 ```bash
 cd wizard && python3 -m http.server 8000
@@ -164,7 +164,7 @@ flip2 forkgram patch --no-install # build only
 flip2 forkgram release            # install the hosted patched build (SHA-256 verified)
 ```
 
-The patched APK is hosted in our Forkgram fork: [release `flip2-13.0.2.0-r1`](https://github.com/MRsmallAgain/TelegramAndroid/releases/tag/flip2-13.0.2.0-r1). The source-level change is proposed upstream as [Forkgram PR #539](https://github.com/Forkgram/TelegramAndroid/pull/539).
+The patched APK is served from our [package mirror](https://flip2burn.online/packages/forkgram-13.0.2.0-flip2-patched.apk) — SHA-256 pinned in [`wizard/catalog.json`](wizard/catalog.json). The source-level change is proposed upstream as [Forkgram PR #539](https://github.com/Forkgram/TelegramAndroid/pull/539).
 
 The original APK is backed up to `~/forkgram-original-13.0.2.0.apk`. The patched build is debug-signed, so switching from F-Droid requires one uninstall (`--uninstall`, wipes app data). See `pipeline/forkgram/README.md`.
 
