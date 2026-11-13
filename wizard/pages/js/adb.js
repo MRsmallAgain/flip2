@@ -58,6 +58,7 @@ var ADB = {
   connectResolve: null,
   connectPendingAuth: false,
   authChain: null,
+  _sendChain: null,             // tail of the serialized USB write queue
   _adbAlt: 0,
   log: function () {},          // main.js replaces this
 
@@ -119,6 +120,7 @@ var ADB = {
     this.authChain = null;
     this._loggedUsbIn = false;
     this.streams = {}; this.nextId = 1; this._acc = [];
+    this._sendChain = null;
     this.out = null; this.inp = null;
     var handshake = this.device.close().catch(function () {}).then(function () {
       return self.device.open();
@@ -185,6 +187,32 @@ var ADB = {
     });
   },
 
+  // One transferOut pair at a time, each with its own deadline. A fire-and-
+  // forget OKAY must never interleave with a half-written data frame, and a
+  // halted endpoint must fail instead of hanging the whole send queue.
+  _usbOut: function (buf, ms) {
+    var p = this.device.transferOut(this.out, buf);
+    return new Promise(function (resolve, reject) {
+      var done = false;
+      var t = setTimeout(function () {
+        if (done) return;
+        done = true;
+        reject(new Error('USB write stalled for ' + (ms || 15000) + ' ms'));
+      }, ms || 15000);
+      p.then(function (r) {
+        if (done) return;
+        done = true;
+        clearTimeout(t);
+        resolve(r);
+      }, function (e) {
+        if (done) return;
+        done = true;
+        clearTimeout(t);
+        reject(e);
+      });
+    });
+  },
+
   _send: function (cmd, arg0, arg1, data) {
     var self = this;
     var dv = new DataView(new ArrayBuffer(24));
@@ -196,11 +224,15 @@ var ADB = {
     dv.setUint32(12, data ? data.length : 0, true);
     dv.setUint32(16, sum >>> 0, true);
     dv.setUint32(20, (cmd ^ 0xFFFFFFFF) >>> 0, true);
-    var p = this.device.transferOut(this.out, new Uint8Array(dv.buffer));
-    if (data && data.length) {
-      p = p.then(function () { return self.device.transferOut(self.out, data); });
-    }
-    return p;
+    var head = new Uint8Array(dv.buffer);
+    var prev = this._sendChain || Promise.resolve();
+    var next = prev.catch(function () {}).then(function () {
+      return self._usbOut(head).then(function () {
+        if (data && data.length) return self._usbOut(data);
+      });
+    });
+    this._sendChain = next;
+    return next;
   },
 
   _failConnect: function (err) {
@@ -365,6 +397,7 @@ var ADB = {
     if (cmd === A_OKAY) {
       st.remoteId = arg0;
       st.credits = (st.credits || 0) + 1;
+      st.openFail = null;            // opened: a later CLSE is a normal close
       if (st._writeWaiter) { var ww = st._writeWaiter; st._writeWaiter = null; ww(); }
       if (st.openWait) { st.openWait(); st.openWait = null; }
     } else if (cmd === A_WRTE) {
@@ -373,6 +406,15 @@ var ADB = {
       if (st._waiter) { var w = st._waiter; st._waiter = null; w(); }
       this._send(A_OKAY, st.id, st.remoteId, null);
     } else if (cmd === A_CLSE) {
+      // A close before the OKAY means adbd refused the service; surface it now
+      // instead of letting open() sit out its whole timeout.
+      if (st.openFail && st.openWait) {
+        var of = st.openFail;
+        st.openFail = null;
+        st.openWait = null;
+        of('adbd closed ' + st.service + ' before it opened — service refused');
+        return;
+      }
       st.closed = true;
       if (st._waiter) { var w2 = st._waiter; st._waiter = null; w2(); }
       if (st.onclose) st.onclose();
@@ -423,15 +465,38 @@ var ADB = {
       }
     };
     this.streams[id] = st;
-    return this._send(A_OPEN, id, 0, str2ab(service + '\0')).then(function () {
-      return new Promise(function (resolve, reject) {
-        var t = setTimeout(function () {
-          delete self.streams[id];
-          reject(new Error('timed out opening ' + service));
-        }, 10000);
-        st.openWait = function () { clearTimeout(t); resolve(st); };
+    st.service = service;
+    // openWait is installed before A_OPEN: adbd can answer OKAY before the
+    // send even resolves, and a missed OKAY used to burn the whole timeout.
+    return new Promise(function (resolve, reject) {
+      var openMs = service === 'sync:' ? 20000 : 15000;
+      var t = setTimeout(function () {
+        delete self.streams[id];
+        reject(new Error('timed out opening ' + service));
+      }, openMs);
+      st.openWait = function () { clearTimeout(t); resolve(st); };
+      // adbd refuses a service with CLSE and no OKAY; report that as the reason
+      // instead of waiting out the timeout and blaming the transport.
+      st.openFail = function (msg) {
+        clearTimeout(t);
+        delete self.streams[id];
+        reject(new Error(msg));
+      };
+      self._send(A_OPEN, id, 0, str2ab(service + '\0')).catch(function (e) {
+        if (st.openFail) st.openFail('USB write failed opening ' + service + ': ' + ((e && e.message) || e));
       });
     });
+  },
+
+  // A stalled bulk endpoint makes every later transfer hang. Clearing the halt
+  // is what lets a retry start over instead of reproducing the stall.
+  clearStall: function () {
+    var self = this;
+    if (!self.device) return Promise.resolve();
+    var ps = [];
+    if (self.out != null) ps.push(self.device.clearHalt('out', self.out).catch(function () {}));
+    if (self.inp != null) ps.push(self.device.clearHalt('in', self.inp).catch(function () {}));
+    return Promise.all(ps);
   },
 
   // shell: resolves when the remote closes; every line goes to onLine.
@@ -467,6 +532,26 @@ var ADB = {
   },
 
   pushFile: function (remotePath, mode, data, onProgress) {
+    var self = this;
+    var tries = 3;
+    function attempt(n) {
+      return self._pushFileOnce(remotePath, mode, data, onProgress).catch(function (e) {
+        var msg = (e && e.message) || String(e);
+        var transport = /timed out opening sync|before it opened|USB write stalled|sync stalled/i.test(msg);
+        if (n > 1 && transport) {
+          self.log('push ' + remotePath.split('/').pop() + ': ' + msg);
+          self.log('clearing USB stall — retry ' + (tries - n + 2) + '/' + tries + '…');
+          return self.clearStall()
+            .then(function () { return new Promise(function (r) { setTimeout(r, 1200); }); })
+            .then(function () { return attempt(n - 1); });
+        }
+        throw e;
+      });
+    }
+    return attempt(tries);
+  },
+
+  _pushFileOnce: function (remotePath, mode, data, onProgress) {
     var self = this;
     var mtime = Math.floor(Date.now() / 1000);
     // Stall watchdog: every completed write re-arms a 45 s timer; if a

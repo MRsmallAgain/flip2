@@ -17,10 +17,20 @@
 
 var INCOMING = '/data/local/flip2/incoming/';
 var INSTALL_SH_REMOTE = '/data/local/flip2/install.sh';
+var PROFILE_LIST_REMOTE = '/data/local/flip2/profile.list';
 
 /** Android /system/bin/sh breaks on CRLF (syntax error on `in`, empty paths). */
 function normalizeDeviceShellText(text) {
   return String(text == null ? '' : text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
+/** Script and list text as bytes: ADB.pushFile takes bytes, never a string. */
+function textBytes(text) {
+  var s = normalizeDeviceShellText(text);
+  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(s);
+  var out = new Uint8Array(s.length);
+  for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 255;
+  return out;
 }
 
 function pushPayloadBytes(raw, label) {
@@ -146,8 +156,20 @@ var PIPE = {
   // pushSet: map name -> Uint8Array. Runs install.sh at the end. onLog gets
   // every progress and script line; stops on the first FAIL line and rejects
   // so main.js can offer Retry.
-  pushAndInstall: function (pushSet, installSh, onLog) {
-    var seq = Promise.resolve();
+  pushAndInstall: function (pushSet, installSh, onLog, profileText) {
+    var seq = ADB.shell('mkdir -p /data/local/flip2/incoming', function (line) {
+      if (line) onLog(line);
+    }).then(function () { onLog('OK: staging folder ready'); });
+    // profile.list is what makes Arcade install Arcade and Base install Base;
+    // without it install.sh treats every component as wanted.
+    if (profileText) {
+      seq = seq.then(function () {
+        var lines = String(profileText).split('\n').filter(function (l) { return l.trim(); });
+        onLog('push profile.list (' + lines.length + ' components)');
+        return ADB.pushFile(PROFILE_LIST_REMOTE, '0644', textBytes(profileText), null)
+          .then(function () { onLog('OK: pushed profile.list'); });
+      });
+    }
     var names = Object.keys(pushSet);
     var done = 0;
     names.forEach(function (nm) {
@@ -160,7 +182,7 @@ var PIPE = {
     });
     seq = seq.then(function () {
       onLog('push install.sh');
-      return ADB.pushFile(INSTALL_SH_REMOTE, '0755', normalizeDeviceShellText(installSh), null);
+      return ADB.pushFile(INSTALL_SH_REMOTE, '0755', textBytes(installSh), null);
     });
     seq = seq.then(function () {
       onLog('running install.sh as root…');
@@ -178,7 +200,7 @@ var PIPE = {
   // verify.sh runs as root too; mirrors SUMMARY and rejects on exit-failure
   // signaled by a RETRY line.
   verify: function (verifySh, onLog) {
-    return ADB.pushFile('/data/local/flip2/verify.sh', '0755', normalizeDeviceShellText(verifySh), null)
+    return ADB.pushFile('/data/local/flip2/verify.sh', '0755', textBytes(verifySh), null)
       .then(function () {
         var failed = null;
         return ADB.shell("su 0 sh -c 'sh /data/local/flip2/verify.sh'", function (line) {

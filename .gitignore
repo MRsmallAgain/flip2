@@ -55,3 +55,6 @@ pipeline/deploy/sources/
 .venv-mtk/
 mtkclient/
 vendor/
+
+# Wizard site package mirror cache (sync-site-packages.sh downloads)
+.flip2-site-packages/

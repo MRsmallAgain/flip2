@@ -51,24 +51,42 @@ want() {
 }
 
 # --- FlipMouse / FlipMouse Arcade daemon -------------------------------------
-if want flipmouse_arcade; then
-  if pgrep -f 'FlipMouseArcade/mouse' >/dev/null 2>&1; then
-    echo "PASS: FlipMouse Arcade daemon running"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: FlipMouse Arcade daemon running (reboot, or run install.sh again)"
-    FAILS=$((FAILS + 1))
-  fi
-elif want flipmouse; then
-  if pgrep -f 'FlipMouse/mouse' >/dev/null 2>&1; then
-    echo "PASS: FlipMouse daemon running"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: FlipMouse daemon running (reboot, or run install.sh again)"
-    FAILS=$((FAILS + 1))
-  fi
+# Base and Arcade are mutually exclusive: one module enabled, one daemon. Both
+# supervisors restart `mouse` whenever it exits, so two enabled modules fight
+# over the same process. install.sh disables the module that is not wanted.
+# No profile.list means today's base install, so Base wins the default above.
+if want flipmouse; then
+  FM_WANT=/data/adb/modules/FlipMouse
+  FM_OTHER=/data/adb/modules/FlipMouseArcade
+  FM_LABEL=FlipMouse
+elif want flipmouse_arcade; then
+  FM_WANT=/data/adb/modules/FlipMouseArcade
+  FM_OTHER=/data/adb/modules/FlipMouse
+  FM_LABEL="FlipMouse Arcade"
 else
+  FM_WANT=
+  FM_OTHER=
+fi
+if [ -z "$FM_WANT" ]; then
   echo "NOTE: skip flipmouse"
+else
+  if pgrep -f "$FM_WANT/mouse" >/dev/null 2>&1; then
+    echo "PASS: $FM_LABEL daemon running"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: $FM_LABEL daemon running (reboot, or run install.sh again)"
+    FAILS=$((FAILS + 1))
+  fi
+  if [ ! -d "$FM_OTHER" ]; then
+    echo "PASS: $(basename "$FM_OTHER") not installed"
+    PASS=$((PASS + 1))
+  elif [ -f "$FM_OTHER/disable" ]; then
+    echo "PASS: $(basename "$FM_OTHER") disabled"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: $(basename "$FM_OTHER") is enabled too — one mouse daemon per phone (run install.sh again)"
+    FAILS=$((FAILS + 1))
+  fi
 fi
 
 # --- Null Keyboard is the default IME ---------------------------------------

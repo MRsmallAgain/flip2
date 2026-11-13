@@ -437,7 +437,7 @@ function runPushAndInstallCore() {
           setInstallProgress(40, text);
         }
       })
-    : PIPE.pushAndInstall(pushSet, INSTALL_SH, log);
+    : PIPE.pushAndInstall(pushSet, INSTALL_SH, log, PROFILES.profileText());
   var cleanP = useHost ? PIPE.hostCleanup(log) : PIPE.cleanup(log);
   pushP.then(function () {
     return cleanP;
@@ -655,32 +655,19 @@ function catalogDisplayName(f) {
 }
 
 function appendDlGetAction(actions, f) {
-  if (!f.url) {
+  if (!catalogFetchUrl(f) && !(window.FLIP2_NATIVE && window.FLIP2_NATIVE.downloadFile)) {
     var hint = document.createElement('span');
     hint.className = 'dl-file-local';
     hint.textContent = f.upstream || 'local pin';
     actions.appendChild(hint);
     return;
   }
-  if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.downloadFile) {
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'small ghost';
-    b.textContent = 'Get';
-    b.addEventListener('click', function () { fetchOne(f.id, b); });
-    actions.appendChild(b);
-    return;
-  }
-  var a = document.createElement('a');
-  a.href = f.url;
-  a.textContent = 'Get';
-  a.className = 'small';
-  a.target = '_blank';
-  a.rel = 'noreferrer';
-  a.addEventListener('click', function (ev) {
-    if (!downloadsAllowed()) ev.preventDefault();
-  });
-  actions.appendChild(a);
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'small ghost';
+  b.textContent = 'Get';
+  b.addEventListener('click', function () { fetchOne(f.id, b); });
+  actions.appendChild(b);
 }
 
 function buildDownloadList() {
@@ -838,12 +825,22 @@ function cleanErr(e) {
   return m.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
 
+// Browser cannot fetch GitHub/F-Droid cross-origin; flip2burn.online mirrors pins under /packages/.
+function catalogFetchUrl(entry) {
+  if (!entry || !entry.file) return null;
+  if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.downloadFile) {
+    return entry.url || null;
+  }
+  return '/packages/' + encodeURIComponent(entry.file);
+}
+
 function fetchOne(id, btn) {
   if (!downloadsAllowed()) {
     return Promise.resolve({ ok: false, msg: 'type yes under Prepare before downloading' });
   }
   var entry = CATALOG.byId[id];
-  if (!entry || !entry.url) {
+  var fetchUrl = entry ? catalogFetchUrl(entry) : null;
+  if (!entry || !fetchUrl) {
     setRow(id, 'local pin', 'wait');
     badLine((entry && entry.file ? entry.file : id) + ': no download URL; match the local pin');
     refreshDownloadGate();
@@ -851,9 +848,22 @@ function fetchOne(id, btn) {
   }
   if (btn) btn.disabled = true;
   if (!VERIFIED[id]) setRow(id, 'fetching…', '');
-  return window.FLIP2_NATIVE.downloadFile(id).then(function (r) {
-    return acceptBytes(id, r.bytes);
-  }).then(function (res) {
+  var fetchP;
+  if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.downloadFile) {
+    fetchP = window.FLIP2_NATIVE.downloadFile(id).then(function (r) {
+      return acceptBytes(id, r.bytes);
+    });
+  } else {
+    fetchP = fetch(fetchUrl, { mode: 'cors', credentials: 'omit' }).then(function (res) {
+      if (!res.ok) {
+        throw new Error('HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : ''));
+      }
+      return res.arrayBuffer();
+    }).then(function (buf) {
+      return acceptBytes(id, buf);
+    });
+  }
+  return fetchP.then(function (res) {
     setRow(id, res.ok ? 'verified' : 'FAILED', res.ok ? 'ok' : 'bad');
     if (!res.ok) badLine(res.msg);
     refreshDownloadGate();
@@ -933,8 +943,13 @@ function downloadAll() {
   }
   var btn = $('dl-fetch-btn');
   btn.disabled = true;
-  var todo = CATALOG.list.filter(function (f) { return f.url && !VERIFIED[f.id]; })
-    .map(function (f) { return f.id; });
+  var needIds = (typeof requiredCatalog === 'function')
+    ? requiredCatalog()
+    : CATALOG.list.map(function (f) { return f.id; });
+  var todo = needIds.filter(function (id) {
+    var f = CATALOG.byId[id];
+    return f && catalogFetchUrl(f) && !VERIFIED[id];
+  });
   if (!todo.length) {
     refreshDownloadGate();
     applyDownloadLock();
@@ -951,7 +966,7 @@ function downloadAll() {
   });
   seq.then(function () {
     var missing = refreshDownloadGate();
-    var failed = missing.filter(function (f) { return f.url; });
+    var failed = missing.filter(function (f) { return catalogFetchUrl(f); });
     if (failed.length) {
       setStatus('dl-msg', failed.length + ' could not be downloaded. A server may be down — try again, or choose files you got another way.', 'bad');
     }
@@ -997,12 +1012,11 @@ function checkDownloads(picked) {
 
 function initDownloads() {
   buildDownloadTable();
-  // Companion only: these bypass the browser download detour entirely.
+  $('dl-fetch-btn').classList.remove('hidden');
+  $('dl-fetch-btn').addEventListener('click', downloadAll);
   if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.localFiles) {
     $('dl-local-btn').classList.remove('hidden');
-    $('dl-fetch-btn').classList.remove('hidden');
     $('dl-local-btn').addEventListener('click', useLocalFiles);
-    $('dl-fetch-btn').addEventListener('click', downloadAll);
     // Probe quietly so the user sees what is already here instead of
     // wondering whether the button will find anything.
     window.FLIP2_NATIVE.localFiles().then(function (found) {

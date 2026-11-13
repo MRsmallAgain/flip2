@@ -93,15 +93,24 @@ fi
 
 # --- flip2 Magisk modules (base / full: rooted module unpack) ------------
 if { [ "$FLAVOR" = full ] || [ "$FLAVOR" = base ]; } && [ -f "$MOD/payload/data/modules.txt" ]; then
-  # Stop the running FlipMouse supervisor + daemon first: unzip cannot replace
-  # the executing mouse binary (Text file busy).
+  # Stop both mouse supervisors + daemons first: unzip cannot replace the
+  # executing mouse binary (Text file busy), and exactly one may run after.
   pkill -f 'FlipMouse/service.sh' 2>/dev/null
+  pkill -f 'FlipMouseArcade/service.sh' 2>/dev/null
   pkill -f 'FlipMouse/mouse' 2>/dev/null
+  pkill -f 'FlipMouseArcade/mouse' 2>/dev/null
   sleep 1
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     mid=${line%% *}
     f=${line#* }
+    # The full payload ships FlipMouseArcade.zip because the wizard extracts
+    # it from here, but flashing the zip installs Base only. Arcade is a
+    # wizard profile, and two enabled mouse modules fight over one daemon.
+    if [ "$mid" = FlipMouseArcade ]; then
+      echo "skip module: FlipMouseArcade (wizard Arcade profile only)"
+      continue
+    fi
     T=/data/adb/modules/$mid
     mkdir -p "$T"
     if unzip -o "$MOD/payload/modules/$f" -d "$T/" >/dev/null 2>&1; then
@@ -110,12 +119,19 @@ if { [ "$FLAVOR" = full ] || [ "$FLAVOR" = base ]; } && [ -f "$MOD/payload/data/
       echo "FAILED to unpack module: $mid"
     fi
   done < "$MOD/payload/data/modules.txt"
+  # A phone that ran Arcade before must not keep it enabled under Base.
+  ARC=/data/adb/modules/FlipMouseArcade
+  if [ -d "$ARC" ]; then
+    touch "$ARC/disable"
+    rm -f "$ARC/update"
+    echo "disabled FlipMouseArcade (Base is the flash default)"
+  fi
   # Magisk 25.2 stages CLI-installed modules until reboot; in-place unpack
   # works but nothing starts FlipMouse's daemon until service time — start it
   # now (same treatment as pipeline/flipmouse/scripts/ondevice-install.sh).
   FM=/data/adb/modules/FlipMouse
   if [ -x "$FM/mouse" ]; then
-    rm -f "$FM/update"
+    rm -f "$FM/update" "$FM/disable"
     chmod 755 "$FM/mouse" "$FM/service.sh" 2>/dev/null
     chmod 644 "$FM/module.prop" 2>/dev/null
     nohup sh "$FM/service.sh" </dev/null >/dev/null 2>&1 &

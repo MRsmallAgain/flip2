@@ -122,7 +122,7 @@ while IFS='|' read -r _order name artifact zip apk pkg mid erepo etag easset eur
         else
           MISSING+=("$apk")
         fi
-      elif [[ -n "$eurl" || -n "$erepo" ]]; then
+      elif [[ -n "$eurl" || -n "$erepo" || -n "$easset" ]]; then
         prefetch="$ROOT/pipeline/deploy/sources/$easset"
         skip_prefetch=0
         if [[ "$FLAVOR" == "image-post" ]] && \

@@ -54,9 +54,14 @@ until pm list packages >/dev/null 2>&1; do
   sleep 2
 done
 
-# --- modules, manifest 10-50 (stop FlipMouse first: Text file busy) --------
+# --- modules, manifest 10-50 (stop both mouse daemons first: Text file busy)
+# Base and Arcade each ship a `mouse` process, and both supervisors restart it
+# whenever `pidof mouse` is empty — so the old one must be dead, not just
+# disabled, or it wins the race and the newly wanted daemon never starts.
 pkill -f 'FlipMouse/service.sh' 2>/dev/null
+pkill -f 'FlipMouseArcade/service.sh' 2>/dev/null
 pkill -f 'FlipMouse/mouse' 2>/dev/null
+pkill -f 'FlipMouseArcade/mouse' 2>/dev/null
 sleep 1
 
 # Missing profile.list means the full base install. Headwind is not part of
@@ -86,6 +91,8 @@ place_module() {
   [ -f "$IN/$zip" ] || fail "module zip missing: $IN/$zip"
   T=/data/adb/modules/$mid
   mkdir -p "$T"
+  # Re-placing a module undoes a previous disable/remove (profile switch).
+  rm -f "$T/disable" "$T/remove" 2>/dev/null
   unzip_any "$IN/$zip" "$T" || fail "could not unpack module: $mid"
   ok "module placed: $mid"
 }
@@ -131,18 +138,48 @@ if want tagdrawer; then
 fi
 
 
+# --- FlipMouse: Base and Arcade are mutually exclusive ----------------------
+# Both modules ship a `mouse` daemon whose supervisor restarts it whenever
+# `pidof mouse` is empty, so two enabled modules fight over the same process.
+# A profile switch must leave exactly one module enabled and one daemon.
+# No profile.list means today's full base install: keep Base, disable Arcade.
+FM_BASE=/data/adb/modules/FlipMouse
+FM_ARCADE=/data/adb/modules/FlipMouseArcade
 if want flipmouse; then
-# Nothing starts FlipMouse's daemon until Magisk service time — start it now,
-# the way installer/service.sh does.
-FM=/data/adb/modules/FlipMouse
-[ -x "$FM/mouse" ] || fail "FlipMouse module has no mouse binary"
-rm -f "$FM/update"
-chmod 755 "$FM/mouse" "$FM/service.sh" 2>/dev/null
-chmod 644 "$FM/module.prop" 2>/dev/null
-nohup sh "$FM/service.sh" </dev/null >/dev/null 2>&1 &
-ok "FlipMouse daemon started"
+  FM=$FM_BASE
+  FM_OTHER=$FM_ARCADE
+  FM_NAME=FlipMouse
+elif want flipmouse_arcade; then
+  FM=$FM_ARCADE
+  FM_OTHER=$FM_BASE
+  FM_NAME="FlipMouse Arcade"
 else
+  FM=
+fi
+if [ -z "$FM" ]; then
   echo "NOTE: skip flipmouse"
+else
+  if [ -d "$FM_OTHER" ]; then
+    # Magisk honours this flag at boot; the process is killed just below.
+    touch "$FM_OTHER/disable" || fail "could not disable $(basename "$FM_OTHER")"
+    rm -f "$FM_OTHER/update" 2>/dev/null
+    ok "disabled $(basename "$FM_OTHER") — one mouse daemon per phone"
+  fi
+  # Both supervisors restart `mouse` whenever `pidof mouse` is empty, so kill
+  # every straggler (and any stale wanted daemon) before starting the one we
+  # want, or the loser of the race keeps the slot.
+  pkill -f "$FM_OTHER/service.sh" 2>/dev/null
+  pkill -f "$FM_OTHER/mouse" 2>/dev/null
+  pkill -f "$FM/mouse" 2>/dev/null
+  sleep 1
+  # Nothing starts the daemon until Magisk service time — start it now, the
+  # way installer/service.sh does.
+  [ -x "$FM/mouse" ] || fail "$FM_NAME module has no mouse binary"
+  rm -f "$FM/update" "$FM/disable" 2>/dev/null
+  chmod 755 "$FM/mouse" "$FM/service.sh" 2>/dev/null
+  chmod 644 "$FM/module.prop" 2>/dev/null
+  nohup sh "$FM/service.sh" </dev/null >/dev/null 2>&1 &
+  ok "$FM_NAME daemon started"
 fi
 
 # --- user APKs, manifest 60-80 plus the wizard's own downloads -------------
@@ -214,17 +251,17 @@ fi
 
 if want ime; then
 # --- IME settings (manifest 70): values mirror payload data/settings.txt ---
-settings put secure show_ime_with_hard_keyboard '1' \
+settings put secure show_ime_with_hard_keyboard '1' \
   || fail "settings: show_ime_with_hard_keyboard"
 settings put secure enabled_input_methods "$NULL_IME" \
   || fail "settings: enabled_input_methods"
 settings put secure default_input_method "$NULL_IME" \
   || fail "settings: default_input_method"
-settings put secure accessibility_soft_keyboard_mode '1' \
+settings put secure accessibility_soft_keyboard_mode '1' \
   || fail "settings: accessibility_soft_keyboard_mode"
-settings put system dtmf_tone '0' \
+settings put system dtmf_tone '0' \
   || fail "settings: dtmf_tone"
-settings put system dtmf_tone_type '0' \
+settings put system dtmf_tone_type '0' \
   || fail "settings: dtmf_tone_type"
 appops set --user 0 $NULL_PKG WRITE_SETTINGS allow \
   || fail "appops: WRITE_SETTINGS for $NULL_PKG"
@@ -255,7 +292,7 @@ fi
 
 if want display; then
 # --- display size, manifest 95: logical 321x428 on the 240x320 panel --------
-settings put global 'display_size_forced' '321,428' \
+settings put global 'display_size_forced' '321,428' \
   || fail "settings: display_size_forced"
 ok "display size 321x428 (takes effect after reboot)"
 else

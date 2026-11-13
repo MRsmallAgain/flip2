@@ -55,6 +55,8 @@ place_module() {
   [ -f "$IN/$zip" ] || fail "module zip missing: $IN/$zip"
   T=/data/adb/modules/$mid
   mkdir -p "$T"
+  # Re-placing a module undoes a previous disable/remove (profile switch).
+  rm -f "$T/disable" "$T/remove" 2>/dev/null
   unzip_any "$IN/$zip" "$T" || fail "could not unpack module: $mid"
   ok "module placed: $mid"
 }
@@ -89,18 +91,48 @@ TDE
 
   cat <<'FM'
 
+# --- FlipMouse: Base and Arcade are mutually exclusive ----------------------
+# Both modules ship a `mouse` daemon whose supervisor restarts it whenever
+# `pidof mouse` is empty, so two enabled modules fight over the same process.
+# A profile switch must leave exactly one module enabled and one daemon.
+# No profile.list means today's full base install: keep Base, disable Arcade.
+FM_BASE=/data/adb/modules/FlipMouse
+FM_ARCADE=/data/adb/modules/FlipMouseArcade
 if want flipmouse; then
-# Nothing starts FlipMouse's daemon until Magisk service time — start it now,
-# the way installer/service.sh does.
-FM=/data/adb/modules/FlipMouse
-[ -x "$FM/mouse" ] || fail "FlipMouse module has no mouse binary"
-rm -f "$FM/update"
-chmod 755 "$FM/mouse" "$FM/service.sh" 2>/dev/null
-chmod 644 "$FM/module.prop" 2>/dev/null
-nohup sh "$FM/service.sh" </dev/null >/dev/null 2>&1 &
-ok "FlipMouse daemon started"
+  FM=$FM_BASE
+  FM_OTHER=$FM_ARCADE
+  FM_NAME=FlipMouse
+elif want flipmouse_arcade; then
+  FM=$FM_ARCADE
+  FM_OTHER=$FM_BASE
+  FM_NAME="FlipMouse Arcade"
 else
+  FM=
+fi
+if [ -z "$FM" ]; then
   echo "NOTE: skip flipmouse"
+else
+  if [ -d "$FM_OTHER" ]; then
+    # Magisk honours this flag at boot; the process is killed just below.
+    touch "$FM_OTHER/disable" || fail "could not disable $(basename "$FM_OTHER")"
+    rm -f "$FM_OTHER/update" 2>/dev/null
+    ok "disabled $(basename "$FM_OTHER") — one mouse daemon per phone"
+  fi
+  # Both supervisors restart `mouse` whenever `pidof mouse` is empty, so kill
+  # every straggler (and any stale wanted daemon) before starting the one we
+  # want, or the loser of the race keeps the slot.
+  pkill -f "$FM_OTHER/service.sh" 2>/dev/null
+  pkill -f "$FM_OTHER/mouse" 2>/dev/null
+  pkill -f "$FM/mouse" 2>/dev/null
+  sleep 1
+  # Nothing starts the daemon until Magisk service time — start it now, the
+  # way installer/service.sh does.
+  [ -x "$FM/mouse" ] || fail "$FM_NAME module has no mouse binary"
+  rm -f "$FM/update" "$FM/disable" 2>/dev/null
+  chmod 755 "$FM/mouse" "$FM/service.sh" 2>/dev/null
+  chmod 644 "$FM/module.prop" 2>/dev/null
+  nohup sh "$FM/service.sh" </dev/null >/dev/null 2>&1 &
+  ok "$FM_NAME daemon started"
 fi
 
 # --- user APKs, manifest 60-80 plus the wizard's own downloads -------------

@@ -5,7 +5,12 @@
 Regenerate after catalog changes:
 
 ```bash
-jq '{version, pinned, catalog: "wizard/catalog.json", files: [.files[] | {id, file, sha256, size, url}]}' wizard/catalog.json > wizard/pins.json
+./bin/flip2 wizard pins           # writes wizard/pins.json
+./bin/flip2 wizard pins --check   # exit 1 if it drifted from catalog.json
 ```
+
+`flip2 site deploy` runs the regeneration itself (unless `--skip-gen`), because
+`pages/js/catalog.js#mergePinFields` lets a pin `sha256`/`size` **override**
+`catalog.json`: a stale `pins.json` silently breaks every verified download.
 
 Every `sha256` must match a real upstream file (`sha256sum` on the downloaded bytes), not a guess.
