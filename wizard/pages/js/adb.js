@@ -24,6 +24,23 @@ function concatArrays(arrs) {
   return out;
 }
 
+// Chrome device picker: TCL adb PIDs + generic ADB interface (not preloader 0e8d:2000).
+var WEBUSB_PICK_FILTERS = [
+  { vendorId: 0x1bbb, productId: 0x0167 },
+  { vendorId: 0x1bbb, productId: 0x0c01 },
+  { classCode: 255, subclassCode: 66, protocolCode: 1 }
+];
+
+function pickTclAdbDevice(list) {
+  list = (list || []).filter(function (d) { return d.vendorId === 0x1bbb; });
+  var adbPids = [0x0167, 0x0c01];
+  var adb = list.filter(function (d) { return adbPids.indexOf(d.productId) >= 0; });
+  if (adb.length >= 1) return adb[0];
+  list = list.filter(function (d) { return d.productId !== 0x2000; });
+  if (list.length === 1) return list[0];
+  return null;
+}
+
 var ADB = {
   device: null, out: null, inp: null, _ifNum: null,
   maxData: 256 * 1024,
@@ -35,15 +52,10 @@ var ADB = {
   pickFromGranted: function () {
     var self = this;
     return navigator.usb.getDevices().then(function (list) {
-      var granted = (list || []).filter(function (d) {
-        return d.vendorId === 0x1bbb;
-      });
-      if (granted.length > 1) {
-        granted = granted.filter(function (d) { return d.productId !== 0x2000; });
-      }
-      if (granted.length === 1) {
-        self.device = granted[0];
-        return granted[0];
+      var d = pickTclAdbDevice(list);
+      if (d) {
+        self.device = d;
+        return d;
       }
       var err = new Error('no granted WebUSB device');
       err.noGranted = true;
@@ -53,21 +65,16 @@ var ADB = {
 
   pick: function () {
     var self = this;
-    var filters = [{ classCode: 255, subclassCode: 66, protocolCode: 1 }];
     return navigator.usb.getDevices().then(function (list) {
-      var granted = (list || []).filter(function (d) {
-        return d.vendorId === 0x1bbb;
-      });
-      if (granted.length > 1) {
-        granted = granted.filter(function (d) { return d.productId !== 0x2000; });
-      }
-      if (granted.length === 1) {
-        self.device = granted[0];
-        return granted[0];
-      }
-      return navigator.usb.requestDevice({ filters: filters }).then(function (d) {
+      var d = pickTclAdbDevice(list);
+      if (d) {
         self.device = d;
         return d;
+      }
+      return navigator.usb.requestDevice({ filters: WEBUSB_PICK_FILTERS }).then(function (dev) {
+        self.device = dev;
+        self.log('Picked USB ' + dev.vendorId.toString(16) + ':' + dev.productId.toString(16));
+        return dev;
       });
     });
   },
@@ -246,7 +253,10 @@ var ADB = {
         this.pubSent = true;
         this._send(A_AUTH, 3, 0, str2ab(ADBKEY.pubB64 + '\0'));
         this.log('Key not on the phone yet — sent the public key.');
-        this.log('On the phone, accept the USB debugging prompt (tick "always allow").');
+        this.log('>>> Unlock the phone. Look for Allow USB debugging? Tap OK (Always allow helps).');
+        if (typeof window.flip2OnAdbAuthPrompt === 'function') {
+          window.flip2OnAdbAuthPrompt();
+        }
       }
       return;
     }

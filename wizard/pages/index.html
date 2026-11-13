@@ -38,7 +38,8 @@
         <span id="phone-msg" class="status get-ready-summary-msg"></span>
       </summary>
       <div class="get-ready-body">
-        <p id="strip-hint" class="now-hint">Plug in the phone and allow USB debugging.</p>
+        <p id="strip-hint" class="now-hint">Plug in USB, run <code>adb kill-server</code> on the PC if host adb was used, then Connect phone. Pick TCL (1bbb) in Chrome — not preloader. The debugging prompt appears on the <b>phone</b> after connect (unlock the screen).</p>
+        <pre class="log hidden" id="get-ready-adb-log" aria-live="polite"></pre>
         <div id="phone-facts" class="now strip-phone-facts"></div>
         <p id="phone-next" class="note hidden"></p>
         <div class="action-row action-row--compact strip-phone-actions">

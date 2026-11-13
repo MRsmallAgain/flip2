@@ -483,7 +483,7 @@ function makeLog(id) {
 // ADB-internal messages go to every visible log sink; pipeline events are
 // logged separately by the handlers, so nothing is lost when a step changes.
 function adbLog(line) {
-  ['usb-log', 'inst-log', 'ver-log', 'boot-log'].forEach(function (id) {
+  ['usb-log', 'inst-log', 'ver-log', 'boot-log', 'get-ready-adb-log'].forEach(function (id) {
     var pre = $(id);
     if (pre && !pre.classList.contains('hidden')) {
       pre.textContent += line + '\n';
@@ -491,6 +491,17 @@ function adbLog(line) {
     }
   });
 }
+
+function onAdbAuthPrompt() {
+  setStatus('phone-msg', 'Check the phone screen — tap Allow USB debugging.', 'wait');
+  setStatus('strip-phone', 'authorize on phone', 'wait');
+  var hint = $('strip-hint');
+  if (hint) {
+    hint.innerHTML = '<b>On the phone:</b> unlock, tap <b>Allow</b> on USB debugging (Always allow helps). No popup on the PC is normal.';
+  }
+}
+
+window.flip2OnAdbAuthPrompt = onAdbAuthPrompt;
 
 // --- 1 · credit gate --------------------------------------------------------
 
@@ -1131,6 +1142,11 @@ function connectWebUsbAdb(options) {
       if (gen !== webUsbConnectGen) return Promise.reject(new Error('superseded'));
       var logEl = $('usb-log');
       if (logEl) logEl.classList.remove('hidden');
+      var grLog = $('get-ready-adb-log');
+      if (statusEl === 'phone-msg' && grLog) {
+        grLog.textContent = '';
+        grLog.classList.remove('hidden');
+      }
       ADB.log = adbLog;
       return ADB.connect();
     });
