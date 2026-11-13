@@ -1077,6 +1077,9 @@ function initUdev() {
 // nothing a person can act on. Say which process to stop instead.
 function usbError(e) {
   var m = (e && e.message) || String(e);
+  if (e && e.name === 'NotFoundError') {
+    return 'Device picker closed — plug in the phone and press Connect phone again.';
+  }
   if (/claimInterface/i.test(m) || /Unable to claim/i.test(m)) {
     return 'Another program is using the phone: the adb server on this computer. ' +
       'Run "adb kill-server" in a terminal, replug the phone, and press Pick phone again.';
@@ -1104,6 +1107,7 @@ function onWebUsbAdbReady() {
 }
 
 var webUsbConnectGen = 0;
+var WEBUSB_CONNECT_MS = 90000;
 
 function connectWebUsbAdb(options) {
   options = options || {};
@@ -1118,8 +1122,9 @@ function connectWebUsbAdb(options) {
   }
   if (!options.silent) {
     setStatus(statusEl, options.connectingMsg || 'connecting…', 'wait');
+    if (statusEl === 'phone-msg') setStatus('strip-phone', 'connecting…', 'wait');
   }
-  return ADBKEY.load().then(function () {
+  var work = ADBKEY.load().then(function () {
     if (gen !== webUsbConnectGen) return Promise.reject(new Error('superseded'));
     var pickP = showChooser ? ADB.pick() : ADB.pickFromGranted();
     return pickP.then(function () {
@@ -1143,6 +1148,7 @@ function connectWebUsbAdb(options) {
     if (e && e.noGranted) {
       if (!options.silent) {
         setStatus(statusEl, 'No phone selected — plug in, pick the device, allow USB debugging.', 'wait');
+        if (statusEl === 'phone-msg') setStatus('strip-phone', 'browser — no host adb', 'wait');
       }
       return false;
     }
@@ -1153,8 +1159,24 @@ function connectWebUsbAdb(options) {
         msg += ' Or press Check host adb — Companion install does not need WebUSB.';
       }
       setStatus(statusEl, msg, 'bad');
+      if (statusEl === 'phone-msg') setStatus('strip-phone', 'browser — no host adb', 'wait');
     }
     return Promise.reject(e);
+  });
+  var deadline = new Promise(function (_, reject) {
+    setTimeout(function () {
+      reject(new Error('Connect timed out — accept USB debugging on the phone, or run adb kill-server and try again.'));
+    }, WEBUSB_CONNECT_MS);
+  });
+  return Promise.race([work, deadline]).catch(function (e) {
+    if (gen !== webUsbConnectGen) return false;
+    if (e && e.message === 'superseded') return false;
+    if (!options.silent && e) {
+      var msg = usbError(e);
+      setStatus(statusEl, msg, 'bad');
+      if (statusEl === 'phone-msg') setStatus('strip-phone', 'browser — no host adb', 'wait');
+    }
+    throw e;
   });
 }
 

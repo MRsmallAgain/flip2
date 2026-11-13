@@ -86,11 +86,15 @@ var ADB = {
     throw new Error('no ADB interface on this device');
   },
 
+  CONNECT_TIMEOUT_MS: 55000,
+
   connect: function () {
     var self = this;
     this.tokensSeen = 0; this.pubSent = false;
     this.streams = {}; this.nextId = 1; this._acc = [];
-    return this.device.open().then(function () {
+    var handshake = this.device.close().catch(function () {}).then(function () {
+      return self.device.open();
+    }).then(function () {
       if (self.device.configuration === null) return self.device.selectConfiguration(1);
     }).then(function () {
       self._ifNum = self.findAdbIface();
@@ -113,6 +117,15 @@ var ADB = {
     }).then(function () {
       self._readLoop();
       return self._waitConnected();
+    });
+    var timedOut = new Promise(function (_, reject) {
+      setTimeout(function () {
+        reject(new Error('timed out opening USB — try adb kill-server, replug, accept debugging on the phone'));
+      }, self.CONNECT_TIMEOUT_MS);
+    });
+    return Promise.race([handshake, timedOut]).catch(function (e) {
+      self._failConnect(e);
+      throw e;
     });
   },
 
@@ -149,16 +162,26 @@ var ADB = {
     return p;
   },
 
+  _failConnect: function (err) {
+    if (this.connectResolve) {
+      var r = this.connectResolve;
+      this.connectResolve = null;
+      r.reject(err instanceof Error ? err : new Error(String(err)));
+    }
+  },
+
   _readLoop: function () {
     var self = this;
-      return this.device.transferIn(this.inp, 65536).then(function (res) {
+    return this.device.transferIn(this.inp, 65536).then(function (res) {
       if (res.status === 'ok' && res.data.byteLength > 0) {
         self._ingest(new Uint8Array(res.data.buffer, res.data.byteOffset, res.data.byteLength));
       }
       if (res.status === 'ok') return self._readLoop();
       self.log('FAIL: USB read status ' + res.status);
+      self._failConnect(new Error('USB read failed (' + res.status + ') — unplug and try Connect phone again'));
     }).catch(function (e) {
       self.log('FAIL: USB read error: ' + e.message);
+      self._failConnect(e);
     });
   },
 
