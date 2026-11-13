@@ -59,19 +59,32 @@ and pick a wallpaper in Settings, or copy your own PNG over it the same way.
 
 | Tier | Mechanism |
 |------|-----------|
-| **A (image)** | Asset lands at `system/media/flip2-wallpaper.png`; the generated `first-boot.sh` copies it into `/data` once (stamp-guarded) |
-| **B (installer zip)** | Asset rides in `payload/wallpaper/`; `service.sh` copies it at first boot (stamp-guarded) |
-| **B (wizard)** | Page pulls `payload/wallpaper/` out of the installer zip if present; `install.sh` copies it, `verify.sh` compares it |
+| **A (image)** | Asset lands at `system/media/flip2-wallpaper.png`; the generated `first-boot.sh` copies it into `/data` once, on a freshly flashed phone (stamp-guarded) |
+| **B (installer zip)** | Asset rides in `payload/wallpaper/`; `service.sh` copies it at first boot on a freshly flashed phone (stamp-guarded) |
+| **B (wizard)** | Page pulls `payload/wallpaper/` out of the installer zip if present; `install.sh` fills an empty slot only, `verify.sh` reports PASS/NOTE |
 | **C (`flip2 setup full`)** | `step_wallpaper` calls `flip2 wallpaper apply` |
 | **D (`flip2 pack-all`)** | Ships `flip2-wallpaper.png` + `apply-wallpaper.sh` |
 
 Every path except the image tier needs root at install time, because
 `/data/system/users/0` is not writable by a system file merge.
 
-## Why it is stamp-guarded
+## Why it never overwrites, and never fails
 
-A wallpaper is a user preference, not a build artifact. Every automatic path
-writes `/data/local/flip2/.wallpaper-applied` after a successful copy and checks
-for it first, so re-running an installer never replaces a background the user
-has since chosen. `flip2 wallpaper apply` is deliberately **not** guarded — it
-is the explicit "put the flip2 default back" command.
+A wallpaper is a user preference, not a build artifact. The automatic paths
+fill an empty slot and stop there:
+
+- **Nothing there yet** → copy the default, stamp `.wallpaper-applied`.
+- **Already the default** (byte comparison) → stamp it, no write. Decided by the
+  bytes rather than the stamp, so a re-run reports what is actually on the phone.
+- **Stamp present** → an earlier run had its chance; leave whatever the user has
+  chosen since alone.
+- **Any other existing file** → theirs; leave it byte-for-byte alone.
+- **Copy fails** → `NOTE`, and the rest of the install continues. A background is
+  never a reason to fail an install.
+
+`flip2 wallpaper apply` is deliberately **not** guarded — it is the explicit
+"put the flip2 default back" command.
+
+`verify.sh` follows the same rule: `PASS` when the live file is the default,
+`NOTE` when it is anything else. A phone showing its own background is the
+correct end state, so a mismatch there is never a `FAIL`.
