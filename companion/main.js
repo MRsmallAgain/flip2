@@ -752,8 +752,15 @@ async function factoryState(expectedFingerprint) {
 }
 
 // Wizard install/verify over host adb — WebUSB sync: often times out on Linux.
-// adbd cannot create files under /data/local/flip2 (SELinux); stage on sdcard, su cp.
-const WIZARD_STAGING = '/sdcard/Download/flip2-wizard-staging';
+// Every on-device path comes from companion/device-paths.js, generated from
+// pipeline/wizard/device-paths.json, so the host path and the browser path
+// cannot disagree about where a push is staged or where it lands.
+const DP = require('./device-paths');
+// adbd cannot create files under the stage root (SELinux); stage on sdcard,
+// then su cp. A failed browser attempt leaves files in DP.shellStaging, and
+// install.sh ingests any staging dir it finds — so a host run clears that
+// first, or it would install the failed attempt's files, profile.list included.
+const WIZARD_STAGING = DP.sdcardStaging;
 let wizardHostTmp = null;
 
 function installOutputLooksOk(lines) {
@@ -774,11 +781,11 @@ async function wizardHostWriteRootFile(serial, destPath, content, mode) {
   const local = path.join(wizardHostTmp, 'profile.list');
   await fsp.writeFile(local, String(content), 'utf8');
   const remoteStage = WIZARD_STAGING + '/profile.list';
-  await wizardHostSu(serial, 'mkdir -p ' + shellQuote(WIZARD_STAGING) + ' /data/local/flip2', 60000);
+  await wizardHostSu(serial, 'mkdir -p ' + shellQuote(WIZARD_STAGING) + ' ' + shellQuote(DP.stageRoot), 60000);
   await adbRun(['-s', serial, 'push', local, remoteStage], 120000);
-  // chmod on /data/local/flip2 is denied even as root. install -m sets the
-  // mode while creating the file, which this phone allows.
-  await wizardHostSu(serial, 'mkdir -p /data/local/flip2', 60000);
+  // chmod on the stage root is denied even as root. install -m sets the mode
+  // while creating the file, which this phone allows.
+  await wizardHostSu(serial, 'mkdir -p ' + shellQuote(DP.stageRoot), 60000);
   await wizardHostSu(serial,
     'install -m ' + modeStr + ' ' + shellQuote(remoteStage) + ' ' + shellQuote(destPath),
     180000);
@@ -787,7 +794,7 @@ async function wizardHostWriteRootFile(serial, destPath, content, mode) {
 
 // profile.list is one known component id per line. The destination is fixed:
 // cleanup deletes incoming/*, and the page must not choose another path.
-const PROFILE_PATH = '/data/local/flip2/profile.list';
+const PROFILE_PATH = DP.profileList;
 const PROFILE_IDS = {
   navoverlay: true, keypad: true, flipmouse: true, tagdrawer: true,
   launcher_overlay: true, launcher4: true, ime: true, forkgram: true,
@@ -873,7 +880,7 @@ async function wizardHostInstallApk(payload) {
   const pkg = CATALOG_APKS[name];
   if (!pkg) throw new Error('not a catalog apk');
   const serial = await adbSerial();
-  const src = '/data/local/flip2/incoming/' + name;
+  const src = DP.incomingDir + '/' + name;
   let out = '';
   try {
     out = await adbRun(
@@ -1141,9 +1148,11 @@ async function wizardHostPrepare() {
   wizardHostTmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
   const serial = await adbSerial();
   try {
+    // A failed browser attempt can leave files — profile.list included — in
+    // DP.shellStaging, and install.sh ingests any staging dir it finds.
     await wizardHostSu(serial,
-      'rm -rf ' + shellQuote(WIZARD_STAGING) +
-        ' && mkdir -p /data/local/flip2/incoming ' + shellQuote(WIZARD_STAGING),
+      'rm -rf ' + shellQuote(WIZARD_STAGING) + ' ' + shellQuote(DP.shellStaging) +
+        ' && mkdir -p ' + shellQuote(DP.incomingDir) + ' ' + shellQuote(WIZARD_STAGING),
       60000);
   } catch (e) {
     throw mapSuPrepareError(e);
@@ -1167,7 +1176,7 @@ async function wizardHostPushOne(payload) {
   const local = path.join(wizardHostTmp, name);
   await fsp.writeFile(local, buf);
   const remoteStage = WIZARD_STAGING + '/' + name;
-  const dest = '/data/local/flip2/incoming/' + name;
+  const dest = DP.incomingDir + '/' + name;
   await adbRun(['-s', serial, 'push', local, remoteStage], 900000);
   await wizardHostSu(serial,
     'cp ' + shellQuote(remoteStage) + ' ' + shellQuote(dest) + ' && rm -f ' + shellQuote(remoteStage),
@@ -1190,17 +1199,19 @@ async function wizardHostRunInstall(payload) {
     await adbRun(['-s', serial, 'push', shLocal, shStage], 120000);
     try {
       await wizardHostSu(serial,
-        'install -m 755 ' + shellQuote(shStage) + ' /data/local/flip2/install.sh && rm -f ' + shellQuote(shStage),
+        'install -m 755 ' + shellQuote(shStage) + ' ' + shellQuote(DP.installSh) +
+          ' && rm -f ' + shellQuote(shStage),
         120000);
     } catch (deployErr) {
       log('note: install -m755 deploy failed (' + (deployErr.message || deployErr) + '); trying su cp…');
       await wizardHostSu(serial,
-        'cp ' + shellQuote(shStage) + ' /data/local/flip2/install.sh && chmod 755 /data/local/flip2/install.sh && rm -f ' + shellQuote(shStage),
+        'cp ' + shellQuote(shStage) + ' ' + shellQuote(DP.installSh) +
+          ' && chmod 755 ' + shellQuote(DP.installSh) + ' && rm -f ' + shellQuote(shStage),
         120000);
     }
     log('running install.sh as root…');
     const run = await adbRunShell(
-      ['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote('sh /data/local/flip2/install.sh')],
+      ['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote('sh ' + DP.installSh)],
       1800000);
     if (run.code !== 0 && !run.stdout.trim() && run.stderr.trim()) {
       throw new Error(run.stderr.trim());
@@ -1233,7 +1244,9 @@ async function wizardHostCleanup() {
   const lines = [];
   try {
     const serial = await adbSerial();
-    await wizardHostSu(serial, 'rm -rf /data/local/flip2/incoming && mkdir -p /data/local/flip2/incoming', 120000);
+    await wizardHostSu(serial,
+      'rm -rf ' + shellQuote(DP.incomingDir) + ' && mkdir -p ' + shellQuote(DP.incomingDir),
+      120000);
     lines.push('OK: cleaned incoming/');
     return { ok: true, lines: lines };
   } catch (e) {
@@ -1256,10 +1269,11 @@ async function wizardHostVerify(payload) {
       const vStage = WIZARD_STAGING + '/verify.sh';
       await adbRun(['-s', serial, 'push', vLocal, vStage], 120000);
       await wizardHostSu(serial,
-        'install -m 755 ' + shellQuote(vStage) + ' /data/local/flip2/verify.sh && rm -f ' + shellQuote(vStage),
+        'install -m 755 ' + shellQuote(vStage) + ' ' + shellQuote(DP.verifySh) +
+          ' && rm -f ' + shellQuote(vStage),
         120000);
       const run = await adbRunShell(
-        ['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote('sh /data/local/flip2/verify.sh')],
+        ['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote('sh ' + DP.verifySh)],
         600000);
       if (run.code !== 0 && !run.stdout.trim() && run.stderr.trim()) {
         throw new Error(run.stderr.trim());

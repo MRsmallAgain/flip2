@@ -32,7 +32,12 @@ check() {  # check <label> <command...>
 
 # Missing profile.list means the full base checks. Headwind is not part of
 # that default. An empty list matches nothing. Exact line match, CR stripped.
+# BEGIN GENERATED PATHS
+# --- on-device paths (generated from pipeline/wizard/device-paths.json) ------
 PROFILE=/data/local/flip2/profile.list
+IN=/data/local/flip2/incoming
+WP_DEV=/data/system/users/0/wallpaper
+# END GENERATED PATHS
 want() {
   local comp line
   comp=$1
@@ -367,8 +372,7 @@ fi
 # what the framework loads at boot. A phone that was installed before the asset
 # existed keeps whatever wallpaper the user has, so absence is a NOTE.
 if want wallpaper; then
-  WP_DEV=/data/system/users/0/wallpaper
-  WP_HOST=/data/local/flip2/incoming/flip2-wallpaper.png
+  WP_HOST=$IN/flip2-wallpaper.png
   if [ -f "$WP_HOST" ]; then
     if [ -f "$WP_DEV" ] && cmp -s "$WP_HOST" "$WP_DEV"; then
       echo "PASS: wallpaper is the flip2 default"

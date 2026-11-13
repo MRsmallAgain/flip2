@@ -1,5 +1,5 @@
 // Builds the push set from the verified downloads and pushes it over ADB,
-// then runs /data/local/flip2/install.sh and mirrors its output to the log.
+// then runs install.sh as root and mirrors its output to the log.
 //
 // Layout of the published installer zip (verified by unzip -l):
 //   payload/modules/{flip2_nav_overlay,flip2_keypad_backspace,FlipMouse,
@@ -10,14 +10,16 @@
 // APK (system/app/PixelTagDrawer/PixelTagDrawer.apk — byte-size identical
 // to the catalog's com.iwadjp.pixeltagdrawer_7.apk, so the swap is drop-in).
 //
-// install.sh expects exactly these names in /data/local/flip2/incoming/:
+// install.sh expects exactly these names in its incoming directory:
 //   5 module zips, launcher4.apk nullkeyboard.apk forkgram.apk intertune.apk
 //   bouncy.apk materialfiles.apk … sherpa *.tar.bz2 (see push-manifest.js requiredIncoming)
-// plus install.sh itself at /data/local/flip2/install.sh.
-
-var INCOMING = '/data/local/flip2/incoming/';
-var INSTALL_SH_REMOTE = '/data/local/flip2/install.sh';
-var PROFILE_LIST_REMOTE = '/data/local/flip2/profile.list';
+//
+// Paths come from DEVICE_PATHS (pages/js/device-paths.js, generated from
+// pipeline/wizard/device-paths.json). The browser cannot write into the stage
+// root: adbd's shell user is denied file creation there by SELinux, even at
+// mode 0777. So the page stages into a shell-writable directory and
+// install.sh — already root — ingests it with `install -m`.
+var DP = typeof DEVICE_PATHS !== 'undefined' ? DEVICE_PATHS : null;
 
 /** Android /system/bin/sh breaks on CRLF (syntax error on `in`, empty paths). */
 function normalizeDeviceShellText(text) {
@@ -153,20 +155,46 @@ var PIPE = {
     return out;
   },
 
+  // ADB.shell() resolves when the remote stream closes and never reports the
+  // exit status, so a fire-and-forget mkdir or rm logs OK even after a
+  // Permission denied. Every state-changing step echoes "<marker>:$?" and is
+  // rejected unless the marker comes back with 0.
+  shellChecked: function (cmd, marker, onLog) {
+    var rc = null;
+    var tag = marker + ':';
+    return ADB.shell(cmd + ' 2>&1; echo "' + tag + '$?"', function (line) {
+      if (line == null) return;
+      var at = line.lastIndexOf(tag);
+      var tail = at >= 0 ? line.slice(at + tag.length) : '';
+      if (at >= 0 && /^[0-9]+$/.test(tail)) { rc = parseInt(tail, 10); return; }
+      if (line) onLog(line);
+    }).then(function () {
+      if (rc === null) throw new Error('no exit status from: ' + cmd);
+      if (rc !== 0) throw new Error('exit ' + rc + ': ' + cmd);
+    });
+  },
+
   // pushSet: map name -> Uint8Array. Runs install.sh at the end. onLog gets
   // every progress and script line; stops on the first FAIL line and rejects
   // so main.js can offer Retry.
   pushAndInstall: function (pushSet, installSh, onLog, profileText) {
-    var seq = ADB.shell('mkdir -p /data/local/flip2/incoming', function (line) {
-      if (line) onLog(line);
-    }).then(function () { onLog('OK: staging folder ready'); });
+    if (!DP) {
+      return Promise.reject(new Error('DEVICE_PATHS missing — run pipeline/wizard/gen-pipeline-js.sh'));
+    }
+    // adbd's shell user cannot create files under the stage root, so the page
+    // prepares the shell-writable staging area and install.sh ingests it.
+    onLog('prepare staging area…');
+    var seq = PIPE.shellChecked(
+      'rm -rf ' + DP.shellStaging + ' 2>/dev/null; mkdir -p ' + DP.shellStagingIncoming,
+      'STAGING', onLog
+    ).then(function () { onLog('OK: staging area ready (' + DP.shellStaging + ')'); });
     // profile.list is what makes Arcade install Arcade and Base install Base;
     // without it install.sh treats every component as wanted.
     if (profileText) {
       seq = seq.then(function () {
         var lines = String(profileText).split('\n').filter(function (l) { return l.trim(); });
         onLog('push profile.list (' + lines.length + ' components)');
-        return ADB.pushFile(PROFILE_LIST_REMOTE, '0644', textBytes(profileText), null)
+        return ADB.pushFile(DP.shellStagingProfileList, '0644', textBytes(profileText), null)
           .then(function () { onLog('OK: pushed profile.list'); });
       });
     }
@@ -176,47 +204,68 @@ var PIPE = {
       seq = seq.then(function () {
         var u8 = pushPayloadBytes(pushSet[nm], nm);
         onLog('push ' + nm + ' (' + Math.round(u8.length / 1024) + ' KiB)…');
-        return ADB.pushFile(INCOMING + nm, '0644', u8, null)
+        return ADB.pushFile(DP.shellStagingIncoming + '/' + nm, '0644', u8, null)
           .then(function () { done++; onLog('OK: pushed ' + nm + ' (' + done + '/' + names.length + ')'); });
       });
     });
     seq = seq.then(function () {
       onLog('push install.sh');
-      return ADB.pushFile(INSTALL_SH_REMOTE, '0755', textBytes(installSh), null);
+      return ADB.pushFile(DP.shellStagingInstallSh, '0755', textBytes(installSh), null);
     });
     seq = seq.then(function () {
       onLog('running install.sh as root…');
+      // install.sh's last act is "DONE: install complete"; ADB.shell gives no
+      // exit status, so that line — or a FAIL — is the verdict.
       var failed = null;
-      return ADB.shell('sh ' + INSTALL_SH_REMOTE, function (line) {
-        onLog(line);
+      var complete = false;
+      return ADB.shell("su 0 sh -c 'sh " + DP.shellStagingInstallSh + "'", function (line) {
+        if (line == null) return;
         if (/^FAIL:/.test(line)) failed = line;
+        if (/^DONE: install complete$/.test(line)) complete = true;
+        onLog(line);
       }).then(function () {
         if (failed) throw new Error(failed);
+        if (!complete) throw new Error('install.sh stopped before DONE — see the log above');
       });
     });
     return seq;
   },
 
-  // verify.sh runs as root too; mirrors SUMMARY and rejects on exit-failure
-  // signaled by a RETRY line.
+  // verify.sh runs as root too; mirrors SUMMARY and rejects on the first FAIL.
+  // Verify is reachable long after install, so cleanup may already have removed
+  // the staging dir — recreate it before pushing.
   verify: function (verifySh, onLog) {
-    return ADB.pushFile('/data/local/flip2/verify.sh', '0755', textBytes(verifySh), null)
+    if (!DP) {
+      return Promise.reject(new Error('DEVICE_PATHS missing — run pipeline/wizard/gen-pipeline-js.sh'));
+    }
+    return PIPE.shellChecked('mkdir -p ' + DP.shellStaging, 'STAGING', onLog)
+      .then(function () {
+        return ADB.pushFile(DP.shellStagingVerifySh, '0755', textBytes(verifySh), null);
+      })
       .then(function () {
         var failed = null;
-        return ADB.shell("su 0 sh -c 'sh /data/local/flip2/verify.sh'", function (line) {
-          onLog(line);
+        var summary = false;
+        return ADB.shell("su 0 sh -c 'sh " + DP.shellStagingVerifySh + "'", function (line) {
+          if (line == null) return;
           if (/^FAIL:/.test(line)) failed = line;
+          if (/^SUMMARY: /.test(line)) summary = true;
+          onLog(line);
         }).then(function () {
           if (failed) throw new Error(failed);
+          if (!summary) throw new Error('verify.sh ended without a SUMMARY line');
         });
       });
   },
 
   // Clean incoming/ once install has fully succeeded (install.sh keeps it
-  // for Retry until this runs).
+  // for Retry until this runs). Root: the shell user cannot unlink under the
+  // stage root (SELinux), and the staging area goes too.
   cleanup: function (onLog) {
-    return ADB.shell('rm -rf /data/local/flip2/incoming/*', function (line) { onLog(line); })
-      .then(function () { onLog('OK: cleaned incoming/'); });
+    if (!DP) return Promise.resolve();
+    return PIPE.shellChecked(
+      "su 0 sh -c 'rm -rf " + DP.shellStaging + ' ' + DP.incomingDir + "/*'",
+      'CLEAN', onLog
+    ).then(function () { onLog('OK: cleaned incoming/ and staging'); });
   },
 
   // Companion: host adb push (avoids WebUSB sync: timeout on Linux).

@@ -4,10 +4,88 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 MANIFEST="$ROOT/pipeline/deploy/manifest.json"
 HOME_KEYS="$ROOT/launcher-overlay/home-keys.json"
+DEVICE_PATHS="$ROOT/pipeline/wizard/device-paths.json"
 INSTALL="$ROOT/wizard/device/install.sh"
 VERIFY="$ROOT/wizard/device/verify.sh"
 
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
+
+# On-device paths come from device-paths.json: the browser bundle
+# (pages/js/device-paths.js) and these scripts must never disagree.
+dp() {
+  local v
+  v="$(jq -r --arg k "$1" '.[$k] // empty' "$DEVICE_PATHS")"
+  [ -n "$v" ] || { echo "device-paths.json: missing $1" >&2; exit 1; }
+  echo "$v"
+}
+
+# Path constants. Each script declares only the paths it uses, so a renamed
+# path cannot survive in an unused variable. Values come from device-paths.json.
+gen_paths_common() {
+  cat <<EOF
+# --- on-device paths (generated from pipeline/wizard/device-paths.json) ------
+PROFILE=$(dp profileList)
+IN=$(dp incomingDir)
+WP_DEV=$(dp wallpaperDevice)
+EOF
+}
+
+# install.sh additionally needs the ingest paths. adbd's shell user cannot
+# create files under the stage root (SELinux: system_data_file) even at mode
+# 0777, so the page stages into a shell-writable dir and root installs from it.
+gen_paths_install() {
+  gen_paths_common
+  cat <<EOF
+STAGE=$(dp stageRoot)
+INSTALL_SH=$(dp installSh)
+SHELL_STAGING=$(dp shellStaging)
+SHELL_STAGING_INCOMING=$(dp shellStagingIncoming)
+SHELL_STAGING_PROFILE_LIST=$(dp shellStagingProfileList)
+SHELL_STAGING_INSTALL_SH=$(dp shellStagingInstallSh)
+EOF
+}
+
+# Root-side ingest of the browser's staging area. adbd's shell user cannot
+# create files under $STAGE (SELinux: system_data_file) even at mode 0777, so
+# the page pushes into the shell-writable staging dir and this already-root
+# script installs them with install -m (chmod is denied on these paths too).
+gen_ingest() {
+  cat <<'ING'
+# --- ingest the browser's staging area --------------------------------------
+# The page pushes into $SHELL_STAGING because adbd's shell user cannot create
+# files under $STAGE. Nothing to ingest means the Companion pushed directly.
+# The directory is consumed, not copied: a browser attempt that failed and
+# left files behind must not overlay a later Companion push. The sum is only
+# reported when something was actually ingested — a leftover verify.sh leaves
+# the directory present with nothing to consume, and "ingested 0" reads like a
+# failure on a Companion run that pushed straight into incoming/.
+if [ -d "$SHELL_STAGING" ]; then
+  n=0
+  if [ -d "$SHELL_STAGING_INCOMING" ]; then
+    mkdir -p "$IN"
+    for f in "$SHELL_STAGING_INCOMING"/*; do
+      [ -e "$f" ] || continue
+      install -m 644 "$f" "$IN/$(basename "$f")" || fail "could not ingest $(basename "$f")"
+      rm -f "$f"
+      n=$((n + 1))
+    done
+  fi
+  if [ -f "$SHELL_STAGING_PROFILE_LIST" ]; then
+    install -m 644 "$SHELL_STAGING_PROFILE_LIST" "$PROFILE" \
+      || fail "could not ingest profile.list"
+    rm -f "$SHELL_STAGING_PROFILE_LIST"
+    n=$((n + 1))
+  fi
+  if [ -f "$SHELL_STAGING_INSTALL_SH" ] && [ "$SHELL_STAGING_INSTALL_SH" != "$INSTALL_SH" ]; then
+    install -m 755 "$SHELL_STAGING_INSTALL_SH" "$INSTALL_SH" \
+      || fail "could not ingest install.sh"
+    rm -f "$SHELL_STAGING_INSTALL_SH"
+    n=$((n + 1))
+  fi
+  [ "$n" -gt 0 ] && ok "ingested $n staged file(s)"
+fi
+ING
+}
 
 wizard_incoming() {
   case "$1" in
@@ -22,25 +100,33 @@ wizard_incoming() {
   esac
 }
 
+# Replace the lines between "# BEGIN GENERATED[ <tag>]" and "# END GENERATED[ <tag>]".
+# The tag lets one script carry two regions: the main generated body and the
+# PATHS block, which must sit above the code that uses those paths.
 patch_between_markers() {
-  local file="$1" blockfile="$2"
-  local out
+  local file="$1" blockfile="$2" tag="${3:-}"
+  local out begin end
   out="$(mktemp)"
-  awk -v bf="$blockfile" '
+  begin="# BEGIN GENERATED${tag:+ $tag}"
+  end="# END GENERATED${tag:+ $tag}"
+  # A missing marker is a hard error: silently writing nothing would leave the
+  # script with stale or undeclared path constants.
+  if ! awk -v bf="$blockfile" -v begin="$begin" -v end="$end" '
     BEGIN {
       while ((getline line < bf) > 0) block = block line "\n"
       close(bf)
       inblock=0
+      found=0
     }
-    /# BEGIN GENERATED/ {
-      print "# BEGIN GENERATED"
-      printf "%s", block
-      inblock=1
-      next
-    }
-    /# END GENERATED/ { inblock=0; print "# END GENERATED"; next }
+    $0 == begin { print; printf "%s", block; inblock=1; found=1; next }
+    $0 == end { inblock=0; print; next }
     !inblock { print }
-  ' "$file" > "$out"
+    END { exit(found ? 0 : 1) }
+  ' "$file" > "$out"; then
+    rm -f "$out"
+    echo "$file: missing marker: $begin" >&2
+    exit 1
+  fi
   mv "$out" "$file"
 }
 
@@ -209,8 +295,8 @@ FM
   cat <<'WP'
 if want wallpaper; then
 # --- wallpaper: default background, copied where the framework reads it -----
-WP=/data/local/flip2/incoming/flip2-wallpaper.png
-WPDST=/data/system/users/0/wallpaper
+WP=$IN/flip2-wallpaper.png
+WPDST=$WP_DEV
 if [ -f "$WP" ] && [ ! -f "$STAGE/.wallpaper-applied" ]; then
   cp "$WP" "$WPDST" || fail "wallpaper copy"
   chown system:system "$WPDST" 2>/dev/null
@@ -317,8 +403,15 @@ TD
   echo "fi"
 }
 
+# The script carries three regions: PATHS (used by everything below), INGEST
+# (must run before the incoming check and before any module is placed) and the
+# untagged body. Writing the wrong region would silently duplicate constants.
 render_install() {
   block="$(mktemp)"
+  gen_paths_install > "$block"
+  patch_between_markers "$INSTALL" "$block" PATHS
+  gen_ingest > "$block"
+  patch_between_markers "$INSTALL" "$block" INGEST
   gen_install > "$block"
   patch_between_markers "$INSTALL" "$block"
   rm -f "$block"
@@ -331,6 +424,8 @@ render_verify() {
     exit 1
   fi
   block="$(mktemp)"
+  gen_paths_common > "$block"
+  patch_between_markers "$VERIFY" "$block" PATHS
   gen_verify > "$block"
   patch_between_markers "$VERIFY" "$block"
   rm -f "$block"

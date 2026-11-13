@@ -1,11 +1,13 @@
 #!/system/bin/sh
 # flip2 web setup wizard — on-device installer.
 #
-# The wizard page (Chrome, WebUSB) verifies every SHA-256 in the browser,
-# pushes the checked files into /data/local/flip2/incoming/, pushes this
-# script to /data/local/flip2/install.sh, and runs it once as root.
+# The wizard page (Chrome, WebUSB) verifies every SHA-256 in the browser, then
+# pushes the checked files into a shell-writable staging directory and runs
+# this script once as root. adbd's shell user cannot create files under
+# /data/local/flip2 (SELinux: system_data_file), so this script ingests the
+# staging directory first — see the INGEST block below.
 #
-# incoming/ contents (names fixed by the page):
+# staged file names (fixed by the page):
 #   flip2_nav_overlay-magisk.zip flip2_keypad_backspace-magisk.zip
 #   FlipMouse.zip flip2_pixel_tag_drawer-magisk.zip flip2_launcher_overlay-magisk.zip
 #     — extracted from the published full installer zip payload/modules/;
@@ -27,8 +29,18 @@
 # component whose incoming file is missing is still FAIL. This script never
 # calls dpm and never wipes the phone.
 
+# BEGIN GENERATED PATHS
+# --- on-device paths (generated from pipeline/wizard/device-paths.json) ------
+PROFILE=/data/local/flip2/profile.list
 IN=/data/local/flip2/incoming
+WP_DEV=/data/system/users/0/wallpaper
 STAGE=/data/local/flip2
+INSTALL_SH=/data/local/flip2/install.sh
+SHELL_STAGING=/data/local/tmp/flip2-staging
+SHELL_STAGING_INCOMING=/data/local/tmp/flip2-staging/incoming
+SHELL_STAGING_PROFILE_LIST=/data/local/tmp/flip2-staging/profile.list
+SHELL_STAGING_INSTALL_SH=/data/local/tmp/flip2-staging/install.sh
+# END GENERATED PATHS
 BB=/data/adb/magisk/busybox
 NULL_PKG=com.tim.flip2.nullkeyboard
 NULL_IME=com.tim.flip2.nullkeyboard/.NullKeyboardService
@@ -39,7 +51,43 @@ ok()   { echo "OK: $*"; }
 
 [ "$(id -u)" = 0 ] || exec su -c "sh $0"
 
-[ -d "$IN" ] || fail "incoming dir missing: $IN — the page must push files first"
+# BEGIN GENERATED INGEST
+# --- ingest the browser's staging area --------------------------------------
+# The page pushes into $SHELL_STAGING because adbd's shell user cannot create
+# files under $STAGE. Nothing to ingest means the Companion pushed directly.
+# The directory is consumed, not copied: a browser attempt that failed and
+# left files behind must not overlay a later Companion push. The sum is only
+# reported when something was actually ingested — a leftover verify.sh leaves
+# the directory present with nothing to consume, and "ingested 0" reads like a
+# failure on a Companion run that pushed straight into incoming/.
+if [ -d "$SHELL_STAGING" ]; then
+  n=0
+  if [ -d "$SHELL_STAGING_INCOMING" ]; then
+    mkdir -p "$IN"
+    for f in "$SHELL_STAGING_INCOMING"/*; do
+      [ -e "$f" ] || continue
+      install -m 644 "$f" "$IN/$(basename "$f")" || fail "could not ingest $(basename "$f")"
+      rm -f "$f"
+      n=$((n + 1))
+    done
+  fi
+  if [ -f "$SHELL_STAGING_PROFILE_LIST" ]; then
+    install -m 644 "$SHELL_STAGING_PROFILE_LIST" "$PROFILE" \
+      || fail "could not ingest profile.list"
+    rm -f "$SHELL_STAGING_PROFILE_LIST"
+    n=$((n + 1))
+  fi
+  if [ -f "$SHELL_STAGING_INSTALL_SH" ] && [ "$SHELL_STAGING_INSTALL_SH" != "$INSTALL_SH" ]; then
+    install -m 755 "$SHELL_STAGING_INSTALL_SH" "$INSTALL_SH" \
+      || fail "could not ingest install.sh"
+    rm -f "$SHELL_STAGING_INSTALL_SH"
+    n=$((n + 1))
+  fi
+  [ "$n" -gt 0 ] && ok "ingested $n staged file(s)"
+fi
+# END GENERATED INGEST
+
+[ -d "$IN" ] || fail "incoming dir missing: $IN — nothing was pushed to the phone first"
 
 unzip_any() {
   if unzip -o "$1" -d "$2/" >/dev/null 2>&1; then return 0; fi
@@ -67,7 +115,6 @@ sleep 1
 # Missing profile.list means the full base install. Headwind is not part of
 # that default: an old push has no list and must not install it. An empty
 # list matches nothing. Exact line match, CR stripped.
-PROFILE=/data/local/flip2/profile.list
 want() {
   local comp line
   comp=$1
@@ -301,8 +348,8 @@ fi
 
 if want wallpaper; then
 # --- wallpaper: default background, copied where the framework reads it -----
-WP=/data/local/flip2/incoming/flip2-wallpaper.png
-WPDST=/data/system/users/0/wallpaper
+WP=$IN/flip2-wallpaper.png
+WPDST=$WP_DEV
 if [ -f "$WP" ] && [ ! -f "$STAGE/.wallpaper-applied" ]; then
   cp "$WP" "$WPDST" || fail "wallpaper copy"
   chown system:system "$WPDST" 2>/dev/null

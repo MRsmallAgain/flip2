@@ -438,9 +438,10 @@ function runPushAndInstallCore() {
         }
       })
     : PIPE.pushAndInstall(pushSet, INSTALL_SH, log, PROFILES.profileText());
-  var cleanP = useHost ? PIPE.hostCleanup(log) : PIPE.cleanup(log);
   pushP.then(function () {
-    return cleanP;
+    // Cleanup must not start before the install finishes: the browser path
+    // ingests from the staging directory that cleanup removes.
+    return useHost ? PIPE.hostCleanup(log) : PIPE.cleanup(log);
   }).then(function () {
     markInstallSuccess('Install complete.');
   }).catch(function (e) {

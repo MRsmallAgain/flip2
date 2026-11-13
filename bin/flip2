@@ -393,16 +393,24 @@ case "$cmd" in
         exec "$FLIP2_ROOT/pipeline/wizard/render.sh" all
         ;;
       check)
-        tmp="$(mktemp)"
-        cp "$FLIP2_ROOT/wizard/device/install.sh" "$tmp.install"
-        cp "$FLIP2_ROOT/wizard/device/verify.sh" "$tmp.verify"
+        # Three generated artefacts, two generators. render.sh owns the device
+        # scripts; gen-pipeline-js.sh owns the path bundles that the browser and
+        # the Companion read. Both are checked, or a hand-edit to one side ships.
+        tmp="$(mktemp -d)"
+        cp "$FLIP2_ROOT/wizard/device/install.sh" "$tmp/install.sh"
+        cp "$FLIP2_ROOT/wizard/device/verify.sh" "$tmp/verify.sh"
+        cp "$FLIP2_ROOT/wizard/pages/js/device-paths.js" "$tmp/web-paths.js"
+        cp "$FLIP2_ROOT/companion/device-paths.js" "$tmp/companion-paths.js"
         "$FLIP2_ROOT/pipeline/wizard/render.sh" all >/dev/null
+        "$FLIP2_ROOT/pipeline/wizard/gen-pipeline-js.sh" >/dev/null
         drift=0
-        diff -q "$tmp.install" "$FLIP2_ROOT/wizard/device/install.sh" >/dev/null || drift=1
-        diff -q "$tmp.verify" "$FLIP2_ROOT/wizard/device/verify.sh" >/dev/null || drift=1
-        rm -f "$tmp.install" "$tmp.verify"
+        diff -q "$tmp/install.sh" "$FLIP2_ROOT/wizard/device/install.sh" >/dev/null || drift=1
+        diff -q "$tmp/verify.sh" "$FLIP2_ROOT/wizard/device/verify.sh" >/dev/null || drift=1
+        diff -q "$tmp/web-paths.js" "$FLIP2_ROOT/wizard/pages/js/device-paths.js" >/dev/null || drift=1
+        diff -q "$tmp/companion-paths.js" "$FLIP2_ROOT/companion/device-paths.js" >/dev/null || drift=1
+        rm -rf "$tmp"
         if [[ "$drift" -eq 0 ]]; then
-          echo "OK: wizard device scripts match manifest (no drift)"
+          echo "OK: wizard device scripts and path bundles match their generators (no drift)"
           exit 0
         fi
         echo "DRIFT: run flip2 wizard render and commit" >&2
