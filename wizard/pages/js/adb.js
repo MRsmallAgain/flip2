@@ -316,13 +316,15 @@ var ADB = {
       this.tokensSeen++;
       var token = data;
       var nth = this.tokensSeen;
-      if (nth > 3) {
+      if (self.pubSent && nth >= 4) {
+        self.log('Waiting for you to tap Allow on the phone (adbd still challenging…)…');
+        return;
+      }
+      if (!self.pubSent && nth > 3) {
         if (nth === 4) {
-          self.log('FAIL: AUTH loop — adbd keeps rejecting the key.');
-          self.log('Settings → Developer options → Revoke USB debugging authorizations,');
-          self.log('then unplug/replug, Connect again, tap Allow with Always allow.');
-          self.log('Or clear site data for flip2burn.online (new browser key).');
-          self._failConnect(new Error('AUTH loop — revoke USB authorizations on phone or reset browser adb key'));
+          self.log('FAIL: AUTH loop before public key was accepted.');
+          self.log('Try: Get ready → New browser ADB key, phone Revoke USB authorizations, replug, Connect.');
+          self._failConnect(new Error('AUTH loop — use New browser ADB key + Revoke on phone'));
         }
         return;
       }
@@ -330,8 +332,10 @@ var ADB = {
       this.authChain = prev.then(function () {
         if (nth === 1) {
           self.log('Signing with saved browser key…');
-        } else if (nth === 2) {
-          self.log('Second token — signature rejected, sending public key…');
+        } else if (nth === 2 && !self.pubSent) {
+          self.log('Second token — sending public key if needed…');
+        } else if (self.pubSent) {
+          self.log('Signing (waiting for Allow on phone)…');
         }
         return ADBKEY.sign(token);
       }).then(function (sig) {

@@ -1303,6 +1303,26 @@ function initGetReady() {
     }).finally(function () { connectBtn.disabled = false; });
   });
   if (window.FLIP2_NATIVE) connectBtn.classList.add('hidden');
+  var resetKeyBtn = $('get-ready-reset-adb-key');
+  if (resetKeyBtn && !window.FLIP2_NATIVE) {
+    resetKeyBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      resetKeyBtn.disabled = true;
+      webUsbConnectGen++;
+      ADBKEY.resetStoredKey()
+        .then(function () {
+          setStatus('phone-msg', 'New browser ADB key — Revoke on phone, replug, Connect.', 'ok');
+          setStatus('strip-phone', 'new adb key', 'ok');
+        })
+        .catch(function (e) {
+          setStatus('phone-msg', e && e.message ? e.message : 'Could not reset key', 'bad');
+        })
+        .finally(function () { resetKeyBtn.disabled = false; });
+    });
+  } else if (resetKeyBtn && window.FLIP2_NATIVE) {
+    resetKeyBtn.classList.add('hidden');
+  }
 }
 
 // --- 5 · install ------------------------------------------------------------------

@@ -79,5 +79,14 @@ var ADBKEY = {
 
   sign: function (token) {
     return crypto.subtle.sign({ name: 'RSASSA-PKCS1-v1_5' }, this.priv, token);
+  },
+
+  resetStoredKey: function () {
+    var self = this;
+    self.ready = false;
+    self.priv = null;
+    self.pubB64 = '';
+    try { localStorage.removeItem('flip2_adb_key_jwk'); } catch (e) {}
+    return self.load();
   }
 };
