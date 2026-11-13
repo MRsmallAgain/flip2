@@ -483,6 +483,9 @@ function makeLog(id) {
 // ADB-internal messages go to every visible log sink; pipeline events are
 // logged separately by the handlers, so nothing is lost when a step changes.
 function adbLog(line) {
+  if (typeof window.flip2OnAdbHandshakeProgress === 'function') {
+    try { window.flip2OnAdbHandshakeProgress(line); } catch (e) { /* noop */ }
+  }
   ['usb-log', 'inst-log', 'ver-log', 'boot-log', 'get-ready-adb-log'].forEach(function (id) {
     var pre = $(id);
     if (pre && !pre.classList.contains('hidden')) {
@@ -493,15 +496,28 @@ function adbLog(line) {
 }
 
 function onAdbAuthPrompt() {
-  setStatus('phone-msg', 'Check the phone screen — tap Allow USB debugging.', 'wait');
-  setStatus('strip-phone', 'authorize on phone', 'wait');
+  setStatus('phone-msg', 'On the phone: tap Allow USB debugging.', 'wait');
+  setStatus('usb-msg', 'Waiting on phone — tap Allow USB debugging.', 'wait');
+  setStatus('strip-phone', 'tap Allow on phone', 'wait');
   var hint = $('strip-hint');
   if (hint) {
     hint.innerHTML = '<b>On the phone:</b> unlock, tap <b>Allow</b> on USB debugging (Always allow helps). No popup on the PC is normal.';
   }
 }
 
+function onAdbHandshakeProgress(line) {
+  if (line.indexOf('USB data from phone') >= 0) {
+    setStatus('phone-msg', 'Talking to adbd — check phone if prompted.', 'wait');
+    setStatus('strip-phone', 'USB linked — check phone', 'wait');
+  } else if (line.indexOf('← AUTH') >= 0 || line.indexOf('Signing with') >= 0) {
+    onAdbAuthPrompt();
+  } else if (line.indexOf('Sent RSA') >= 0 || line.indexOf('>>> Unlock') >= 0) {
+    onAdbAuthPrompt();
+  }
+}
+
 window.flip2OnAdbAuthPrompt = onAdbAuthPrompt;
+window.flip2OnAdbHandshakeProgress = onAdbHandshakeProgress;
 
 // --- 1 · credit gate --------------------------------------------------------
 
