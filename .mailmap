@@ -1,0 +1,13 @@
+# One author in the graph, one identity in history.
+#
+# GitLab attributes a commit to a user by its email address. This history grew
+# through three identities — the GitHub noreply (129 commits), plus "Timman6866"
+# and "tinMan" (7 commits between them) — none of which is the address on the
+# GitLab account, so every commit showed as an unattributed author.
+#
+# Canonical form is <proper name> <proper email> <commit name> <commit email>.
+# The name stays MRsmallAgain because that is what 129 of the 136 commits say;
+# the email is the account address, which is what actually drives attribution.
+MRsmallAgain <ozzman6866@gmail.com> MRsmallAgain <MRsmallAgain@users.noreply.github.com>
+MRsmallAgain <ozzman6866@gmail.com> Timman6866 <ozzman6866@gmail.com>
+MRsmallAgain <ozzman6866@gmail.com> tinMan <ozzman6866@gmail.com>
