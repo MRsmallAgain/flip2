@@ -33,6 +33,9 @@ var WEBUSB_PICK_FILTERS = [
 
 function pickTclAdbDevice(list) {
   list = (list || []).filter(function (d) { return d.vendorId === 0x1bbb; });
+  // Prefer adb-only PID (0c01) over MTP+adb composite (0167).
+  var adbOnly = list.filter(function (d) { return d.productId === 0x0c01; });
+  if (adbOnly.length >= 1) return adbOnly[0];
   var adbPids = [0x0167, 0x0c01];
   var adb = list.filter(function (d) { return adbPids.indexOf(d.productId) >= 0; });
   if (adb.length >= 1) return adb[0];
@@ -41,12 +44,20 @@ function pickTclAdbDevice(list) {
   return null;
 }
 
+function adbCmdName(cmd) {
+  var b = new Uint8Array(4);
+  new DataView(b.buffer).setUint32(0, cmd, true);
+  return String.fromCharCode(b[0], b[1], b[2], b[3]);
+}
+
 var ADB = {
   device: null, out: null, inp: null, _ifNum: null,
   maxData: 256 * 1024,
   streams: {}, nextId: 1,
   tokensSeen: 0, pubSent: false,
   connectResolve: null,
+  connectPendingAuth: false,
+  _adbAlt: 0,
   log: function () {},          // main.js replaces this
 
   pickFromGranted: function () {
@@ -81,12 +92,17 @@ var ADB = {
 
   findAdbIface: function () {
     var cfgs = this.device.configurations;
+    var self = this;
     for (var c = 0; c < cfgs.length; c++) {
       var ifaces = cfgs[c].interfaces;
       for (var i = 0; i < ifaces.length; i++) {
-        var alt = ifaces[i].alternates[0];
-        if (alt.interfaceClass === 255 && alt.interfaceSubclass === 66 && alt.interfaceProtocol === 1) {
-          return ifaces[i].interfaceNumber;
+        var alts = ifaces[i].alternates;
+        for (var a = 0; a < alts.length; a++) {
+          var alt = alts[a];
+          if (alt.interfaceClass === 255 && alt.interfaceSubclass === 66 && alt.interfaceProtocol === 1) {
+            self._adbAlt = a;
+            return ifaces[i].interfaceNumber;
+          }
         }
       }
     }
@@ -98,19 +114,33 @@ var ADB = {
   connect: function () {
     var self = this;
     this.tokensSeen = 0; this.pubSent = false;
+    this.connectPendingAuth = false;
+    this._loggedUsbIn = false;
     this.streams = {}; this.nextId = 1; this._acc = [];
+    this.out = null; this.inp = null;
     var handshake = this.device.close().catch(function () {}).then(function () {
       return self.device.open();
     }).then(function () {
       if (self.device.configuration === null) return self.device.selectConfiguration(1);
     }).then(function () {
       self._ifNum = self.findAdbIface();
+      self.log('ADB interface if=' + self._ifNum + ' alt=' + self._adbAlt);
       return self.device.claimInterface(self._ifNum, false);
     }).then(function () {
+      var altP = Promise.resolve();
+      if (self._adbAlt > 0) {
+        altP = self.device.selectAlternateInterface(self._ifNum, self._adbAlt);
+      }
+      return altP;
+    }).then(function () {
       var iface = self.device.configuration.interfaces;
+      self.out = null;
+      self.inp = null;
       for (var i = 0; i < iface.length; i++) {
         if (iface[i].interfaceNumber !== self._ifNum) continue;
-        var eps = iface[i].alternates[0].endpoints;
+        var altIdx = self._adbAlt;
+        if (altIdx >= iface[i].alternates.length) altIdx = 0;
+        var eps = iface[i].alternates[altIdx].endpoints;
         for (var e = 0; e < eps.length; e++) {
           if (eps[e].type === 'bulk') {
             if (eps[e].direction === 'out') self.out = eps[e].endpointNumber;
@@ -118,11 +148,13 @@ var ADB = {
           }
         }
       }
-      if (self.out === null || self.inp === null) throw new Error('no bulk endpoints on the ADB interface');
-      self.log('Claimed ADB interface, sending CNXN…');
+      if (self.out === null || self.inp === null) {
+        throw new Error('no bulk endpoints on the ADB interface');
+      }
+      self.log('Bulk in=ep' + self.inp + ' out=ep' + self.out + ' — listen, then CNXN…');
+      self._readLoop();
       return self._send(A_CNXN, 0x01000001, self.maxData, str2ab('host::\0'));
     }).then(function () {
-      self._readLoop();
       return self._waitConnected();
     });
     var timedOut = new Promise(function (_, reject) {
@@ -181,6 +213,10 @@ var ADB = {
     var self = this;
     return this.device.transferIn(this.inp, 65536).then(function (res) {
       if (res.status === 'ok' && res.data.byteLength > 0) {
+        if (self.connectResolve && !self._loggedUsbIn) {
+          self._loggedUsbIn = true;
+          self.log('USB data from phone (' + res.data.byteLength + ' bytes) — adbd is talking.');
+        }
         self._ingest(new Uint8Array(res.data.buffer, res.data.byteOffset, res.data.byteLength));
       }
       if (res.status === 'ok') return self._readLoop();
@@ -215,7 +251,11 @@ var ADB = {
       var arg0 = dv.getUint32(4, true), arg1 = dv.getUint32(8, true);
       var dlen = dv.getUint32(12, true);
       var magic = dv.getUint32(20, true);
-      if (((cmd ^ 0xFFFFFFFF) >>> 0) !== magic) throw new Error('bad ADB magic');
+      if (((cmd ^ 0xFFFFFFFF) >>> 0) !== magic) {
+        this.log('FAIL: bad ADB magic on ' + adbCmdName(cmd));
+        this._acc = [];
+        return;
+      }
       total = 0;
       for (i = 0; i < this._acc.length; i++) total += this._acc[i].length;
       if (total < dlen) { this._acc.unshift(head); return; }  // wait for the rest
@@ -231,15 +271,37 @@ var ADB = {
     }
   },
 
+  _sendPubkeyAndPrompt: function () {
+    var self = this;
+    if (self.pubSent) return Promise.resolve();
+    self.pubSent = true;
+    return self._send(A_AUTH, 3, 0, str2ab(ADBKEY.pubB64 + '\0')).then(function () {
+      self.log('Sent RSA public key.');
+      self.log('>>> Unlock the phone. Tap Allow on USB debugging (Always allow helps).');
+      if (typeof window.flip2OnAdbAuthPrompt === 'function') {
+        window.flip2OnAdbAuthPrompt();
+      }
+    });
+  },
+
   _dispatch: function (cmd, arg0, arg1, data) {
     var self = this;
+    if (cmd === A_CNXN || cmd === A_AUTH) {
+      this.log('← ' + adbCmdName(cmd) + ' a0=' + arg0 + ' a1=' + arg1 +
+        (data && data.length ? ' data=' + data.length : ''));
+    }
     if (cmd === A_CNXN) {
       this.maxData = Math.min(arg1, 256 * 1024);
       this.log('Connected. adbd max data ' + arg1 + ' bytes.');
-      if (this.connectResolve) { var r = this.connectResolve; this.connectResolve = null; r.resolve(); }
+      if (this.connectResolve) {
+        var r = this.connectResolve;
+        this.connectResolve = null;
+        r.resolve();
+      }
       return;
     }
     if (cmd === A_AUTH) {
+      this.connectPendingAuth = true;
       if (arg0 !== 1) {
         this.log('FAIL: unexpected AUTH type ' + arg0 + ' (expected token=1)');
         return;
@@ -247,29 +309,27 @@ var ADB = {
       this.tokensSeen++;
       var token = data;
       var nth = this.tokensSeen;
-      this.log('ADB AUTH token #' + nth + ' (' + token.length + ' bytes)');
       if (nth === 1) {
         this.log('Signing with saved browser key…');
       }
       ADBKEY.sign(token).then(function (sig) {
         return self._send(A_AUTH, 2, 0, new Uint8Array(sig));
       }).then(function () {
-        // Pubkey must follow the signature on the wire. On a fresh host key the
-        // phone needs type 3 to show "Allow USB debugging?" — waiting only for a
-        // second token often never triggers the dialog.
-        if (self.pubSent) return;
-        if (nth === 1 || nth === 2) {
-          self.pubSent = true;
-          return self._send(A_AUTH, 3, 0, str2ab(ADBKEY.pubB64 + '\0'));
+        if (nth === 1) {
+          self.log('Sent signature; waiting for adbd…');
+          return new Promise(function (resolve) {
+            setTimeout(function () {
+              if (!self.pubSent) {
+                self.log('No second AUTH token — sending public key (Flip2 / fresh host key).');
+                resolve(self._sendPubkeyAndPrompt());
+              } else {
+                resolve();
+              }
+            }, 800);
+          });
         }
-      }).then(function () {
-        if (!self.pubSent) return;
-        if (nth === 1 || nth === 2) {
-          self.log('Sent RSA public key.');
-          self.log('>>> Unlock the phone. Tap Allow on USB debugging (Always allow helps).');
-          if (typeof window.flip2OnAdbAuthPrompt === 'function') {
-            window.flip2OnAdbAuthPrompt();
-          }
+        if (nth >= 2 && !self.pubSent) {
+          return self._sendPubkeyAndPrompt();
         }
       }).catch(function (e) {
         self.log('FAIL: auth sign/send: ' + (e && e.message ? e.message : e));
@@ -279,7 +339,12 @@ var ADB = {
     }
     if (cmd === A_CLSE && arg1 === 0) return; // adbd closing a dead stream
     var st = this.streams[arg1];
-    if (!st) return;
+    if (!st) {
+      if (this.connectResolve && (cmd === A_OKAY || cmd === A_CLSE)) {
+        this.log('← ' + adbCmdName(cmd) + ' (handshake)');
+      }
+      return;
+    }
     if (cmd === A_OKAY) {
       st.remoteId = arg0;
       st.credits = (st.credits || 0) + 1;
