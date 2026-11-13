@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # Download and install the published Flip 2 Forkgram patch build.
 #
-# The release is an unofficial, debug-signed APK built from F-Droid Forkgram
-# 13.0.2.0 and patched for the TCL Flip 2 null-keyboard setup. See README.md.
+# The APK is an unofficial, debug-signed build from F-Droid Forkgram 13.0.2.0,
+# patched for the TCL Flip 2 null-keyboard setup. See README.md.
+#
+# It is served from the project's package mirror. The GitHub fork that used to
+# host it is unreachable (the account is suspended), and the mirror has no
+# per-release SHA256SUMS file — so, like astro-loop/install-fdroid.sh, this
+# verifies against the SHA-256 pinned in wizard/catalog.json instead.
 set -euo pipefail
 
 TAG="flip2-13.0.2.0-r1"
 ASSET="forkgram-13.0.2.0-flip2-patched.apk"
-BASE_URL="https://github.com/MRsmallAgain/TelegramAndroid/releases/download/$TAG"
+URL="https://flip2burn.online/packages/$ASSET"
+EXPECTED_SHA="bc378c74c378c23c2115ca1755b5322b15d30132098bcc8136ef1f13a817ce38"
 PKG="org.forkgram.classic"
 
 WORK="${WORK:-/tmp/forkgram-release}"
@@ -21,8 +27,8 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [options]
 
-Downloads the hosted Flip 2 patch build ($TAG), verifies its SHA-256, and
-installs it with adb.
+Downloads the hosted Flip 2 patch build ($TAG), verifies its SHA-256 against the
+catalog pin, and installs it with adb.
 
 Options:
   --work DIR     Download directory (default: $WORK)
@@ -31,7 +37,8 @@ Options:
                  switching from the F-Droid signature to the debug signature)
   -h, --help     Show this help
 
-Release: $BASE_URL
+Download: $URL
+SHA-256:  $EXPECTED_SHA
 EOF
 }
 
@@ -52,13 +59,11 @@ mkdir -p "$WORK"
 SIGNED="$WORK/$ASSET"
 
 log "Downloading $TAG/$ASSET"
-curl -fsSL "$BASE_URL/$ASSET" -o "$SIGNED" \
-  || die "download failed: $BASE_URL/$ASSET"
-curl -fsSL "$BASE_URL/SHA256SUMS" -o "$WORK/SHA256SUMS" \
-  || die "checksum download failed: $BASE_URL/SHA256SUMS"
+curl -fsSL "$URL" -o "$SIGNED" || die "download failed: $URL"
 
 log "Verifying SHA-256"
-( cd "$WORK" && sha256sum -c SHA256SUMS ) || die "checksum verification failed"
+actual="$(sha256sum "$SIGNED" | awk '{print $1}')"
+[ "$actual" = "$EXPECTED_SHA" ] || die "checksum mismatch (got $actual, expected $EXPECTED_SHA)"
 
 if [ "$DO_INSTALL" -eq 0 ]; then
   log "OK: $SIGNED"

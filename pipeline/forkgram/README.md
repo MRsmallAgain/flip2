@@ -52,15 +52,21 @@ Both the physical BACK key and the on-screen nav-bar BACK deliver
 
 ## Hosted build
 
-The patched APK is published from our Forkgram fork:
+The patched APK is served from the project's package mirror:
 
-- Fork: <https://github.com/MRsmallAgain/TelegramAndroid>
-- Release: <https://github.com/MRsmallAgain/TelegramAndroid/releases/download/flip2-13.0.2.0-r1/forkgram-13.0.2.0-flip2-patched.apk>
+- Download: <https://flip2burn.online/packages/forkgram-13.0.2.0-flip2-patched.apk>
+- SHA-256: `bc378c74…` pinned in `wizard/catalog.json`
 - Source-level upstream PR: <https://github.com/Forkgram/TelegramAndroid/pull/539>
 
-After updating `forkgram-13.0.2.0-back.patch`, cut a **new release** (e.g. `flip2-13.0.2.0-r2`),
-update `SHA256SUMS`, and bump **`wizard/catalog.json`** + regenerate **`pins.json`**
-so the wizard downloads the build that includes the chat ⌫ fix.
+The `MRsmallAgain/TelegramAndroid` fork that used to host the release is
+unreachable (the GitHub account is suspended), so the mirror is now the only
+download. `flip2 forkgram release` therefore verifies against the catalog pin
+rather than a per-release `SHA256SUMS`.
+
+After updating `forkgram-13.0.2.0-back.patch`, rebuild the APK, upload it to
+`packages/` on the site bucket, and update `sha256` + `size` in
+**`wizard/catalog.json`**; then regenerate **`pins.json`** and deploy, so the
+wizard and the mirror agree on the build that includes the chat ⌫ fix.
 
 ```sh
 flip2 forkgram release              # download, verify SHA-256, install

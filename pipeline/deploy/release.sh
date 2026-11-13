@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Publish a GitHub release from packed dist artifacts (A7).
+# Publish a release from packed dist artifacts (A7).
+#
+# Uses `gh`, so it targets whichever host that CLI is authenticated against.
+# The original github.com/MRsmallAgain/flip2 repository is unreachable now
+# (the account is suspended), so a GitHub release needs a new home first.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 MANIFEST="$ROOT/pipeline/deploy/manifest.json"
@@ -9,7 +13,7 @@ usage() {
   cat <<EOF
 Usage: flip2 release [--dry-run] [--notes FILE] [--republish] [--skip-site]
 
-Create github.com/MRsmallAgain/flip2 release v<manifest.version> from:
+Create the GitHub release v<manifest.version> from:
   flip2-installer-clean-magisk.zip
   flip2-installer-base-magisk.zip
   flip2-installer-full-magisk.zip

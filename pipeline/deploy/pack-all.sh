@@ -168,8 +168,9 @@ cat >> "$OUT/README.md" <<'MD'
   (`pm disable-user --user 0 com.iqqijni.dvt912key` — root). Sherpa-ONNX tarballs
   (EN streaming + UK offline NeMo pack) are never bundled; push separately
   (`flip2 ime sherpa` or wizard/install `sherpa-en` + `sherpa-uk`).
-- **Forkgram**: not included — download the patched release from
-  github.com/MRsmallAgain/TelegramAndroid (tag flip2-13.0.2.0-r1) per GPL.
+- **Forkgram**: not included — download the patched APK from the package
+  mirror (`packages/forkgram-13.0.2.0-flip2-patched.apk`) per GPL; SHA-256 is
+  pinned in `wizard/catalog.json`.
 - **home_keys**: run `./apply-home-keys.sh` with a device connected (no root).
 - **display**: `adb shell wm size 321x428` (what the installer bakes into
   `display_size_forced`). The override is re-read at boot, so it persists.
