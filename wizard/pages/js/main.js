@@ -1194,7 +1194,7 @@ function connectWebUsbAdb(options) {
     if (e && e.noGranted) {
       if (!options.silent) {
         setStatus(statusEl, 'No phone selected — plug in, pick the device, allow USB debugging.', 'wait');
-        if (statusEl === 'phone-msg') setStatus('strip-phone', 'browser — no host adb', 'wait');
+        if (statusEl === 'phone-msg') setStatus('strip-phone', 'no device — Connect phone', 'wait');
       }
       return false;
     }
@@ -1205,7 +1205,7 @@ function connectWebUsbAdb(options) {
         msg += ' Or press Check host adb — Companion install does not need WebUSB.';
       }
       setStatus(statusEl, msg, 'bad');
-      if (statusEl === 'phone-msg') setStatus('strip-phone', 'browser — no host adb', 'wait');
+      if (statusEl === 'phone-msg') setStatus('strip-phone', 'no device — Connect phone', 'wait');
     }
     return Promise.reject(e);
   });
@@ -1220,7 +1220,7 @@ function connectWebUsbAdb(options) {
     if (!options.silent && e) {
       var msg = usbError(e);
       setStatus(statusEl, msg, 'bad');
-      if (statusEl === 'phone-msg') setStatus('strip-phone', 'browser — no host adb', 'wait');
+      if (statusEl === 'phone-msg') setStatus('strip-phone', 'no device — Connect phone', 'wait');
     }
     throw e;
   });
@@ -1760,7 +1760,7 @@ function pollStripPhone() {
   var N = window.FLIP2_NATIVE;
   if (!N || !N.phoneState) {
     var hasWebUsb = typeof navigator !== 'undefined' && navigator.usb;
-    setStatus('strip-phone', hasWebUsb ? 'browser — no host adb' : 'needs Chrome or Companion', 'wait');
+    setStatus('strip-phone', hasWebUsb ? 'plug in — Connect phone' : 'needs Chrome or Companion', 'wait');
     var plain = $('strip-hint');
     if (plain) {
       plain.textContent = hasWebUsb
