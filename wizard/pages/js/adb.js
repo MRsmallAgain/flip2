@@ -240,24 +240,41 @@ var ADB = {
       return;
     }
     if (cmd === A_AUTH) {
-      if (arg0 !== 1) { this.log('FAIL: unexpected AUTH type ' + arg0); return; }
+      if (arg0 !== 1) {
+        this.log('FAIL: unexpected AUTH type ' + arg0 + ' (expected token=1)');
+        return;
+      }
       this.tokensSeen++;
       var token = data;
+      var nth = this.tokensSeen;
+      this.log('ADB AUTH token #' + nth + ' (' + token.length + ' bytes)');
+      if (nth === 1) {
+        this.log('Signing with saved browser key…');
+      }
       ADBKEY.sign(token).then(function (sig) {
         return self._send(A_AUTH, 2, 0, new Uint8Array(sig));
-      });
-      if (this.tokensSeen === 1) {
-        this.log('Phone sent an auth token — signing with the saved key…');
-      } else if (!this.pubSent) {
-        // signature was rejected: offer the public key, phone shows the prompt
-        this.pubSent = true;
-        this._send(A_AUTH, 3, 0, str2ab(ADBKEY.pubB64 + '\0'));
-        this.log('Key not on the phone yet — sent the public key.');
-        this.log('>>> Unlock the phone. Look for Allow USB debugging? Tap OK (Always allow helps).');
-        if (typeof window.flip2OnAdbAuthPrompt === 'function') {
-          window.flip2OnAdbAuthPrompt();
+      }).then(function () {
+        // Pubkey must follow the signature on the wire. On a fresh host key the
+        // phone needs type 3 to show "Allow USB debugging?" — waiting only for a
+        // second token often never triggers the dialog.
+        if (self.pubSent) return;
+        if (nth === 1 || nth === 2) {
+          self.pubSent = true;
+          return self._send(A_AUTH, 3, 0, str2ab(ADBKEY.pubB64 + '\0'));
         }
-      }
+      }).then(function () {
+        if (!self.pubSent) return;
+        if (nth === 1 || nth === 2) {
+          self.log('Sent RSA public key.');
+          self.log('>>> Unlock the phone. Tap Allow on USB debugging (Always allow helps).');
+          if (typeof window.flip2OnAdbAuthPrompt === 'function') {
+            window.flip2OnAdbAuthPrompt();
+          }
+        }
+      }).catch(function (e) {
+        self.log('FAIL: auth sign/send: ' + (e && e.message ? e.message : e));
+        self._failConnect(e instanceof Error ? e : new Error(String(e)));
+      });
       return;
     }
     if (cmd === A_CLSE && arg1 === 0) return; // adbd closing a dead stream
