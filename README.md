@@ -180,3 +180,22 @@ This toolkit stands on the work of:
 - **TCL / MTK stock ROM** — the Flip 2 (Gflip6, 4058G) itself; RRO overlays and key-layout edits patch around, not over, the stock system.
 
 If you reuse this repo, please carry those credits forward.
+
+## License
+
+**GPL-3.0** — see [LICENSE](LICENSE).
+
+GPL-3.0 rather than a permissive licence because this repo ships **patch files
+against GPL-3.0(-only) applications** — `pipeline/forkgram/`, `pipeline/newpipe/`,
+`pipeline/astro-loop/` and `pipeline/bouncy/` each carry diffs into another
+program's smali. Those diffs are derivative works of their targets, so the
+combination is GPL-3.0 whether or not this file said so; staying consistent
+avoids claiming a licence the code cannot grant.
+
+What that does **not** cover: the vendored FlipMouse source in
+`pipeline/flipmouse/` and `pipeline/flipmouse-arcade/` is MIT, from
+[TylerBoni/FlipMouse](https://github.com/TylerBoni/FlipMouse) — see
+`pipeline/flipmouse/VENDORED.md`. The third-party apps themselves
+(Forkgram, NewPipe, Astro Loop, Bouncy, VLC, …) are **not** in this repo; the
+wizard downloads them from upstream at install time, under their own licences,
+which are listed per entry in `wizard/catalog.json`.
