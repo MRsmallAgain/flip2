@@ -15,21 +15,21 @@
       "file": "flip2-installer-full-magisk.zip",
       "sha256": "298b46685ed97fcad763bb2ae39ca48e58efb83b2102f1f60af0d6fce8a4317b",
       "size": 395628118,
-      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.4.0-alpha.2-flip2/flip2-installer-full-magisk.zip"
+      "url": "https://flip2burn.online/packages/flip2-installer-full-magisk.zip"
     },
     {
       "id": "installer-slim",
       "file": "flip2-installer-slim-magisk.zip",
       "sha256": "f2db51f95fd49baba9e16aaa484db42f008fcc77b2081cd8d8c964f107329e63",
       "size": 181523253,
-      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.4.0-alpha.2-flip2/flip2-installer-slim-magisk.zip"
+      "url": "https://flip2burn.online/packages/flip2-installer-slim-magisk.zip"
     },
     {
       "id": "forkgram",
       "file": "forkgram-13.0.2.0-flip2-patched.apk",
       "sha256": "bc378c74c378c23c2115ca1755b5322b15d30132098bcc8136ef1f13a817ce38",
       "size": 40136550,
-      "url": "https://github.com/MRsmallAgain/TelegramAndroid/releases/download/flip2-13.0.2.0-r1/forkgram-13.0.2.0-flip2-patched.apk"
+      "url": "https://flip2burn.online/packages/forkgram-13.0.2.0-flip2-patched.apk"
     },
     {
       "id": "sherpa-en",
@@ -127,7 +127,7 @@
       "file": "flip2-installer-base-magisk.zip",
       "sha256": "36b95f9d53cde6906812f737e7f520e85b693f4228fcb3e232aef9dcde6f5a51",
       "size": 343301462,
-      "url": "https://github.com/MRsmallAgain/flip2/releases/download/v1.4.0-alpha.2-flip2/flip2-installer-base-magisk.zip"
+      "url": "https://flip2burn.online/packages/flip2-installer-base-magisk.zip"
     }
   ]
 }
