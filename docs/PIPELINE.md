@@ -76,14 +76,34 @@ export PATH="$HOME/.local/share/flip2/bin:$PATH"
 | `flip2 tagdrawer install` | System app module + remove AppShelf; reboot |
 | `flip2 tagdrawer rollback` | Remove `flip2_pixel_tag_drawer` module |
 | `flip2 tagdrawer status` | Zip, `pm path`, Up key |
+| `flip2 ci` | Run the device-free gates (same script CI runs) |
 
 ### Pixel Tag Drawer (system)
 
 See [pixel-tag-drawer/README.md](../pixel-tag-drawer/README.md). D-pad Up is set in `launcher-overlay/home-keys.json` (`flip2 home-keys`).
 
-## Prerequisites
+## Gates
 
-adb (authorized), root (idmap), JDK, SDK build-tools 34, apktool.
+Everything that can be checked without a phone lives in `pipeline/ci/gates.sh`:
+shell syntax across every tracked script (`bin/flip2` and the Magisk
+`update-binary` files included, since they are bash without a `.sh` suffix), ES
+module syntax across the wizard and Companion `.js`, JSON validity, and the two
+generator drift checks (`wizard check`, `wizard pins --check`).
+
+```bash
+flip2 ci                                  # ~3s
+bash pipeline/ci/install-hooks.sh         # run the same gates before every commit
+```
+
+`.gitlab-ci.yml` runs the identical script. It is deliberately limited to checks
+that pass on a fresh clone — no adb, no AWS credentials, no packed `dist/` —
+because a gate that fails for environmental reasons teaches people to ignore the
+whole pipeline. That is also why shellcheck is not wired in yet: every script in
+the tree would need a clean baseline first, and a red pipeline from day one gets
+ignored rather than fixed.
+
+Both commands print how many files they covered, so read the count from the run
+rather than from this page.
 
 ## Extending
 
