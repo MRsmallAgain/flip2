@@ -1,0 +1,24 @@
+# Device-free gates. See pipeline/ci/gates.sh for the checks themselves and why
+# the set is limited to things that pass on a fresh clone.
+#
+# Nothing here builds the installers or touches AWS: those need the packed
+# dist/ tree (gitignored) and real credentials, so they stay local.
+stages:
+  - check
+
+gates:
+  stage: check
+  image: node:20-bookworm
+  # Runs on every MR and on master, and skips duplicate pipelines when an MR is
+  # open (without this, a push to a branch with an MR creates two pipelines).
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends jq
+  script:
+    - bash pipeline/ci/gates.sh
+  # Keep it cheap: the whole gate set is syntax parsing plus two generator
+  # diffs, all sub-minute. A long timeout would just hide a hung generator.
+  timeout: 10m
+  interruptible: true
