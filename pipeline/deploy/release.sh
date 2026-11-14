@@ -141,6 +141,7 @@ ASSETS+=("$DIST/SHA256SUMS")
 RELEASE_NAMES=("${ASSET_NAMES[@]}" "SHA256SUMS")
 
 file_size() { stat -c%s "$DIST/$1"; }
+file_sha() { sha256sum "$DIST/$1" | awk '{print $1}'; }
 
 mirror_code() {  # mirror_code <name> -> HTTP status of a 1-byte range GET
   local code
@@ -156,14 +157,44 @@ mirror_size() {  # mirror_size <name> -> Content-Length, empty on failure
     | awk 'tolower($1) == "content-length:" {print $2}' | tr -d '\r'
 }
 
-mirror_ok() {  # 0 when the mirror serves 200/206 at the packed byte count
-  local code got
-  code="$(mirror_code "$1")"
-  got="$(mirror_size "$1")"
-  if { [[ "$code" == 200 ]] || [[ "$code" == 206 ]]; } && [[ "$got" == "$(file_size "$1")" ]]; then
-    return 0
+BUCKET_CACHE=""
+mirror_bucket() {  # mirror_bucket -> site bucket name (cached; empty without aws)
+  if [[ -z "$BUCKET_CACHE" ]]; then
+    BUCKET_CACHE="$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
+      --query "Stacks[0].Outputs[?OutputKey=='BucketName'].OutputValue" --output text 2>/dev/null || true)"
   fi
-  return 1
+  printf '%s' "$BUCKET_CACHE"
+}
+
+mirror_sha() {  # mirror_sha <name> -> sha256 stamped into object metadata at upload
+  local bucket
+  command -v aws >/dev/null || return 0
+  bucket="$(mirror_bucket)"
+  [[ -n "$bucket" && "$bucket" != None ]] || return 0
+  aws s3api head-object --bucket "$bucket" --key "packages/$1" \
+    --query 'Metadata.sha256' --output text 2>/dev/null | tr -d '\r' | sed 's/^None$//'
+}
+
+mirror_ok() {  # 0 when the mirror serves OUR bytes, not merely our byte count
+  local code got stamped
+  code="$(mirror_code "$1")"
+  { [[ "$code" == 200 ]] || [[ "$code" == 206 ]]; } || return 1
+  got="$(mirror_size "$1")"
+  [[ "$got" == "$(file_size "$1")" ]] || return 1
+  # A size match is not an identity match. The rebuilt clean/image-post zips and
+  # SHA256SUMS came out at exactly the previous release's byte counts, so size
+  # alone read as "already mirrored" and was skipped: v1.4.0-alpha.5 shipped
+  # fresh links onto stale bytes. Compare the sha256 stamped into S3 object
+  # metadata at upload instead (read via the S3 API, not HTTP, so no CDN
+  # header-forwarding dependency). An object without a stamp predates this check
+  # and is re-mirrored once to acquire one.
+  stamped="$(mirror_sha "$1")"
+  if [[ -z "$stamped" ]]; then
+    command -v aws >/dev/null || { echo "WARN: no aws CLI; $1 verified by size only" >&2; return 0; }
+    echo "    $1 carries no sha256 metadata on the bucket — re-mirroring to stamp it" >&2
+    return 1
+  fi
+  [[ "$stamped" == "$(file_sha "$1")" ]]
 }
 
 mirror_upload() {  # mirror_upload <name>...
@@ -179,10 +210,14 @@ mirror_upload() {  # mirror_upload <name>...
 
   for n in "$@"; do
     want="$(file_size "$n")"
-    echo "==> mirror: packages/$n ($want bytes)"
+    sha="$(file_sha "$n")"
+    echo "==> mirror: packages/$n ($want bytes, sha256 ${sha:0:16})"
+    # The sha256 stamp is what mirror_ok() compares on the next run: byte count
+    # alone let a rebuilt asset that matched its predecessor's size be skipped.
     aws s3 cp "$DIST/$n" "s3://$bucket/packages/$n" \
       --content-type application/octet-stream \
-      --cache-control "public,max-age=86400" >/dev/null
+      --cache-control "public,max-age=86400" \
+      --metadata "sha256=$sha" >/dev/null
     paths+=("/packages/$n")
   done
 
