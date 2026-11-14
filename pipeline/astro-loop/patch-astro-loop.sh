@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Patch Astro Loop v1.5 for TCL Flip 2 display (321×428 logical).
 #
-# Stock game uses 960×2142 design height → renderScale ≈ 428/2142 ≈ 0.2 on Flip2,
-# so everything is tiny and layout looks stuck in the top half. This patch uses
-# 960×960 portrait design and locks portrait orientation.
+# Stock game uses a 960×2142 portrait design column → renderScale ≈ min(428/960,
+# 321/2142) ≈ 0.2 on Flip2, so everything is tiny and pinned to the top. This
+# patch uses a 960×720 landscape design rect (960×960 portrait) and locks the
+# orientation in the manifest.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +16,9 @@ PATCH_FILE="$HERE/astro-loop-1.5-flip2-display.patch"
 WORK="${WORK:-/tmp/astro-loop-patch}"
 SRC_APK=""
 DO_INSTALL=1
+UNINSTALL=0
 FORCE=0
+ORIENT="${FLIP2_ASTRO_LOOP_ORIENT:-landscape}"
 
 die() { echo "error: $*" >&2; exit 1; }
 log() { echo "==> $*"; }
@@ -30,7 +33,10 @@ Options:
   --apk PATH     Source APK (default: download F-Droid pin or ~/astro-loop-original-6.apk)
   --work DIR     Work directory (default: $WORK)
   --no-install   Build and sign only
+  --uninstall    Uninstall $PKG first (needed for F-Droid → debug-signed patch)
   --force        Skip version check
+  --orientation portrait|landscape
+                 Lock screen orientation (default: landscape on Flip2)
   -h, --help     Show this help
 
 Output: \$WORK/com.astroloop.game_6-flip2-display-signed.apk
@@ -42,7 +48,13 @@ while [ $# -gt 0 ]; do
     --apk) SRC_APK="${2:-}"; [ -n "$SRC_APK" ] || die "--apk needs a path"; shift 2 ;;
     --work) WORK="${2:-}"; [ -n "$WORK" ] || die "--work needs a path"; shift 2 ;;
     --no-install) DO_INSTALL=0; shift ;;
+    --uninstall) UNINSTALL=1; shift ;;
     --force) FORCE=1; shift ;;
+    --orientation)
+      ORIENT="${2:-}"
+      case "$ORIENT" in portrait|landscape) shift 2 ;;
+      *) die "--orientation must be portrait or landscape" ;;
+      esac ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (try --help)" ;;
   esac
@@ -94,17 +106,30 @@ mkdir -p "$WORK"
 DEC="$WORK/dec"
 rm -rf "$DEC"
 log "Decoding $(basename "$SRC_APK")"
-java -jar "$APKTOOL" d -r -f -o "$DEC" "$SRC_APK" >"$WORK/decode.log" 2>&1 \
+# Full decode, NOT `-r`: raw resources leaves AndroidManifest.xml as binary XML,
+# which makes the orientation rewrite below silently match nothing.
+java -jar "$APKTOOL" d -f -o "$DEC" "$SRC_APK" >"$WORK/decode.log" 2>&1 \
   || die "apktool decode failed (see $WORK/decode.log)"
+if ! grep -qa '<manifest' "$DEC/AndroidManifest.xml"; then
+  die "AndroidManifest.xml is not editable text — decode failed"
+fi
 
 log "Applying Flip 2 display patch"
 if ! ( cd "$DEC" && patch -p0 --batch --forward < "$PATCH_FILE" ); then
   die "patch did not apply — wrong Astro Loop version? (expected $EXPECTED_VERSION / vc 6)"
 fi
 
-log "Locking portrait (manifest is one line from apktool — sed, not patch)"
-sed -i 's/android:screenOrientation="fullUser"/android:screenOrientation="portrait"/' "$DEC/AndroidManifest.xml" \
-  || die "could not set portrait in AndroidManifest.xml"
+log "Locking $ORIENT in AndroidManifest.xml"
+sed -i \
+  -e 's/android:screenOrientation="[a-zA-Z]*"/android:screenOrientation="'"$ORIENT"'"/' \
+  "$DEC/AndroidManifest.xml" \
+  || die "could not set orientation in AndroidManifest.xml"
+# The rewrite must actually land. A silent no-op shipped a still-portrait build once:
+# sed exits 0 when it matches nothing, and -r decoding left the manifest binary.
+if ! grep -qa "android:screenOrientation=\"$ORIENT\"" "$DEC/AndroidManifest.xml"; then
+  die "orientation rewrite did not take effect (expected screenOrientation=\"$ORIENT\")"
+fi
+grep -ao "android:screenOrientation=\"[a-zA-Z]*\"" "$DEC/AndroidManifest.xml" | sed 's/^/    /'
 
 log "Building"
 UNSIGNED="$WORK/com.astroloop.game_6-flip2-display-unsigned.apk"
@@ -138,6 +163,18 @@ log "Signed APK: $SIGNED"
 
 if [ "$DO_INSTALL" -eq 1 ]; then
   adb get-state >/dev/null 2>&1 || die "no adb device (use --no-install)"
-  adb install -r "$SIGNED" || die "install failed (uninstall F-Droid build first if signature clash)"
-  log "Installed display-patched build. UI should fill portrait 321×428 at readable scale."
+  if [ "$UNINSTALL" -eq 1 ]; then
+    log "Uninstalling $PKG (app data will be lost)"
+    adb uninstall "$PKG" >/dev/null 2>&1 || true
+  fi
+  if ! adb install -r "$SIGNED"; then
+    if adb shell pm path "$PKG" >/dev/null 2>&1; then
+      log "Install failed — uninstalling existing build and retrying"
+      adb uninstall "$PKG" >/dev/null 2>&1 || true
+      adb install -r "$SIGNED" || die "install failed after uninstall"
+    else
+      die "install failed"
+    fi
+  fi
+  log "Installed display-patched build ($ORIENT). Readable scale on Flip2 logical 321×428."
 fi

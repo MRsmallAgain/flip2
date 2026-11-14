@@ -16,11 +16,26 @@ The physical Flip 2 keypad should emit standard Android DPAD keys once focus is 
 
 ## Patches (this branch)
 
-There is **no smali patch** yet — upstream already targets gamepads and D-pads. Future Flip2-only work might include:
+`astro-loop-1.5-flip2-display.patch` makes the stock build usable on the Flip 2:
 
-- Remap TCL-specific keycodes if DPAD is not reported
+| Change | Why |
+|--------|-----|
+| `GameConfig.DESIGN_HEIGHT` 2142 → 960 | Stock design is a 960×2142 portrait column; on a 321×428 panel `renderScale = min(w/960, h/2142)` collapses to ≈0.2, so the UI is tiny and pinned to the top |
+| `DesignSpace.designHeight()` portrait 2142 → 960, landscape 960 → 720 | Matches the new design rect in both shapes |
+| `DesignSpace.designWidth()` landscape 2142 → 960 | Landscape design rect becomes 960×720 (4:3), so it fills 428×321 instead of letterboxing |
+| `HangarSurfaceView.setCabinetOrientationLock$lambda$5` `FULL_USER` (13) → `LOCKED` (14) | Leaving a cabinet requested "follow the device", which resolves to portrait on this panel and silently undid the manifest lock |
+| `RoomAnchor.anchorX` always takes the centred branch | Landscape used to right-align page 0 and flush-left page 2, so the bar room and the subject sat right of centre on the 428-wide panel |
+| `InputRouter.onKey` treats `0x6a` (`BTN_THUMBL`) as activate | FlipMouse Arcade's virtual gamepad emits `BTN_THUMBL` for keypad OK; stock only accepted `DPAD_CENTER`/`ENTER`, so OK did nothing in landscape |
+| `android:screenOrientation` → `landscape` | Manifest lock, written by the build script (not a patch hunk — apktool emits one long XML line) |
+
+The build script verifies the orientation rewrite actually landed; `apktool d -r` leaves a *binary* `AndroidManifest.xml`, and `sed` exits 0 matching nothing — that shipped a still-portrait build once.
+
+Opening composition is verified on the 428×321 panel: the subject sits at x213.5 against a panel centre of 214.0. The playfield band itself is authored geometry (`walkwayY = 0.6 × height`, `ceilingY = walkwayY − 80`), so it reads as a horizontal slice with starfield above — that is upstream's composition, not a scaling artefact; tune only if it bothers us in play.
+
+Still open:
+
+- Remap TCL-specific keycodes if the daemon is not running (raw DPAD_* keys are accepted today)
 - Default to directional mode on first launch
-- Smaller UI safe-area tweaks for 321×428
 
 Track findings in this README when you add `astro-loop-*.patch`.
 

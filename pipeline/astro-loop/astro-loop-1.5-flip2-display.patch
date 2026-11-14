@@ -1,5 +1,14 @@
 --- smali/com/astroloop/game/core/DesignSpace.smali
 +++ smali/com/astroloop/game/core/DesignSpace.smali
+@@ -194,7 +194,7 @@
+ 
+     .line 6
+     .line 7
+-    const/high16 p1, 0x44700000    # 960.0f
++    const/high16 p1, 0x44340000    # 720.0f flip2 landscape design height
+ 
+     .line 8
+     .line 9
 @@ -202,7 +202,7 @@
  
      .line 10
@@ -9,6 +18,15 @@
  
      .line 11
      .line 12
+@@ -226,7 +226,7 @@
+ 
+     .line 6
+     .line 7
+-    const p1, 0x4505e000    # 2142.0f
++    const p1, 0x44700000    # 960.0f flip2 landscape design width
+ 
+     .line 8
+     .line 9
 --- smali/com/astroloop/game/core/GameConfig.smali
 +++ smali/com/astroloop/game/core/GameConfig.smali
 @@ -214,7 +214,7 @@
@@ -20,3 +38,38 @@
  
  .field public static final DESIGN_WIDTH:F = 960.0f
  
+--- smali/com/astroloop/game/hangar/HangarSurfaceView.smali
++++ smali/com/astroloop/game/hangar/HangarSurfaceView.smali
+@@ -10512,7 +10512,7 @@
+ 
+     .line 11
+     :cond_0
+-    const/16 p1, 0xd
++    const/16 p1, 0xe  # flip2: LOCKED, not FULL_USER (follows device -> portrait)
+ 
+     .line 12
+     .line 13
+--- smali/com/astroloop/game/hangar/RoomAnchor.smali
++++ smali/com/astroloop/game/hangar/RoomAnchor.smali
+@@ -89,7 +89,7 @@
+ 
+     .line 6
+     .line 7
+-    if-nez p4, :cond_0
++    goto :goto_0  # flip2: always centre the room (landscape too)
+ 
+     .line 8
+     .line 9
+--- smali/com/astroloop/game/input/InputRouter.smali
++++ smali/com/astroloop/game/input/InputRouter.smali
+@@ -968,6 +968,10 @@
+ 
+     .line 119
+     .line 120
++    const/16 v5, 0x6a
++
++    if-eq v4, v5, :cond_d  # flip2: BTN_THUMBL (gamepad OK) = activate
++
+     packed-switch v4, :pswitch_data_0
+ 
+     .line 121

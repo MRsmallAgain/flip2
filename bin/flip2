@@ -31,7 +31,7 @@ Commands:
   flipmouse-arcade   FlipMouse Arcade (gamepad + mouse daemon, Magisk): build | install | status | rollback
   gamepad <sub>      Landscape virtual gamepad (Magisk): build | install | status | rollback
   forkgram <sub>     Patched Forkgram APK: patch | release (BACK deletes in text fields)
-  astro-loop <sub>   Astro Loop game: install (F-Droid pin, D-pad ready)
+  astro-loop <sub>   Astro Loop game: patch (display) | install (F-Droid stock)
   setup <tier>       Deployment: full (rooted set in verified order) | clean
   installer <sub>    Single-shot Magisk installer: pack [--flavor clean|base|full|slim|image-post]
   pack-all           Build per-component Magisk zips + APKs + SHA256SUMS bundle
@@ -255,12 +255,15 @@ case "$cmd" in
     sub="${1:-help}"
     shift || true
     case "$sub" in
+      patch)   exec "$FLIP2_ROOT/pipeline/astro-loop/patch-astro-loop.sh" "$@" ;;
       install) exec "$FLIP2_ROOT/pipeline/astro-loop/install-fdroid.sh" "$@" ;;
       help|-h|--help)
-        echo "Usage: flip2 astro-loop {install}"
+        echo "Usage: flip2 astro-loop {patch|install}"
+        echo "  patch [--no-install] [--uninstall] [--work DIR] [--orientation portrait|landscape]"
+        echo "      Build Flip 2 display patch (960 design width, landscape) and adb install."
         echo "  install [--no-install] [--work DIR]"
-        echo "      Download F-Droid Astro Loop v1.5, verify pin, adb install."
-        echo "  D-pad/gamepad supported upstream; see pipeline/astro-loop/README.md."
+        echo "      Download stock F-Droid v1.5 (tiny UI on Flip2 — prefer patch)."
+        echo "  See pipeline/astro-loop/README.md."
         ;;
       *) echo "Unknown astro-loop subcommand: $sub" >&2; exit 1 ;;
     esac
