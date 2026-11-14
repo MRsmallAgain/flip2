@@ -1,6 +1,6 @@
 {
   "version": "1.4.0-alpha.4-flip2",
-  "pinned": "2026-11-13",
+  "pinned": "2026-11-15",
   "catalog": "wizard/catalog.json",
   "files": [
     {
@@ -13,15 +13,15 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "sha256": "fed43d68a3dd9666de6b452e691359b06eb5dbaa580eb69c1cc02209000e533b",
-      "size": 395626530,
+      "sha256": "0329617b902c255b19b777f78ec38b8405e783a3905b3255fc6ba27e00e7fee3",
+      "size": 395627873,
       "url": "https://flip2burn.online/packages/flip2-installer-full-magisk.zip"
     },
     {
       "id": "installer-slim",
       "file": "flip2-installer-slim-magisk.zip",
-      "sha256": "69d3cde96fe6f4b0c68cee22ab1800f634cbe3867517b5515583400e7c7d7419",
-      "size": 181521665,
+      "sha256": "8fb752b6a607af19904a3d44ff45432ffbcc485b2c6023181a87abaf229cbe9a",
+      "size": 181523008,
       "url": "https://flip2burn.online/packages/flip2-installer-slim-magisk.zip"
     },
     {
@@ -125,7 +125,7 @@
     {
       "id": "installer-base",
       "file": "flip2-installer-base-magisk.zip",
-      "sha256": "215ce92b6342c39b9923bd3eb9b14bf7508c7b6462380abfd5a8e5c38e524f5c",
+      "sha256": "f4c89805b77a279b9b14014501cfca8ec238678efe9ec134e599ec5ec2055d0e",
       "size": 343299874,
       "url": "https://flip2burn.online/packages/flip2-installer-base-magisk.zip"
     }
