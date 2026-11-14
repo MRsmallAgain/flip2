@@ -6,15 +6,17 @@
 
 Curated assets and channel-ready markdown for public releases. Raw phone/wizard photos stay on your PC (`~/flip2-marketing-2026-11/`); only redacted or UI-safe files belong here.
 
-## v1.4.0-alpha.1
+## v1.4.0-alpha.3
 
 | Asset | Use |
 |-------|-----|
 | Reuse `v1.3.0-alpha.3/phone-tour-publish/*` until refreshed | Phone tour / mosaic |
 
-**Copy:** `v1.4.0-alpha.1/copy/release-v1.4.0-alpha.1-supplement.md` — release body. No prebuilt Windows `.exe` is published; build it with `npm run pack:win`.
+**Release notes:** [`docs/RELEASE-NOTES-v1.4.0-alpha.3-flip2.md`](../RELEASE-NOTES-v1.4.0-alpha.3-flip2.md) — the body of the published release, and the file `flip2 release --notes` consumed.
 
 **Release:** v1.4.0-alpha.3-flip2 — files under [packages/](https://flip2burn.online/packages/), pins in [catalog.json](https://flip2burn.online/catalog.json)
+
+No prebuilt Windows `.exe` is published; build it with `npm run pack:win`. Draft copy for the unreleased alpha.1 cycle sits outside version control and is not linked here.
 
 ## v1.3.0-alpha.3
 

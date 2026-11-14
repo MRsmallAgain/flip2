@@ -37,9 +37,9 @@ C8 merge — print `master stays 0fc09f7`, exit 0.
 ## Constants (all RUN modules)
 
 - Donor `MRV8IJJVPRYTS4UG`. Never target guinea pig `ONTKKB9L7PEUX4Z5`.
-- During RUN: manifest version `1.2.0-flip2`; catalog full-installer pin size `16424801`, sha256 `be8b5fc7d2fe4b56ae0aa3d91d72a3de12e5be0cf36a09a8687cc6eeaf1e26bb`.
-- `global display_size_forced` = `321,428`. Wallpaper md5 `d0eb46bc33e2751940150abf72b93c5f`.
-- Manifest `versionCode` = `20261029`. Packers must not call `date`.
+- During RUN: read the version from `pipeline/deploy/manifest.json` (`.version`, `.versionCode`) and the full-installer pin from `wizard/catalog.json` (`id: installer-full`). Do not copy those numbers into this file — the literals that used to sit here named `1.2.0-flip2` / `20261029` for three releases after they stopped being true.
+- `global display_size_forced` = `321,428`. Wallpaper md5 `d0eb46bc33e2751940150abf72b93c5f` (stable: the asset only changes with `flip2 wallpaper gen`).
+- Packers must not call `date` — `versionCode` is authored, not derived.
 - Home keys in `launcher-overlay/home-keys.json` per recovery plan Constants block.
 - Markers: `# BEGIN GENERATED` / `# END GENERATED`.
 - Phone verifier: `/data/local/tmp/verify-new.sh`.
