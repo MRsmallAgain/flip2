@@ -49,8 +49,10 @@ features need root, and the wizard's *Put on phone* step is still experimental.
 - **The Forkgram fork** (`MRsmallAgain/TelegramAndroid`) — unreachable, so
   *republishing* the patched APK is blocked. The APK itself is mirrored and
   installs fine; `flip2 forkgram release` verifies it against the catalog pin.
-- **`flip2 release`** — drives `gh`, so publishing a release needs a new home or
-  a GitLab backend. Known, not yet done.
+- **`flip2 release`** — now publishes on GitLab, with the assets as links into
+  the mirror rather than ~1.4 GB of uploads. Anything the mirror lacks is copied
+  to the site bucket and polled until it serves the right byte count *before* the
+  release exists. `--host github` is kept for a reinstatement.
 
 ## If you arrived from an old link
 
