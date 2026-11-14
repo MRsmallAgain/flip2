@@ -69,14 +69,22 @@
 #define DPAD_BIT_LEFT 0x04
 #define DPAD_BIT_RIGHT 0x08
 
+/* The numpad cross is a second D-pad, so it feeds the same left stick + hat as
+ * DPAD_BIT_*. It keeps its own per-key bits because 1/3/7/9 are diagonals: one
+ * key sets two directions, and a direction must only clear when no other held
+ * key still wants it. It used to have its own set that wrote only
+ * ABS_RX/ABS_RY (the right stick); Astro Loop's InputRouter.onMotion reads
+ * AXIS_X/AXIS_Y and AXIS_HAT_X/AXIS_HAT_Y and never the right stick, so every
+ * numpad direction was invisible in-game. Key 6 was also missing entirely. */
 #define NPAD_BIT_1 0x001
 #define NPAD_BIT_2 0x002
 #define NPAD_BIT_3 0x004
 #define NPAD_BIT_4 0x008
 #define NPAD_BIT_5 0x010
-#define NPAD_BIT_7 0x020
-#define NPAD_BIT_8 0x040
-#define NPAD_BIT_9 0x080
+#define NPAD_BIT_6 0x020
+#define NPAD_BIT_7 0x040
+#define NPAD_BIT_8 0x080
+#define NPAD_BIT_9 0x100
 #ifndef FLIPMOUSE_DEFAULT_SPEED
 #define FLIPMOUSE_DEFAULT_SPEED 39
 #endif
@@ -627,61 +635,58 @@ static void gamepad_cleanup(void)
   app_state.gamepad.dev = NULL;
 }
 
-static int clampi(int v, int lo, int hi)
-{
-  return v < lo ? lo : (v > hi ? hi : v);
-}
-
 /* Push the currently-held direction set out to the virtual gamepad.
+ *
+ * Both crosses feed the SAME axes. Astro Loop's InputRouter.onMotion reads
+ * AXIS_X/AXIS_Y (left stick) and AXIS_HAT_X/AXIS_HAT_Y; it never reads
+ * AXIS_RX/AXIS_RY, so the numpad's private right-stick output was invisible
+ * in-game and every numpad direction did nothing. The two clusters are both a
+ * cross in the same physical orientation, so they share one direction set --
+ * the numpad simply adds diagonals, which the D-pad cannot report.
  *
  * HAT axes share the stick's -32767..32767 range, so they must be written at
  * full scale, not +-1. Android normalises the raw value, and a raw 1 becomes
  * ~0.00003: far under the game's 0.5 hat threshold and under the deadzone
  * Android needs to synthesise DPAD key events, i.e. the D-pad did nothing.
  *
- * The landscape D-pad is a true 90-degree rotation: Up->left, left->down,
+ * The landscape cross is a true 90-degree rotation: Up->left, left->down,
  * down->right, right->up. */
-static void gp_dpad_apply(void)
+static void gp_dirs_apply(void)
 {
-  int held = app_state.gamepad.dpad_held;
+  int d = app_state.gamepad.dpad_held;
+  int n = app_state.gamepad.numpad_held;
+  int up = !!(d & DPAD_BIT_UP), down = !!(d & DPAD_BIT_DOWN);
+  int left = !!(d & DPAD_BIT_LEFT), right = !!(d & DPAD_BIT_RIGHT);
   int hx = 0, hy = 0;
-  if (held & DPAD_BIT_UP)
+
+  /* Phone keypad layout, not a PC numpad: 1-2-3 is the TOP row and 7-8-9 the
+   * bottom, so 2 points up and 8 points down. 1/3/7/9 are diagonals, so each
+   * sets two directions: a direction stays on until no held numpad key still
+   * wants it. */
+  if (n & (NPAD_BIT_2 | NPAD_BIT_1 | NPAD_BIT_3))
+    up = 1;
+  if (n & (NPAD_BIT_8 | NPAD_BIT_7 | NPAD_BIT_9))
+    down = 1;
+  if (n & (NPAD_BIT_4 | NPAD_BIT_1 | NPAD_BIT_7))
+    left = 1;
+  if (n & (NPAD_BIT_6 | NPAD_BIT_3 | NPAD_BIT_9))
+    right = 1;
+
+  if (up)
     hx -= STICK_EDGE;
-  if (held & DPAD_BIT_DOWN)
+  if (down)
     hx += STICK_EDGE;
-  if (held & DPAD_BIT_LEFT)
+  if (left)
     hy += STICK_EDGE;
-  if (held & DPAD_BIT_RIGHT)
+  if (right)
     hy -= STICK_EDGE;
+
   app_state.gamepad.stick_lx = hx;
   app_state.gamepad.stick_ly = hy;
   gp_stick_apply();
   libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_HAT0X, hx);
   libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_HAT0Y, hy);
   libevdev_uinput_write_event(app_state.gamepad.uidev, EV_SYN, SYN_REPORT, 0);
-}
-
-static void gp_numpad_apply(void)
-{
-  int held = app_state.gamepad.numpad_held;
-  int rx = 0, ry = 0;
-  if (held & NPAD_BIT_8)
-    rx += STICK_EDGE;
-  if (held & NPAD_BIT_2)
-    rx -= STICK_EDGE;
-  if (held & NPAD_BIT_4)
-    ry += STICK_EDGE;
-  if (held & NPAD_BIT_1)
-    rx -= STICK_EDGE, ry -= STICK_EDGE;
-  if (held & NPAD_BIT_9)
-    rx += STICK_EDGE, ry -= STICK_EDGE;
-  if (held & NPAD_BIT_7)
-    rx -= STICK_EDGE, ry += STICK_EDGE;
-  if (held & NPAD_BIT_3)
-    rx += STICK_EDGE, ry += STICK_EDGE;
-  app_state.gamepad.stick_rx = clampi(rx, AXIS_GP_MIN, AXIS_GP_MAX);
-  app_state.gamepad.stick_ry = clampi(ry, AXIS_GP_MIN, AXIS_GP_MAX);
-  gp_stick_apply();
 }
 
 /* Track each direction as its own key. Modelling the cross as a single value
@@ -702,7 +707,7 @@ static void gp_dpad(int k, int v)
     app_state.gamepad.dpad_held |= bit;
   else
     app_state.gamepad.dpad_held &= ~bit;
-  gp_dpad_apply();
+  gp_dirs_apply();
 }
 
 static void gp_numpad(int k, int v)
@@ -714,6 +719,7 @@ static void gp_numpad(int k, int v)
   case KEY_3: bit = NPAD_BIT_3; break;
   case KEY_4: bit = NPAD_BIT_4; break;
   case KEY_5: bit = NPAD_BIT_5; break;
+  case KEY_6: bit = NPAD_BIT_6; break;
   case KEY_7: bit = NPAD_BIT_7; break;
   case KEY_8: bit = NPAD_BIT_8; break;
   case KEY_9: bit = NPAD_BIT_9; break;
@@ -723,7 +729,7 @@ static void gp_numpad(int k, int v)
     app_state.gamepad.numpad_held |= bit;
   else
     app_state.gamepad.numpad_held &= ~bit;
-  gp_numpad_apply();
+  gp_dirs_apply();
 }
 
 static int gamepad_handle_key(int code, int value)
@@ -733,7 +739,7 @@ static int gamepad_handle_key(int code, int value)
     gp_dpad(code, value);
     return MUTE_EVENT;
   case KEY_1: case KEY_2: case KEY_3: case KEY_4: case KEY_5:
-  case KEY_7: case KEY_8: case KEY_9:
+  case KEY_6: case KEY_7: case KEY_8: case KEY_9:
     gp_numpad(code, value);
     return MUTE_EVENT;
   case KEY_ENTER: gp_emit_key(BTN_THUMBL, value); return MUTE_EVENT;

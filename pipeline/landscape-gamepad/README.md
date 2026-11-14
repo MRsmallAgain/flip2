@@ -29,17 +29,23 @@ Phone top toward your left, keypad toward you — portrait “up” on the D-pad
 
 That is a true 90° counter-clockwise rotation (`Up→left→down→right`). The earlier version mapped Left→−Y / Right→+Y, which is the diagonal *mirror* of this: it left Up/Down correct but swapped the up/down half of the cross, so on screen up and down felt inverted.
 
-### Right stick — dual-stick preset (numpad)
+### Numpad — second D-pad, rotated the same way
 
-| Key | Stick |
-|-----|--------|
-| **5** | Center (neutral) |
-| **8** | Right |
-| **4** | Down |
-| **2** | Left |
-| **1** / **9** / **7** / **3** | Diagonals |
+The numpad cluster is the same physical cross, so it drives the **same** left stick + hat as the D-pad, with the same 90° CCW rotation. (It used to write only `ABS_RX`/`ABS_RY`, which Astro Loop never reads — see *Status* below.) Phone keypad layout: `1-2-3` is the **top** row, `7-8-9` the bottom.
 
-Emitted as `ABS_RX` / `ABS_RY` on the virtual device.
+| Key | Output (stick + hat) |
+|-----|----------------------|
+| **2** (up) | Move **left** (−X) |
+| **8** (down) | Move **right** (+X) |
+| **4** (left) | Move **down** (+Y) |
+| **6** (right) | Move **up** (−Y) |
+| **1** | left + down |
+| **3** | left + up |
+| **7** | right + down |
+| **9** | right + up |
+| **5** | neutral |
+
+Diagonals are why the numpad keeps its own per-key bits: one key sets two directions, and a direction only clears when no held key still wants it. Mixing the two crosses is safe — both are OR-ed into the same direction set.
 
 ### Face buttons
 
@@ -128,3 +134,19 @@ Symptom: buttons occasionally needed two presses, or a press did nothing at all.
 | Two `dumpsys window displays` calls per 1.5 s poll (~100–160 ms each) stalled the loop, and an unbounded `select()` meant the poll only ran *after* the next key arrived | One cached probe per cycle; `select()` always bounded by the next poll deadline (this closes the old "first press after rotating is swallowed" note) |
 
 Verified: `/proc/<pid>/fd` shows only `event1`/`event2` plus `/dev/uinput`, and CPU ticks stay flat (~1 tick per 3 s). The right-soft tap path was proven end-to-end with a uinput fake keypad: `right soft tap: BTN_TR (R1)` in the log, `BTN_TR` on the virtual gamepad. Note that a rotated physical **Right** still maps to screen *up* — Astro Loop's hangar carousel only steps on screen left/right, so Right does nothing on that menu by design.
+
+### Numpad dead on every key (2026-11-14)
+
+Symptom: none of the numpad directions did anything in game, right included.
+
+`InputRouter.onMotion` calls `getAxisValue` on `0`/`1` (`AXIS_X`/`AXIS_Y`), `15`/`16` (`AXIS_HAT_X`/`AXIS_HAT_Y`) and the triggers `17`/`18`/`22`/`23`. It never reads `25`/`26` (`AXIS_RX`/`AXIS_RY`). The numpad was a **separate** direction set that wrote only `ABS_RX`/`ABS_RY`, so its output went to an axis no Astro Loop code path touches. Two further faults: key **6** had no `case` at all (`NPAD_BIT_6` did not exist), and the numpad was rotated the *opposite* way to the D-pad (`8`→right, `2`→left), so it would have felt inverted the moment it started working.
+
+The numpad now ORs into the same rotated direction set as the D-pad and writes `ABS_X`/`ABS_Y` + `ABS_HAT0X`/`ABS_HAT0Y` at full scale. Verified with a uinput fake keypad emitting `2/8/4/6/1` and `getevent` on the virtual pad:
+
+| Key | Emitted |
+|-----|---------|
+| `2` | `ABS_X` −32767, `HAT0X` −32767 |
+| `8` | `ABS_X` +32767, `HAT0X` +32767 |
+| `4` | `ABS_Y` +32767, `HAT0Y` +32767 |
+| `6` | `ABS_Y` −32767, `HAT0Y` −32767 |
+| `1` | both axes in one report |
