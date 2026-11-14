@@ -26,7 +26,9 @@ both.
   pound (523) scrolls down, keypad DEL (138) toggles drag,
   Volume-Up/Down adjusts speed. Raw key 48 is the right soft key
   (SOFT_RIGHT, the Shortcuts-bar trigger) and passes through untouched so
-  launcher shortcuts still fire while the cursor is on.
+  launcher shortcuts still fire while the cursor is on. (In the Arcade build
+  this applies in portrait mouse modes only — in gamepad mode a 48 *tap* is
+  R1, `BTN_TR`; see [../landscape-gamepad/README.md](../landscape-gamepad/README.md).)
 - **Exit:** star tap (522) releases the grabs, back to passive.
 - v1.3: held-key auto-repeat synthesized in-daemon (400 ms delay, 10 steps/s,
   wheel on slowed cadence) — the keypads have no kernel EV_REP and Android's

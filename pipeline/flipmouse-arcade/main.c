@@ -13,8 +13,8 @@
  *     physically down (that would strand Android's synthetic-repeat timer);
  *     in mouse mode a short soft-key tap still scrolls up one step.
  *   - while active: keypads grabbed; D-pad moves, OK clicks, pound scrolls
- *     down, soft-left scrolls up, del toggles drag, volume = speed. The
- *     right soft key passes through so the Shortcuts bar still fires.
+ *     down, soft-left scrolls up, del toggles drag, volume = speed. In mouse
+ *     mode the right soft key passes through so the Shortcuts bar still fires.
  *   - a Star tap exits back to passive (grabs released, IME unaffected)
  *
  * flip2 landscape gamepad (same daemon — pipeline/landscape-gamepad):
@@ -22,6 +22,7 @@
  *     remap (virtual uinput gamepad); no separate Flip2Gamepad process.
  *   - hold right soft key (48) HOLD_TOGGLE_MS in landscape gamepad mode: drop
  *     remap and use virtual mouse with D-pad rotated for landscape (cursor only).
+ *   - tap right soft key (48) in gamepad mode: R1 (BTN_TR), press + release.
  *   - soft-left hold still toggles full passive ↔ mouse (portrait-oriented mouse).
  */
 
@@ -38,6 +39,7 @@
 #include <unistd.h>
 #include <libevdev/libevdev-uinput.h>
 #include <dirent.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <signal.h>
 #include <sys/ioctl.h>
@@ -148,6 +150,7 @@ typedef struct dev_st
   const char *name;
   struct libevdev *evdev;
   struct libevdev_uinput *uidev;
+  int dead; /* read() failed with ENODEV/EIO: unlink from the list */
   struct dev_st *next;
 } device_t;
 
@@ -204,6 +207,7 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev);
 /* Device handling */
 static int devices_find_and_init(void);
 static void devices_cleanup(void);
+static int devices_reap(void);
 
 /* Event handling */
 static long long now_ms(void);
@@ -439,7 +443,14 @@ static void cfg_load_gamepad(void)
   fclose(f);
 }
 
-static int landscape_now(void)
+/* `dumpsys window displays` costs 100-160 ms on this phone and used to run
+ * twice per poll (mode_wanted + sync_apply_mode), stalling the whole event loop
+ * for up to 300 ms every POLL_LANDSCAPE_MS and delaying key delivery with it.
+ * Probe once per cycle; everything else reads the cache. A rotation change is
+ * still picked up within one poll interval. */
+static int landscape_cached;
+
+static int landscape_probe(void)
 {
   FILE *p = popen("dumpsys window displays 2>/dev/null", "r");
   if (!p)
@@ -467,6 +478,14 @@ static int landscape_now(void)
   }
   pclose(p);
   return rot_land || size_land == 1;
+}
+
+/* Everything else reads the cache, which the poll block refreshes once per
+ * cycle. Calling the popen() probe from mode_wanted() *and* sync_apply_mode()
+ * meant two 100-160 ms stalls per poll, right in the key path. */
+static int landscape_now(void)
+{
+  return landscape_cached;
 }
 
 static int focus_line_has_blocklisted_pkg(const char *buf)
@@ -558,6 +577,8 @@ static void gp_stick_apply(void)
 
 static void gp_emit_key(int code, int value)
 {
+  if (!app_state.gamepad.uidev)
+    return;
   libevdev_uinput_write_event(app_state.gamepad.uidev, EV_KEY, code, value);
   libevdev_uinput_write_event(app_state.gamepad.uidev, EV_SYN, SYN_REPORT, 0);
 }
@@ -957,6 +978,52 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
 
 /* --- Device Management Functions --- */
 
+/* uinput nodes (including the pass-through clones this daemon creates for each
+ * real keypad) live under /sys/devices/virtual/input and inherit the *real*
+ * device's name, so matching on name alone re-adopts our own clones on every
+ * restart. A clone whose creating process died stays select()-readable forever
+ * without ever producing an event, which pins the loop in a read-error spin and
+ * starves the real keypads — the "buttons sometimes don't fire" bug. Resolve the
+ * node's sysfs backing and skip anything virtual. */
+/* The fake keypad used for on-device testing is itself a uinput device, so the
+ * virtual guard would hide it and the documented rig would silently stop
+ * working. FLIP2_ARCADE_TEST_INPUT names *that one node* (e.g.
+ * /dev/input/event5) and is honoured only for that exact path — a blanket
+ * "let virtual through" switch made the daemon adopt its own pass-through
+ * clones and grab itself. Only a hand-started test daemon sets it;
+ * service.sh does not. */
+static int test_input_allowed(const char *dev_path)
+{
+  const char *allow = getenv("FLIP2_ARCADE_TEST_INPUT");
+  return allow && allow[0] && strcmp(allow, dev_path) == 0;
+}
+
+static int node_is_virtual(const char *dev_path)
+{
+  const char *base = strrchr(dev_path, '/');
+  base = base ? base + 1 : dev_path;
+
+  if (test_input_allowed(dev_path))
+    return 0;
+
+  char link[PATH_MAX];
+  char target[PATH_MAX];
+  snprintf(link, sizeof(link), "/sys/class/input/%s/device", base);
+  if (!realpath(link, target))
+    return 0; /* cannot resolve -> treat as real rather than lose the keypad */
+  return strstr(target, "/devices/virtual/") != NULL;
+}
+
+static int device_name_present(const char *name)
+{
+  for (device_t *d = app_state.devices; d; d = d->next)
+  {
+    if (strcmp(d->name, name) == 0)
+      return 1;
+  }
+  return 0;
+}
+
 static int devices_find_and_init(void)
 {
   DIR *dir;
@@ -983,7 +1050,16 @@ static int devices_find_and_init(void)
     snprintf(file_path, sizeof(file_path), "%s/%s", DEV_INPUT, file->d_name);
     log_message("Checking device %s", file_path);
 
-    int fd = open(file_path, O_RDONLY);
+    /* Never adopt a uinput clone (ours or anyone else's). */
+    if (node_is_virtual(file_path))
+    {
+      log_message("Skipping virtual input node %s", file_path);
+      continue;
+    }
+
+    /* O_NONBLOCK so a device that stops producing events can never wedge the
+     * loop in a blocking read. */
+    int fd = open(file_path, O_RDONLY | O_NONBLOCK);
     if (fd < 0)
     {
       log_message("ERROR: Failed to open device file %s", file_path);
@@ -1004,6 +1080,15 @@ static int devices_find_and_init(void)
     {
       if (strcmp(libevdev_get_name(evdev), supported_devices[i]) == 0)
       {
+        /* One node per name: a second same-named node would double-deliver
+         * every key and re-grab itself. The listed test node is exempt, because
+         * the fake keypad deliberately impersonates matrix-keypad. */
+        if (!test_input_allowed(file_path) && device_name_present(libevdev_get_name(evdev)))
+        {
+          log_message("Skipping duplicate %s", libevdev_get_name(evdev));
+          break;
+        }
+
         log_message("Found supported device: %s", libevdev_get_name(evdev));
 
         /* Create device structure */
@@ -1095,6 +1180,41 @@ static void devices_cleanup(void)
   log_message("All input devices released");
 }
 
+/* Unlink devices whose read() failed (node removed / hot-unplugged). Returns
+ * the number dropped so the caller knows to rebuild its fd_set. */
+static int devices_reap(void)
+{
+  device_t **link = &app_state.devices;
+  int dropped = 0;
+
+  while (*link)
+  {
+    device_t *d = *link;
+    if (!d->dead)
+    {
+      link = &d->next;
+      continue;
+    }
+
+    *link = d->next;
+    log_message("Reaping dead device %s (fd %d)", d->name, d->fd);
+
+    /* Release any grab before tearing down, so the system sees the keypad
+     * again if this was a real node. */
+    ioctl(d->fd, EVIOCGRAB, 0);
+    if (d->uidev)
+      libevdev_uinput_destroy(d->uidev);
+    if (d->evdev)
+      libevdev_free(d->evdev);
+    if (d->fd >= 0)
+      close(d->fd);
+    free(d);
+    dropped++;
+  }
+
+  return dropped;
+}
+
 /* --- Event Handling Functions --- */
 static int handle_input_event(device_t *dev, struct input_event *ev)
 {
@@ -1125,6 +1245,13 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
   {
     if (ev->code == SOFT_RIGHT_CODE)
     {
+      /* Right soft key: a tap is R1, a hold still switches to the landscape
+       * cursor. It used to be swallowed here, and gamepad_handle_key had no
+       * mapping for it either, so BTN_TR was enabled on the virtual pad but
+       * physically unreachable -- the "right key does nothing" report.
+       * Nothing is emitted on press: we cannot know yet whether this is a tap
+       * or the cursor gesture, and a speculative BTN_TR would fire an R1 hit
+       * every time someone held the key to move the cursor. */
       if (ev->value == 1)
         app_state.gamepad.right_hold_since = now_ms();
       else if (app_state.gamepad.right_hold_since)
@@ -1136,6 +1263,12 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
           app_state.landscape_cursor_override = 1;
           sync_apply_mode();
           log_message("right soft hold: landscape cursor");
+        }
+        else
+        {
+          log_message("right soft tap: BTN_TR (R1)");
+          gp_emit_key(BTN_TR, 1);
+          gp_emit_key(BTN_TR, 0);
         }
       }
       return MUTE_EVENT;
@@ -1242,26 +1375,42 @@ static int run_event_loop(void)
       if (app_state.last_landscape_poll == 0 ||
           now - app_state.last_landscape_poll >= POLL_LANDSCAPE_MS)
       {
+        /* Exactly one dumpsys per cycle: the probe fills the cache that
+         * mode_wanted() and sync_apply_mode() both read. */
+        landscape_cached = landscape_probe();
         sync_apply_mode();
         app_state.last_landscape_poll = now;
       }
     }
 
     rfds = fds;
-    /* Local patch: while a key is held for auto-repeat, bound select() to the
-     * next repeat deadline instead of blocking forever. */
+    /* Bound select() so the loop always wakes for its own timers:
+     *   - the next auto-repeat deadline, while a mouse key is held;
+     *   - the next rotation poll, always.
+     * Without the rotation bound, select() blocked until a key arrived, so the
+     * poll only ran *after* the first event of a new orientation and that key
+     * was handled under the old mode — the "first press after rotating is
+     * swallowed" note. */
     {
       struct timeval tv;
       struct timeval *tvp = NULL;
+      long long wait = -1;
+
       if (app_state.mouse.enabled && app_state.mouse.held_code)
-      {
-        long long wait = app_state.mouse.next_repeat_ms - now_ms();
-        if (wait < 0)
-          wait = 0;
-        tv.tv_sec = (time_t)(wait / 1000);
-        tv.tv_usec = (suseconds_t)((wait % 1000) * 1000);
-        tvp = &tv;
-      }
+        wait = app_state.mouse.next_repeat_ms - now_ms();
+
+      long long poll_wait = app_state.last_landscape_poll
+                                ? app_state.last_landscape_poll + POLL_LANDSCAPE_MS - now_ms()
+                                : 0;
+      if (poll_wait < 0)
+        poll_wait = 0;
+      if (wait < 0 || poll_wait < wait)
+        wait = poll_wait;
+
+      tv.tv_sec = (time_t)(wait / 1000);
+      tv.tv_usec = (suseconds_t)((wait % 1000) * 1000);
+      tvp = &tv;
+
       if (select(maxfd, &rfds, NULL, NULL, tvp) < 0)
       {
         if (errno == EINTR)
@@ -1285,49 +1434,84 @@ static int run_event_loop(void)
       if (!FD_ISSET(d->fd, &rfds))
         continue;
 
-      if (read(d->fd, &event, sizeof(event)) != sizeof(event))
+      /* Drain the whole queue for this device. Reading a single event per
+       * wakeup left the rest queued, so a burst (D-pad plus a button in quick
+       * succession) was delivered a wakeup late — that was the "have to press
+       * twice" feel. */
+      for (;;)
       {
-        log_message("ERROR: Failed to read event");
-        continue;
-      }
-
-#ifdef DEBUG
-      /* Only log events while active — passive mode would spam the log
-       * with every normal keypress the system already received. */
-      if (app_state.mouse.enabled)
-      {
-        snprintf(prefix, sizeof(prefix), "<%d<", d->fd);
-        log_event(prefix, &event);
-      }
-#endif
-
-      /* Process event */
-      event_result = handle_input_event(d, &event);
-
-      /* Handle event based on result code */
-      if (event_result > 0)
-      {
-        /* Forward to original device (clone) — valid while grabbed */
-#ifdef DEBUG
-        if (app_state.mouse.enabled)
+        ssize_t n = read(d->fd, &event, sizeof(event));
+        if (n == (ssize_t)sizeof(event))
         {
-          snprintf(prefix, sizeof(prefix), ">%d>", d->fd);
+          /* fall through to processing below */
+        }
+        else if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR))
+        {
+          break; /* queue drained (non-blocking fd) */
+        }
+        else
+        {
+          /* Real error (ENODEV/EIO) — the node is gone. Drop it instead of
+           * re-reading it forever: a dead clone stays select()-readable, and
+           * spinning on it starved the working keypads. */
+          log_message("ERROR: read failed on %s (errno=%d) — dropping device",
+                      d->name, errno);
+          d->dead = 1;
+          break;
+        }
+
+#ifdef DEBUG
+        /* Only log events while active — passive mode would spam the log
+         * with every normal keypress the system already received. Gamepad mode
+         * grabs the keypad too, so its events exist nowhere else. */
+        if (app_state.mouse.enabled || app_state.mode == MODE_GAMEPAD)
+        {
+          snprintf(prefix, sizeof(prefix), "<%d<", d->fd);
           log_event(prefix, &event);
         }
 #endif
-        libevdev_uinput_write_event(d->uidev, event.type, event.code, event.value);
-        libevdev_uinput_write_event(d->uidev, EV_SYN, SYN_REPORT, 0);
-      }
-      else if (event_result < 0)
-      {
-        /* Forward to virtual mouse */
+
+        /* Process event */
+        event_result = handle_input_event(d, &event);
+
+        /* Handle event based on result code */
+        if (event_result > 0)
+        {
+          /* Forward to original device (clone) — valid while grabbed */
 #ifdef DEBUG
-        log_event(">M>", &event);
+          if (app_state.mouse.enabled || app_state.mode == MODE_GAMEPAD)
+          {
+            snprintf(prefix, sizeof(prefix), ">%d>", d->fd);
+            log_event(prefix, &event);
+          }
 #endif
-        libevdev_uinput_write_event(app_state.mouse.uidev, event.type, event.code, event.value);
-        libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+          libevdev_uinput_write_event(d->uidev, event.type, event.code, event.value);
+          libevdev_uinput_write_event(d->uidev, EV_SYN, SYN_REPORT, 0);
+        }
+        else if (event_result < 0)
+        {
+          /* Forward to virtual mouse */
+#ifdef DEBUG
+          log_event(">M>", &event);
+#endif
+          libevdev_uinput_write_event(app_state.mouse.uidev, event.type, event.code, event.value);
+          libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+        }
+        /* event_result == 0 means mute the event */
       }
-      /* event_result == 0 means mute the event */
+    }
+
+    /* Unlink any device that died and rebuild the descriptor set. */
+    if (devices_reap())
+    {
+      FD_ZERO(&fds);
+      maxfd = 0;
+      for (device_t *d = app_state.devices; d; d = d->next)
+      {
+        FD_SET(d->fd, &fds);
+        if (d->fd >= maxfd)
+          maxfd = d->fd + 1;
+      }
     }
   }
 
@@ -1363,6 +1547,11 @@ int main(int argc, char **argv)
 
   if (gamepad_init() != 0)
     log_message("WARNING: gamepad uinput init failed — landscape remap disabled");
+
+  /* Prime the rotation cache before the first mode sync, or a launch into an
+   * already-landscape app starts in passive until the first poll fires. */
+  landscape_cached = landscape_probe();
+  app_state.last_landscape_poll = now_ms();
 
   sync_apply_mode();
 

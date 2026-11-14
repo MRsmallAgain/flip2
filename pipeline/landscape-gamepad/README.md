@@ -57,12 +57,15 @@ Emitted as `ABS_RX` / `ABS_RY` on the virtual device.
 | Key | Gamepad |
 |-----|---------|
 | Upper-left soft (139) | L1 (`BTN_TL`) |
-| Right soft (48) | R1 (`BTN_TR`) |
+| Right soft (48), **tap** | R1 (`BTN_TR`) — emitted on release, so it never fires while you are still holding for the cursor gesture |
+| Right soft (48), **hold ≥1s** | Switches to the landscape cursor (see below) |
 | Star (522) | Mapped as face X today; prefer L2 in companion preset (TODO) |
 | Mail / Messenger (30) | R2 (`BTN_TR2`) |
 | Volume up / down | L2 / R2 (`BTN_TL2` / `BTN_TR2`) |
 
 Per-key customization will live in the **companion APK** + config file (not implemented in v0.1 — mappings are compiled in `main.c`).
+
+> **Shipped daemon:** the module that actually ships is `FlipMouseArcade` ([`../flipmouse-arcade/`](../flipmouse-arcade/)), a single daemon that covers gamepad, landscape cursor and portrait mouse. This directory is the earlier standalone gamepad (legacy, not installed). The key table above is common to both, except that the Arcade daemon decides the right-soft tap/hold split itself: tap → R1, hold → cursor.
 
 ## Commands
 
@@ -112,4 +115,16 @@ Companion APK (`com.tim.flip2.gamepad`): see [companion/README.md](companion/REA
 
 ## Status
 
-**Verified on device (Astro Loop 1.5, landscape)** — `mode -> 1` in `/cache/FlipMouse.log`, real `mtk-kpd`/`matrix-keypad` grabbed, and a held D-pad press moves the game's menu selection (1668 px changed vs 58 px of rest noise). Still a `dumpsys` poll (~1.5s), so the first input after a rotation change can be swallowed.
+**Verified on device (Astro Loop 1.5, landscape)** — `mode -> 1` in `/cache/FlipMouse.log`, real `mtk-kpd`/`matrix-keypad` grabbed, and a held D-pad press moves the game's menu selection (1668 px changed vs 58 px of rest noise).
+
+### Input reliability (Arcade daemon, 2026-11-14)
+
+Symptom: buttons occasionally needed two presses, or a press did nothing at all. Three separate causes, all in the event loop:
+
+| Cause | Fix |
+|-------|-----|
+| The daemon re-adopted its **own** pass-through uinput clone on restart. A clone whose creator had died stays `select()`-readable forever without producing an event, so the loop spun on `ERROR: Failed to read event` and starved the real keypads | Resolve each node's `/sys/class/input/*/device` target and skip anything under `/devices/virtual/`; one device per name; `O_NONBLOCK` |
+| One `read()` per wakeup left the rest of a burst queued, so a D-pad press plus a button arrived a wakeup late | Drain the whole queue per wakeup; drop a device whose read really fails and rebuild the `fd_set` |
+| Two `dumpsys window displays` calls per 1.5 s poll (~100–160 ms each) stalled the loop, and an unbounded `select()` meant the poll only ran *after* the next key arrived | One cached probe per cycle; `select()` always bounded by the next poll deadline (this closes the old "first press after rotating is swallowed" note) |
+
+Verified: `/proc/<pid>/fd` shows only `event1`/`event2` plus `/dev/uinput`, and CPU ticks stay flat (~1 tick per 3 s). The right-soft tap path was proven end-to-end with a uinput fake keypad: `right soft tap: BTN_TR (R1)` in the log, `BTN_TR` on the virtual gamepad. Note that a rotated physical **Right** still maps to screen *up* — Astro Loop's hangar carousel only steps on screen left/right, so Right does nothing on that menu by design.
