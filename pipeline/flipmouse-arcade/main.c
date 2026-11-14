@@ -57,6 +57,24 @@
 #define AXIS_GP_MAX 32767
 #define AXIS_GP_MIN -32767
 #define STICK_EDGE AXIS_GP_MAX
+
+/* The keypad can report more than one direction at a time, so the D-pad and the
+ * numpad stick are tracked as sets of held keys. Treating them as a single
+ * value meant any release zeroed both axes: lifting one finger dropped the
+ * other direction too, and the key still held never re-fired. */
+#define DPAD_BIT_UP 0x01
+#define DPAD_BIT_DOWN 0x02
+#define DPAD_BIT_LEFT 0x04
+#define DPAD_BIT_RIGHT 0x08
+
+#define NPAD_BIT_1 0x001
+#define NPAD_BIT_2 0x002
+#define NPAD_BIT_3 0x004
+#define NPAD_BIT_4 0x008
+#define NPAD_BIT_5 0x010
+#define NPAD_BIT_7 0x020
+#define NPAD_BIT_8 0x040
+#define NPAD_BIT_9 0x080
 #ifndef FLIPMOUSE_DEFAULT_SPEED
 #define FLIPMOUSE_DEFAULT_SPEED 39
 #endif
@@ -116,6 +134,8 @@ typedef struct
   struct libevdev *dev;
   struct libevdev_uinput *uidev;
   int stick_lx, stick_ly, stick_rx, stick_ry;
+  int dpad_held;   /* bitmask of D-pad keys down (DPAD_*_BIT) */
+  int numpad_held; /* bitmask of numpad stick keys down */
   long long back_hold_since;
   long long right_hold_since;
   int landscape_cursor;
@@ -424,15 +444,29 @@ static int landscape_now(void)
   FILE *p = popen("dumpsys window displays 2>/dev/null", "r");
   if (!p)
     return 0;
-  char buf[512];
-  int land = 0;
+  char buf[1024];
+  /* This TCL build never prints AOSP's "rotation=1"/"rotation=3" -- it prints
+   * "mCurrentRotation=ROTATION_90" plus a "cur=WxH" size. Match both forms and
+   * fall back to width>height. (mLandscapeRotation is a constant on this build,
+   * so it must never be matched.) */
+  int rot_land = 0;
+  int size_land = -1;
   while (fgets(buf, sizeof buf, p))
   {
-    if (strstr(buf, "rotation=1") || strstr(buf, "rotation=3"))
-      land = 1;
+    if (strstr(buf, "mCurrentRotation=ROTATION_90") ||
+        strstr(buf, "mCurrentRotation=ROTATION_270") ||
+        strstr(buf, "rotation=1") || strstr(buf, "rotation=3"))
+      rot_land = 1;
+    const char *cur = strstr(buf, "cur=");
+    if (cur)
+    {
+      int w = 0, h = 0;
+      if (sscanf(cur + 4, "%dx%d", &w, &h) == 2 && w > 0 && h > 0 && w != h)
+        size_land = (w > h);
+    }
   }
   pclose(p);
-  return land;
+  return rot_land || size_land == 1;
 }
 
 static int focus_line_has_blocklisted_pkg(const char *buf)
@@ -572,52 +606,103 @@ static void gamepad_cleanup(void)
   app_state.gamepad.dev = NULL;
 }
 
-static void gp_dpad(int k, int v)
+static int clampi(int v, int lo, int hi)
 {
+  return v < lo ? lo : (v > hi ? hi : v);
+}
+
+/* Push the currently-held direction set out to the virtual gamepad.
+ *
+ * HAT axes share the stick's -32767..32767 range, so they must be written at
+ * full scale, not +-1. Android normalises the raw value, and a raw 1 becomes
+ * ~0.00003: far under the game's 0.5 hat threshold and under the deadzone
+ * Android needs to synthesise DPAD key events, i.e. the D-pad did nothing.
+ *
+ * The landscape D-pad is a true 90-degree rotation: Up->left, left->down,
+ * down->right, right->up. */
+static void gp_dpad_apply(void)
+{
+  int held = app_state.gamepad.dpad_held;
   int hx = 0, hy = 0;
-  if (v == 0) {
-    app_state.gamepad.stick_lx = app_state.gamepad.stick_ly = 0;
-    gp_stick_apply();
-    libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_HAT0X, 0);
-    libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_HAT0Y, 0);
-    libevdev_uinput_write_event(app_state.gamepad.uidev, EV_SYN, SYN_REPORT, 0);
-    return;
-  }
-  switch (k) {
-  case KEY_UP: app_state.gamepad.stick_lx = -STICK_EDGE; hx = -1; break;
-  case KEY_DOWN: app_state.gamepad.stick_lx = STICK_EDGE; hx = 1; break;
-  case KEY_LEFT: app_state.gamepad.stick_ly = -STICK_EDGE; hy = -1; break;
-  case KEY_RIGHT: app_state.gamepad.stick_ly = STICK_EDGE; hy = 1; break;
-  default: return;
-  }
+  if (held & DPAD_BIT_UP)
+    hx -= STICK_EDGE;
+  if (held & DPAD_BIT_DOWN)
+    hx += STICK_EDGE;
+  if (held & DPAD_BIT_LEFT)
+    hy += STICK_EDGE;
+  if (held & DPAD_BIT_RIGHT)
+    hy -= STICK_EDGE;
+  app_state.gamepad.stick_lx = hx;
+  app_state.gamepad.stick_ly = hy;
   gp_stick_apply();
   libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_HAT0X, hx);
   libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_HAT0Y, hy);
   libevdev_uinput_write_event(app_state.gamepad.uidev, EV_SYN, SYN_REPORT, 0);
 }
 
-static void gp_numpad(int k, int v)
+static void gp_numpad_apply(void)
 {
+  int held = app_state.gamepad.numpad_held;
   int rx = 0, ry = 0;
-  if (v == 0) {
-    app_state.gamepad.stick_rx = app_state.gamepad.stick_ry = 0;
-    gp_stick_apply();
-    return;
-  }
+  if (held & NPAD_BIT_8)
+    rx += STICK_EDGE;
+  if (held & NPAD_BIT_2)
+    rx -= STICK_EDGE;
+  if (held & NPAD_BIT_4)
+    ry += STICK_EDGE;
+  if (held & NPAD_BIT_1)
+    rx -= STICK_EDGE, ry -= STICK_EDGE;
+  if (held & NPAD_BIT_9)
+    rx += STICK_EDGE, ry -= STICK_EDGE;
+  if (held & NPAD_BIT_7)
+    rx -= STICK_EDGE, ry += STICK_EDGE;
+  if (held & NPAD_BIT_3)
+    rx += STICK_EDGE, ry += STICK_EDGE;
+  app_state.gamepad.stick_rx = clampi(rx, AXIS_GP_MIN, AXIS_GP_MAX);
+  app_state.gamepad.stick_ry = clampi(ry, AXIS_GP_MIN, AXIS_GP_MAX);
+  gp_stick_apply();
+}
+
+/* Track each direction as its own key. Modelling the cross as a single value
+ * (the old behaviour) meant the newest key overwrote the whole axis pair, so
+ * pressing a second direction cancelled the first and releasing either one
+ * cleared both. */
+static void gp_dpad(int k, int v)
+{
+  int bit = 0;
   switch (k) {
-  case KEY_8: rx = STICK_EDGE; break;
-  case KEY_2: rx = -STICK_EDGE; break;
-  case KEY_4: ry = STICK_EDGE; break;
-  case KEY_1: rx = -STICK_EDGE; ry = -STICK_EDGE; break;
-  case KEY_9: rx = STICK_EDGE; ry = -STICK_EDGE; break;
-  case KEY_7: rx = -STICK_EDGE; ry = STICK_EDGE; break;
-  case KEY_3: rx = STICK_EDGE; ry = STICK_EDGE; break;
-  case KEY_5: break;
+  case KEY_UP: bit = DPAD_BIT_UP; break;
+  case KEY_DOWN: bit = DPAD_BIT_DOWN; break;
+  case KEY_LEFT: bit = DPAD_BIT_LEFT; break;
+  case KEY_RIGHT: bit = DPAD_BIT_RIGHT; break;
   default: return;
   }
-  app_state.gamepad.stick_rx = rx;
-  app_state.gamepad.stick_ry = ry;
-  gp_stick_apply();
+  if (v)
+    app_state.gamepad.dpad_held |= bit;
+  else
+    app_state.gamepad.dpad_held &= ~bit;
+  gp_dpad_apply();
+}
+
+static void gp_numpad(int k, int v)
+{
+  int bit = 0;
+  switch (k) {
+  case KEY_1: bit = NPAD_BIT_1; break;
+  case KEY_2: bit = NPAD_BIT_2; break;
+  case KEY_3: bit = NPAD_BIT_3; break;
+  case KEY_4: bit = NPAD_BIT_4; break;
+  case KEY_5: bit = NPAD_BIT_5; break;
+  case KEY_7: bit = NPAD_BIT_7; break;
+  case KEY_8: bit = NPAD_BIT_8; break;
+  case KEY_9: bit = NPAD_BIT_9; break;
+  default: return;
+  }
+  if (v)
+    app_state.gamepad.numpad_held |= bit;
+  else
+    app_state.gamepad.numpad_held &= ~bit;
+  gp_numpad_apply();
 }
 
 static int gamepad_handle_key(int code, int value)
@@ -668,7 +753,14 @@ static void sync_apply_mode(void)
     app_state.mode = want;
     app_state.gamepad.landscape_cursor = (want == MODE_LANDSCAPE_CURSOR);
     app_state.mouse.enabled = (want == MODE_MOUSE || want == MODE_LANDSCAPE_CURSOR);
+    /* Keys held across a mode change never get a release we see, so drop the
+     * tracked set here or the new mode starts with directions stuck down. */
+    app_state.gamepad.dpad_held = 0;
+    app_state.gamepad.numpad_held = 0;
+    app_state.gamepad.stick_lx = app_state.gamepad.stick_ly = 0;
+    app_state.gamepad.stick_rx = app_state.gamepad.stick_ry = 0;
     devices_set_grab(is_grabbed_mode(want) ? 1 : 0);
+    gp_stick_apply();
     log_message("mode -> %d", (int)want);
   }
 }

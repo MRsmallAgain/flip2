@@ -6,7 +6,7 @@ When the display is in **landscape** (horizontal games), the physical keypad is 
 
 | Source | Config key | Behavior |
 |--------|------------|----------|
-| Landscape | `landscape_auto=1` (default) | Active when `dumpsys window displays` shows `rotation=1` or `3` |
+| Landscape | `landscape_auto=1` (default) | Active when `dumpsys window displays` reports landscape — see *Rotation detection* below |
 | Manual | `enabled=1` | Always active until cleared |
 | Passive | both off | Daemon runs; keys pass through natively (no grab) |
 
@@ -24,8 +24,10 @@ Phone top toward your left, keypad toward you — portrait “up” on the D-pad
 |----------------|----------------------|
 | Up | Move **left** (−X) |
 | Down | Move **right** (+X) |
-| Left | Move **up** (−Y) |
-| Right | Move **down** (+Y) |
+| Left | Move **down** (+Y) |
+| Right | Move **up** (−Y) |
+
+That is a true 90° counter-clockwise rotation (`Up→left→down→right`). The earlier version mapped Left→−Y / Right→+Y, which is the diagonal *mirror* of this: it left Up/Down correct but swapped the up/down half of the cross, so on screen up and down felt inverted.
 
 ### Right stick — dual-stick preset (numpad)
 
@@ -71,6 +73,24 @@ flip2 gamepad status
 flip2 gamepad rollback
 ```
 
+## Rotation detection
+
+The daemon polls `dumpsys window displays` every ~1.5s. This TCL build never prints AOSP's `rotation=1`/`rotation=3`; it prints `mCurrentRotation=ROTATION_90` plus a `cur=428x321` size, and `mLandscapeRotation=ROTATION_90` is a **constant** that must never be matched. Detection therefore accepts the TCL form, the AOSP form, or `cur=` width > height.
+
+## D-pad scale
+
+`ABS_HAT0X`/`ABS_HAT0Y` are declared over the same `-32767..32767` range as the sticks, so D-pad presses are written at full scale (`STICK_EDGE`, not `±1`). Writing raw `±1` normalises to ≈0.00003 in Android — below every hat deadzone — so the D-pad silently did nothing.
+
+## Multiple keys at once
+
+The keypad reports each direction as its own key, so the daemon tracks the D-pad and the numpad stick as **bitmasks of held keys** (`dpad_held`, `numpad_held`) and re-derives both axes from the set on every press and release.
+
+Storing one stick value instead (the earlier behaviour) meant the newest key overwrote the whole axis pair: pressing a second direction cancelled the first, and releasing *either* key zeroed both axes — so lifting one finger dropped the other direction, and the still-held key never re-fired until you pressed it again. Both of those were the same bug.
+
+Held state is also cleared on every mode change (`sync_apply_mode` / `set_active`), because a key held across the switch never delivers a release the daemon can see.
+
+Verified on device with a fake `matrix-keypad` driven through uinput: press Up, press Left, release Up, release Left yields `HAT0X -32767 → (unchanged) → 0`, `HAT0Y 0 → +32767 → (unchanged) → 0`.
+
 ## Architecture
 
 ```
@@ -92,4 +112,4 @@ Companion APK (`com.tim.flip2.gamepad`): see [companion/README.md](companion/REA
 
 ## Status
 
-**v0.1 scaffold** — landscape detection via `dumpsys` poll (~1.5s). Untested on device for game compatibility. Astro Loop portrait patch locks portrait; use games that allow landscape or manual `enabled=1` for horizontal titles.
+**Verified on device (Astro Loop 1.5, landscape)** — `mode -> 1` in `/cache/FlipMouse.log`, real `mtk-kpd`/`matrix-keypad` grabbed, and a held D-pad press moves the game's menu selection (1668 px changed vs 58 px of rest noise). Still a `dumpsys` poll (~1.5s), so the first input after a rotation change can be swallowed.

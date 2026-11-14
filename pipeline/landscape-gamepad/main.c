@@ -34,6 +34,24 @@
 #define AXIS_MIN -32767
 #define STICK_EDGE AXIS_MAX
 
+/* The keypad reports several directions at once, so track the D-pad and the
+ * numpad stick as sets of held keys. Storing one stick value meant any release
+ * zeroed both axes: lifting one key dropped the other direction too, and the
+ * key still held never re-fired. */
+#define DPAD_BIT_UP 0x01
+#define DPAD_BIT_DOWN 0x02
+#define DPAD_BIT_LEFT 0x04
+#define DPAD_BIT_RIGHT 0x08
+
+#define NPAD_BIT_1 0x001
+#define NPAD_BIT_2 0x002
+#define NPAD_BIT_3 0x004
+#define NPAD_BIT_4 0x008
+#define NPAD_BIT_5 0x010
+#define NPAD_BIT_7 0x020
+#define NPAD_BIT_8 0x040
+#define NPAD_BIT_9 0x080
+
 typedef struct dev_st {
   int fd;
   const char *name;
@@ -51,6 +69,8 @@ typedef struct {
   int landscape_auto;
   int stick_lx, stick_ly;
   int stick_rx, stick_ry;
+  int dpad_held;   /* bitmask of D-pad keys down (DPAD_BIT_*) */
+  int numpad_held; /* bitmask of numpad stick keys down (NPAD_BIT_*) */
   long long back_hold_since;
   volatile sig_atomic_t running;
 } app_t;
@@ -99,14 +119,29 @@ static int landscape_now(void)
   FILE *p = popen("dumpsys window displays 2>/dev/null", "r");
   if (!p)
     return 0;
-  char buf[512];
-  int land = 0;
-  while (fgets(buf, sizeof buf, p)) {
-    if (strstr(buf, "rotation=1") || strstr(buf, "rotation=3"))
-      land = 1;
+  char buf[1024];
+  /* This TCL build never prints AOSP's "rotation=1"/"rotation=3" -- it prints
+   * "mCurrentRotation=ROTATION_90" plus a "cur=WxH" size. Match both forms and
+   * fall back to width>height. (mLandscapeRotation is a constant on this build,
+   * so it must never be matched.) */
+  int rot_land = 0;
+  int size_land = -1;
+  while (fgets(buf, sizeof buf, p))
+  {
+    if (strstr(buf, "mCurrentRotation=ROTATION_90") ||
+        strstr(buf, "mCurrentRotation=ROTATION_270") ||
+        strstr(buf, "rotation=1") || strstr(buf, "rotation=3"))
+      rot_land = 1;
+    const char *cur = strstr(buf, "cur=");
+    if (cur)
+    {
+      int w = 0, h = 0;
+      if (sscanf(cur + 4, "%dx%d", &w, &h) == 2 && w > 0 && h > 0 && w != h)
+        size_land = (w > h);
+    }
   }
   pclose(p);
-  return land;
+  return rot_land || size_land == 1;
 }
 
 static int should_be_active(void)
@@ -138,6 +173,9 @@ static void set_active(int on)
   app.active = on;
   if (on) {
     app.stick_lx = app.stick_ly = app.stick_rx = app.stick_ry = 0;
+    /* Keys held across a mode change never get a release we see, so drop the
+     * tracked set here or the new mode starts with directions stuck down. */
+    app.dpad_held = app.numpad_held = 0;
     for (d = app.devices; d; d = d->next)
       ioctl(d->fd, EVIOCGRAB, 1);
   } else {
@@ -190,87 +228,132 @@ static void emit_key(int code, int value)
   libevdev_uinput_write_event(app.gp_uidev, EV_SYN, SYN_REPORT, 0);
 }
 
-static void dpad_map(int k, int v)
+static int clamp_axis(int v)
 {
+  return v < AXIS_MIN ? AXIS_MIN : (v > AXIS_MAX ? AXIS_MAX : v);
+}
+
+/* Push the currently-held direction set out to the virtual gamepad.
+ *
+ * HAT axes share the stick's -32767..32767 range, so they must be written at
+ * full scale, not +-1. Android normalises the raw value, and a raw 1 becomes
+ * ~0.00003: under any sane hat threshold, i.e. the D-pad did nothing.
+ *
+ * The landscape D-pad is a true 90-degree rotation: Up->left, left->down,
+ * down->right, right->up. */
+static void dpad_apply(void)
+{
+  int held = app.dpad_held;
   int hx = 0, hy = 0;
 
-  if (v == 0) {
-    app.stick_lx = app.stick_ly = 0;
-    stick_apply();
-    libevdev_uinput_write_event(app.gp_uidev, EV_ABS, ABS_HAT0X, 0);
-    libevdev_uinput_write_event(app.gp_uidev, EV_ABS, ABS_HAT0Y, 0);
-    libevdev_uinput_write_event(app.gp_uidev, EV_SYN, SYN_REPORT, 0);
-    return;
-  }
-  switch (k) {
-  case KEY_UP:
-    app.stick_lx = -STICK_EDGE;
-    hx = -1;
-    break;
-  case KEY_DOWN:
-    app.stick_lx = STICK_EDGE;
-    hx = 1;
-    break;
-  case KEY_LEFT:
-    app.stick_ly = -STICK_EDGE;
-    hy = -1;
-    break;
-  case KEY_RIGHT:
-    app.stick_ly = STICK_EDGE;
-    hy = 1;
-    break;
-  default:
-    return;
-  }
+  if (held & DPAD_BIT_UP)
+    hx -= STICK_EDGE;
+  if (held & DPAD_BIT_DOWN)
+    hx += STICK_EDGE;
+  if (held & DPAD_BIT_LEFT)
+    hy += STICK_EDGE;
+  if (held & DPAD_BIT_RIGHT)
+    hy -= STICK_EDGE;
+  app.stick_lx = hx;
+  app.stick_ly = hy;
   stick_apply();
   libevdev_uinput_write_event(app.gp_uidev, EV_ABS, ABS_HAT0X, hx);
   libevdev_uinput_write_event(app.gp_uidev, EV_ABS, ABS_HAT0Y, hy);
   libevdev_uinput_write_event(app.gp_uidev, EV_SYN, SYN_REPORT, 0);
 }
 
-static void numpad_stick(int k, int v)
+static void numpad_apply(void)
 {
+  int held = app.numpad_held;
   int rx = 0, ry = 0;
 
-  if (v == 0) {
-    app.stick_rx = app.stick_ry = 0;
-    stick_apply();
-    return;
-  }
+  if (held & NPAD_BIT_8)
+    rx += STICK_EDGE;
+  if (held & NPAD_BIT_2)
+    rx -= STICK_EDGE;
+  if (held & NPAD_BIT_4)
+    ry += STICK_EDGE;
+  if (held & NPAD_BIT_1)
+    rx -= STICK_EDGE, ry -= STICK_EDGE;
+  if (held & NPAD_BIT_9)
+    rx += STICK_EDGE, ry -= STICK_EDGE;
+  if (held & NPAD_BIT_7)
+    rx -= STICK_EDGE, ry += STICK_EDGE;
+  if (held & NPAD_BIT_3)
+    rx += STICK_EDGE, ry += STICK_EDGE;
+  app.stick_rx = clamp_axis(rx);
+  app.stick_ry = clamp_axis(ry);
+  stick_apply();
+}
+
+/* Track each direction as its own key. Modelling the cross as a single value
+ * (the old behaviour) meant the newest key overwrote the whole axis pair, so
+ * pressing a second direction cancelled the first and releasing either one
+ * cleared both. */
+static void dpad_map(int k, int v)
+{
+  int bit = 0;
+
   switch (k) {
-  case KEY_5:
+  case KEY_UP:
+    bit = DPAD_BIT_UP;
     break;
-  case KEY_8:
-    rx = STICK_EDGE;
+  case KEY_DOWN:
+    bit = DPAD_BIT_DOWN;
     break;
-  case KEY_2:
-    rx = -STICK_EDGE;
+  case KEY_LEFT:
+    bit = DPAD_BIT_LEFT;
     break;
-  case KEY_4:
-    ry = STICK_EDGE;
-    break;
-  case KEY_1:
-    rx = -STICK_EDGE;
-    ry = -STICK_EDGE;
-    break;
-  case KEY_9:
-    rx = STICK_EDGE;
-    ry = -STICK_EDGE;
-    break;
-  case KEY_7:
-    rx = -STICK_EDGE;
-    ry = STICK_EDGE;
-    break;
-  case KEY_3:
-    rx = STICK_EDGE;
-    ry = STICK_EDGE;
+  case KEY_RIGHT:
+    bit = DPAD_BIT_RIGHT;
     break;
   default:
     return;
   }
-  app.stick_rx = rx;
-  app.stick_ry = ry;
-  stick_apply();
+  if (v)
+    app.dpad_held |= bit;
+  else
+    app.dpad_held &= ~bit;
+  dpad_apply();
+}
+
+static void numpad_stick(int k, int v)
+{
+  int bit = 0;
+
+  switch (k) {
+  case KEY_1:
+    bit = NPAD_BIT_1;
+    break;
+  case KEY_2:
+    bit = NPAD_BIT_2;
+    break;
+  case KEY_3:
+    bit = NPAD_BIT_3;
+    break;
+  case KEY_4:
+    bit = NPAD_BIT_4;
+    break;
+  case KEY_5:
+    bit = NPAD_BIT_5;
+    break;
+  case KEY_7:
+    bit = NPAD_BIT_7;
+    break;
+  case KEY_8:
+    bit = NPAD_BIT_8;
+    break;
+  case KEY_9:
+    bit = NPAD_BIT_9;
+    break;
+  default:
+    return;
+  }
+  if (v)
+    app.numpad_held |= bit;
+  else
+    app.numpad_held &= ~bit;
+  numpad_apply();
 }
 
 static int handle_key(int code, int value)
