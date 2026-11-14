@@ -1,6 +1,6 @@
 {
   "$comment": "Flip2 setup wizard download catalog. Every hash below was computed from the real upstream file (sha256sum), not guessed; sizes are exact byte counts. The browser verifies each download with WebCrypto SHA-256 against these pins before anything is pushed to the phone. Nothing in this catalog is stored in the repo or attached to releases — these are pointers to upstream artifacts.",
-  "version": "1.4.0-alpha.3-flip2",
+  "version": "1.4.0-alpha.4-flip2",
   "pinned": "2026-11-13",
   "files": [
     {
@@ -17,24 +17,24 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "purpose": "Flip2 Magisk installer (full): prefetched APKs, Sherpa STT tarballs, modules, home keys, 321x428, wallpaper. Self-removes after first boot. Release v1.4.0-alpha.3-flip2.",
+      "purpose": "Flip2 Magisk installer (full): prefetched APKs, Sherpa STT tarballs, modules, home keys, 321x428, wallpaper. Self-removes after first boot. Release v1.4.0-alpha.4-flip2.",
       "url": "https://flip2burn.online/packages/flip2-installer-full-magisk.zip",
       "size": 395626530,
       "sha256": "fed43d68a3dd9666de6b452e691359b06eb5dbaa580eb69c1cc02209000e533b",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.3-flip2"
+      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.4-flip2"
     },
     {
       "id": "installer-slim",
       "url": "https://flip2burn.online/packages/flip2-installer-slim-magisk.zip",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.3-flip2",
+      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.4-flip2",
       "file": "flip2-installer-slim-magisk.zip",
       "size": 181521665,
       "sha256": "69d3cde96fe6f4b0c68cee22ab1800f634cbe3867517b5515583400e7c7d7419",
-      "purpose": "Flip2 Magisk installer (slim): same stack as full without bundled Sherpa voices; use catalog sherpa-en/uk if needed. Release v1.4.0-alpha.3-flip2."
+      "purpose": "Flip2 Magisk installer (slim): same stack as full without bundled Sherpa voices; use catalog sherpa-en/uk if needed. Release v1.4.0-alpha.4-flip2."
     },
     {
       "id": "forkgram",
@@ -202,7 +202,7 @@
       "sha256": "215ce92b6342c39b9923bd3eb9b14bf7508c7b6462380abfd5a8e5c38e524f5c",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.3-flip2"
+      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.4-flip2"
     }
   ],
   "not_downloaded": [
