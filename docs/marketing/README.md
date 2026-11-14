@@ -14,7 +14,7 @@ Curated assets and channel-ready markdown for public releases. Raw phone/wizard 
 
 **Copy:** `v1.4.0-alpha.1/copy/release-v1.4.0-alpha.1-supplement.md` — release body. No prebuilt Windows `.exe` is published; build it with `npm run pack:win`.
 
-**Release:** v1.4.0-alpha.2-flip2 — files under [packages/](https://flip2burn.online/packages/), pins in [catalog.json](https://flip2burn.online/catalog.json)
+**Release:** v1.4.0-alpha.3-flip2 — files under [packages/](https://flip2burn.online/packages/), pins in [catalog.json](https://flip2burn.online/catalog.json)
 
 ## v1.3.0-alpha.3
 
