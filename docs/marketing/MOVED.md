@@ -31,13 +31,13 @@ than restarting.
 
 ## Safest first install
 
-`flip2-installer-full-magisk.zip` — 395,628,118 bytes, SHA-256
-`298b46685ed97fcad763bb2ae39ca48e58efb83b2102f1f60af0d6fce8a4317b`.
+`flip2-installer-full-magisk.zip` — 395,626,530 bytes, SHA-256
+`fed43d68a3dd9666de6b452e691359b06eb5dbaa580eb69c1cc02209000e533b`.
 
 ```bash
 curl -fLO https://flip2burn.online/packages/flip2-installer-full-magisk.zip
 sha256sum flip2-installer-full-magisk.zip
-# 298b46685ed97fcad763bb2ae39ca48e58efb83b2102f1f60af0d6fce8a4317b
+# fed43d68a3dd9666de6b452e691359b06eb5dbaa580eb69c1cc02209000e533b
 ```
 
 Flash it once in the Magisk app and reboot. Read `docs/SAFETY.md` first — full
@@ -84,4 +84,4 @@ Longer, for a new comment on an existing thread:
 > https://flip2burn.online/catalog.json), the wizard is at
 > https://flip2burn.online/, and source is on GitLab:
 > https://gitlab.com/mrsmallagain-group/flip2 (private for the moment). Safest
-> first install is still the Tier B full installer, SHA-256 298b4668…a4317b.
+> first install is still the Tier B full installer, SHA-256 fed43d68…0e533b.
