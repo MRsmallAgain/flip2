@@ -1,6 +1,6 @@
 id=FlipMouse
 name=FlipMouse
-version=1.4.1-flip2
-versionCode=6
+version=1.4.2-flip2
+versionCode=7
 author=tylerboni
 description=Virtual mouse for flip phones (flip2 patched): soft-left 1s hold toggles; right soft key passes through; supervised boot service. Source: github.com/TylerBoni/FlipMouse
