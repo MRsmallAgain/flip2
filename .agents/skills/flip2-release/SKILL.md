@@ -44,7 +44,11 @@ the exact files it is about to publish (`ASSET_NAMES` in
 
 Before uploading, confirm the keyboard inside the full installer:
 
-- `lib/armeabi-v7a/libc++_shared.so` is in `payload/apks/nullkeyboard.apk` (Sherpa ONNX runtime needs it).
+- The native libs resolve: `unzip -l payload/apks/nullkeyboard.apk | grep lib/`
+  shows `libonnxruntime.so` and `libsherpa-onnx-jni.so` and no `libc++_shared.so`
+  — that is **correct**. Both `.so` files link only `libc.so`/`libm.so`/`libdl.so`
+  (`readelf -d | grep NEEDED`), i.e. libc++ is static. An older version of this
+  file demanded `libc++_shared.so` and that gate was wrong; do not reintroduce it.
 - `aapt dump badging` shows the version in
   `pipeline/ime/null-keyboard/AndroidManifest.xml` (`versionCode`/`versionName`).
   Read it from there rather than trusting a number written down here — that is
