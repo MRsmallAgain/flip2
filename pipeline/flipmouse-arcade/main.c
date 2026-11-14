@@ -84,6 +84,20 @@
 #define NPAD_BIT_7 0x040
 #define NPAD_BIT_8 0x080
 #define NPAD_BIT_9 0x100
+
+/* Triggers are read as AXES by the games we target, not as buttons. Astro Loop's
+ * InputRouter.onMotion takes max(AXIS_LTRIGGER, AXIS_BRAKE) for the left trigger
+ * and max(AXIS_RTRIGGER, AXIS_GAS) for the right, and latches above 0.6; it never
+ * looks at BTN_TL2/BTN_TR2. AXIS_BRAKE/AXIS_GAS come from evdev ABS_BRAKE and
+ * ABS_GAS, so a trigger key has to move an axis or it does nothing in-game.
+ *
+ * Several physical keys drive the same trigger (# is RT, with Messenger and
+ * Volume-down as alternatives), so each trigger is tracked as a set of held
+ * keys: releasing one must not drop the trigger while another is still down. */
+#define TRIG_BIT_VOLUP 0x01
+#define TRIG_BIT_POUND 0x02
+#define TRIG_BIT_MSG 0x04
+#define TRIG_BIT_VOLDN 0x08
 #ifndef FLIPMOUSE_DEFAULT_SPEED
 #define FLIPMOUSE_DEFAULT_SPEED 39
 #endif
@@ -145,6 +159,8 @@ typedef struct
   int stick_lx, stick_ly, stick_rx, stick_ry;
   int dpad_held;   /* bitmask of D-pad keys down (DPAD_*_BIT) */
   int numpad_held; /* bitmask of numpad stick keys down */
+  unsigned trig_l_held; /* bitmask of keys asking for the left trigger */
+  unsigned trig_r_held; /* bitmask of keys asking for the right trigger */
   long long back_hold_since;
   long long right_hold_since;
   int landscape_cursor;
@@ -590,9 +606,42 @@ static void gp_emit_key(int code, int value)
   libevdev_uinput_write_event(app_state.gamepad.uidev, EV_SYN, SYN_REPORT, 0);
 }
 
+/* Push the trigger axes out. Full scale while any key in the set is down, 0 when
+ * the set is empty -- the game latches above 0.6 and re-arms below 0.3, so an
+ * instantaneous 0/32767 step is fine and there is no need to ramp. The button
+ * codes are emitted alongside the axes by the caller, so games that read
+ * BTN_TL2/BTN_TR2 keep working too. */
+static void gp_trig_apply(void)
+{
+  if (!app_state.gamepad.uidev)
+    return;
+  libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_BRAKE,
+                              app_state.gamepad.trig_l_held ? AXIS_GP_MAX : 0);
+  libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_GAS,
+                              app_state.gamepad.trig_r_held ? AXIS_GP_MAX : 0);
+  libevdev_uinput_write_event(app_state.gamepad.uidev, EV_SYN, SYN_REPORT, 0);
+}
+
+/* Track one physical key's contribution to a trigger. `left` selects which
+ * trigger the key drives; `bit` identifies the key within that trigger's set. */
+static void gp_trig(unsigned bit, int left, int value)
+{
+  unsigned *held = left ? &app_state.gamepad.trig_l_held : &app_state.gamepad.trig_r_held;
+  if (value)
+    *held |= bit;
+  else
+    *held &= ~bit;
+  gp_trig_apply();
+}
+
 static int gamepad_init(void)
 {
   struct input_absinfo absinfo = {.minimum = AXIS_GP_MIN, .maximum = AXIS_GP_MAX, .fuzz = 0, .flat = 0};
+  /* Triggers are unipolar: 0 at rest, AXIS_GP_MAX fully pulled. Declaring them
+   * over the stick's symmetric range would make a released 0 normalise to 0.5,
+   * which sits just under the 0.6 latch -- the trigger would read as half-held
+   * and never re-arm. */
+  struct input_absinfo trig_info = {.minimum = 0, .maximum = AXIS_GP_MAX, .fuzz = 0, .flat = 0};
   app_state.gamepad.dev = libevdev_new();
   if (!app_state.gamepad.dev)
     return -1;
@@ -615,6 +664,8 @@ static int gamepad_init(void)
   libevdev_enable_event_code(app_state.gamepad.dev, EV_ABS, ABS_RY, &absinfo);
   libevdev_enable_event_code(app_state.gamepad.dev, EV_ABS, ABS_HAT0X, &absinfo);
   libevdev_enable_event_code(app_state.gamepad.dev, EV_ABS, ABS_HAT0Y, &absinfo);
+  libevdev_enable_event_code(app_state.gamepad.dev, EV_ABS, ABS_BRAKE, &trig_info);
+  libevdev_enable_event_code(app_state.gamepad.dev, EV_ABS, ABS_GAS, &trig_info);
   if (libevdev_uinput_create_from_device(app_state.gamepad.dev, LIBEVDEV_UINPUT_OPEN_MANAGED,
                                          &app_state.gamepad.uidev) < 0) {
     libevdev_free(app_state.gamepad.dev);
@@ -744,14 +795,29 @@ static int gamepad_handle_key(int code, int value)
   /* 5 is the primary face button (A). It used to be swallowed as the numpad's
    * neutral key, which wasted the most reachable key in the cluster. */
   case KEY_5: gp_emit_key(BTN_SOUTH, value); return MUTE_EVENT;
-  /* # is the right trigger; it used to be A. */
-  case POUND_CODE: gp_emit_key(BTN_TR2, value); return MUTE_EVENT;
+  /* Triggers emit BOTH the button code and the axis. Astro Loop reads
+   * max(AXIS_LTRIGGER, AXIS_BRAKE) / max(AXIS_RTRIGGER, AXIS_GAS) and never the
+   * buttons; other games read the buttons and ignore the axes. Sending both
+   * costs nothing and covers either convention. */
+  case POUND_CODE: /* # is RT; it used to be A */
+    gp_emit_key(BTN_TR2, value);
+    gp_trig(TRIG_BIT_POUND, 0, value);
+    return MUTE_EVENT;
+  case MESSENGER_CODE:
+    gp_emit_key(BTN_TR2, value);
+    gp_trig(TRIG_BIT_MSG, 0, value);
+    return MUTE_EVENT;
+  case KEY_VOLUMEDOWN:
+    gp_emit_key(BTN_TR2, value);
+    gp_trig(TRIG_BIT_VOLDN, 0, value);
+    return MUTE_EVENT;
+  case KEY_VOLUMEUP:
+    gp_emit_key(BTN_TL2, value);
+    gp_trig(TRIG_BIT_VOLUP, 1, value);
+    return MUTE_EVENT;
   case KEY_0: gp_emit_key(BTN_EAST, value); return MUTE_EVENT;
   case STAR_CODE: gp_emit_key(BTN_NORTH, value); return MUTE_EVENT;
   case SOFTKEY_CODE: gp_emit_key(BTN_TL, value); return MUTE_EVENT;
-  case MESSENGER_CODE: gp_emit_key(BTN_TR2, value); return MUTE_EVENT;
-  case KEY_VOLUMEUP: gp_emit_key(BTN_TL2, value); return MUTE_EVENT;
-  case KEY_VOLUMEDOWN: gp_emit_key(BTN_TR2, value); return MUTE_EVENT;
   case KEY_BACK:
     if (value == 1) {
       app_state.gamepad.back_hold_since = now_ms();
@@ -786,10 +852,13 @@ static void sync_apply_mode(void)
      * tracked set here or the new mode starts with directions stuck down. */
     app_state.gamepad.dpad_held = 0;
     app_state.gamepad.numpad_held = 0;
+    app_state.gamepad.trig_l_held = 0;
+    app_state.gamepad.trig_r_held = 0;
     app_state.gamepad.stick_lx = app_state.gamepad.stick_ly = 0;
     app_state.gamepad.stick_rx = app_state.gamepad.stick_ry = 0;
     devices_set_grab(is_grabbed_mode(want) ? 1 : 0);
     gp_stick_apply();
+    gp_trig_apply();
     log_message("mode -> %d", (int)want);
   }
 }

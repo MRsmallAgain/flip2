@@ -66,12 +66,17 @@ Diagonals are why the numpad keeps its own per-key bits: one key sets two direct
 | Upper-left soft (139) | L1 (`BTN_TL`) |
 | Right soft (48), **tap** | R1 (`BTN_TR`) — emitted on release, so it never fires while you are still holding for the cursor gesture |
 | Right soft (48), **hold ≥1s** | Switches to the landscape cursor (see below) |
-| **#** | RT (`BTN_TR2`) — primary trigger |
+| **#** | RT — `BTN_TR2` **and** `ABS_GAS` |
 | Star (522) | Mapped as face X today; prefer L2 in companion preset (TODO) |
-| Mail / Messenger (30) | R2 (`BTN_TR2`) |
-| Volume up / down | L2 / R2 (`BTN_TL2` / `BTN_TR2`) |
+| Mail / Messenger (30) | RT (`BTN_TR2` + `ABS_GAS`) |
+| Volume up | LT (`BTN_TL2` + `ABS_BRAKE`) |
+| Volume down | RT (`BTN_TR2` + `ABS_GAS`) |
 
-`#` used to be A; it moved to RT so that `5` — the middle of the numpad cross and the most reachable key under the thumb — can be the primary button. `#`, Messenger and Volume-down all drive `BTN_TR2`; they are alternative triggers, not separate buttons.
+`#` used to be A; it moved to RT so that `5` — the middle of the numpad cross and the most reachable key under the thumb — can be the primary button. `#`, Messenger and Volume-down all drive the right trigger; they are alternative inputs, not separate buttons.
+
+**Triggers are axes, and that is the default.** The games we target read `AXIS_LTRIGGER`/`AXIS_BRAKE` and `AXIS_RTRIGGER`/`AXIS_GAS`, not `BTN_TL2`/`BTN_TR2`. Astro Loop computes `max(AXIS_LTRIGGER, AXIS_BRAKE)` and `max(AXIS_RTRIGGER, AXIS_GAS)` and latches above 0.6, so a trigger that only emitted a button was invisible in-game. Each trigger key now emits the button **and** the axis, which covers both conventions at no cost.
+
+The trigger axes are declared **`0..32767`, not the sticks' symmetric `-32767..32767`**: a released `0` on a symmetric axis normalises to 0.5, just under the 0.6 latch, so the trigger would read as half-held and never re-arm. Each trigger is also tracked as a set of held keys, so releasing `#` while Messenger is still down does not drop RT.
 
 Per-key customization will live in the **companion APK** + config file (not implemented in v0.1 — mappings are compiled in `main.c`).
 
