@@ -80,7 +80,6 @@
 #define NPAD_BIT_2 0x002
 #define NPAD_BIT_3 0x004
 #define NPAD_BIT_4 0x008
-#define NPAD_BIT_5 0x010
 #define NPAD_BIT_6 0x020
 #define NPAD_BIT_7 0x040
 #define NPAD_BIT_8 0x080
@@ -718,7 +717,6 @@ static void gp_numpad(int k, int v)
   case KEY_2: bit = NPAD_BIT_2; break;
   case KEY_3: bit = NPAD_BIT_3; break;
   case KEY_4: bit = NPAD_BIT_4; break;
-  case KEY_5: bit = NPAD_BIT_5; break;
   case KEY_6: bit = NPAD_BIT_6; break;
   case KEY_7: bit = NPAD_BIT_7; break;
   case KEY_8: bit = NPAD_BIT_8; break;
@@ -738,12 +736,16 @@ static int gamepad_handle_key(int code, int value)
   case KEY_UP: case KEY_DOWN: case KEY_LEFT: case KEY_RIGHT:
     gp_dpad(code, value);
     return MUTE_EVENT;
-  case KEY_1: case KEY_2: case KEY_3: case KEY_4: case KEY_5:
+  case KEY_1: case KEY_2: case KEY_3: case KEY_4:
   case KEY_6: case KEY_7: case KEY_8: case KEY_9:
     gp_numpad(code, value);
     return MUTE_EVENT;
   case KEY_ENTER: gp_emit_key(BTN_THUMBL, value); return MUTE_EVENT;
-  case POUND_CODE: gp_emit_key(BTN_SOUTH, value); return MUTE_EVENT;
+  /* 5 is the primary face button (A). It used to be swallowed as the numpad's
+   * neutral key, which wasted the most reachable key in the cluster. */
+  case KEY_5: gp_emit_key(BTN_SOUTH, value); return MUTE_EVENT;
+  /* # is the right trigger; it used to be A. */
+  case POUND_CODE: gp_emit_key(BTN_TR2, value); return MUTE_EVENT;
   case KEY_0: gp_emit_key(BTN_EAST, value); return MUTE_EVENT;
   case STAR_CODE: gp_emit_key(BTN_NORTH, value); return MUTE_EVENT;
   case SOFTKEY_CODE: gp_emit_key(BTN_TL, value); return MUTE_EVENT;

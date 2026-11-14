@@ -43,15 +43,16 @@ The numpad cluster is the same physical cross, so it drives the **same** left st
 | **3** | left + up |
 | **7** | right + down |
 | **9** | right + up |
-| **5** | neutral |
 
 Diagonals are why the numpad keeps its own per-key bits: one key sets two directions, and a direction only clears when no held key still wants it. Mixing the two crosses is safe — both are OR-ed into the same direction set.
+
+**`5` is not part of the movement cross** — it is the primary face button (see below). It used to be a no-op neutral key.
 
 ### Face buttons
 
 | Key | Gamepad |
 |-----|---------|
-| **#** | A (`BTN_SOUTH`) |
+| **5** | A (`BTN_SOUTH`) — primary action |
 | **0** | B (`BTN_EAST`) |
 | *** | X (`BTN_NORTH`) |
 | D-pad center (OK) | Select — left stick click (`BTN_THUMBL`), like pressing the stick |
@@ -65,9 +66,12 @@ Diagonals are why the numpad keeps its own per-key bits: one key sets two direct
 | Upper-left soft (139) | L1 (`BTN_TL`) |
 | Right soft (48), **tap** | R1 (`BTN_TR`) — emitted on release, so it never fires while you are still holding for the cursor gesture |
 | Right soft (48), **hold ≥1s** | Switches to the landscape cursor (see below) |
+| **#** | RT (`BTN_TR2`) — primary trigger |
 | Star (522) | Mapped as face X today; prefer L2 in companion preset (TODO) |
 | Mail / Messenger (30) | R2 (`BTN_TR2`) |
 | Volume up / down | L2 / R2 (`BTN_TL2` / `BTN_TR2`) |
+
+`#` used to be A; it moved to RT so that `5` — the middle of the numpad cross and the most reachable key under the thumb — can be the primary button. `#`, Messenger and Volume-down all drive `BTN_TR2`; they are alternative triggers, not separate buttons.
 
 Per-key customization will live in the **companion APK** + config file (not implemented in v0.1 — mappings are compiled in `main.c`).
 
