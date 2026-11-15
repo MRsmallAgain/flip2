@@ -2,7 +2,7 @@
 
 **Safety first:** read [SAFETY.md](SAFETY.md) before install or any footer link (rooting / factory).
 
-`wizard/` is the **TCL Flip2 Manager**: **Start** (profile + **Start setup**), **Apps**, and **Set up** (Prepare). The sticky strip shows phone status and Prepare progress in plain language. From **Chrome on Linux** the browser path talks to the phone over USB (WebUSB for install, Web Serial for the optional rooting slice) and does not use host adb. **Flip 2 Companion** is the same pages on your PC with host adb for install, verify, udev, and Managed `profile.list`. Profiles, Headwind/Where pins, and device owner are in [MANAGER.md](MANAGER.md).
+`wizard/` is the **TCL Flip2 Manager**: **Start** (profile + **Start setup**), **Apps**, **Device**, and **Set up** (Prepare). The sticky strip shows phone status and Prepare progress in plain language. From **Chrome on Linux** the browser path talks to the phone over USB (WebUSB for install, Web Serial for the optional rooting slice) and does not use host adb. **Flip 2 Companion** is the same pages on your PC with host adb for install, verify, udev, and Managed `profile.list`. Profiles, Headwind/Where pins, and device owner are in [MANAGER.md](MANAGER.md).
 
 Firefox does not work: it has no WebUSB. On **Windows**, use the release **`flip2-companion-*-win-x64.exe`** first ([SETUP-WIZARD-WINDOWS.md](SETUP-WIZARD-WINDOWS.md)); on Linux use **`flip2 companion`** or Chrome + drivers. **Step-by-step Prepare walkthrough:** [SETUP-WIZARD-DETAILED.md](SETUP-WIZARD-DETAILED.md).
 
@@ -22,7 +22,7 @@ For a public page, serve the `wizard/` directory from any static host
 
 | Path | Role |
 |------|------|
-| `pages/` | the manager: one HTML page. Pills: Start, Apps, Set up; phone strip in chrome |
+| `pages/` | the manager: one HTML page. Pills: Start, Apps, Device, Set up; phone strip in chrome |
 | `catalog.json` | pinned downloads: exact byte size + SHA-256 of every third-party file |
 | `device/install.sh`, `device/verify.sh` | pushed to the phone and run there |
 | `51-android-flip2-adb.rules` | udev rules the user installs once |
@@ -32,7 +32,8 @@ For a public page, serve the `wizard/` directory from any static host
 
 1. **Start.** Pick **Base** or **Managed**, then **Start setup** (Prepare). Phone status lives in the sticky strip (Companion: Refresh, USB rules). **Forkgram Classic** only — not Client. Operate/recover links are under **More: operate & recover**.
 2. **Apps.** Install or remove one catalog package, remove one Magisk module, **Apply** the selected profile, or **Run check** (verify). Device owner is separate on Managed after you type `manage`. Apply writes `profile.list` and installs missing components; it does not wipe.
-3. **Set up (Prepare).** Six sub-steps below. Nothing downloads until you type `yes` on **Ready**.
+3. **Device.** Sideload a picked apk, list and uninstall user apps, push a file to `/sdcard/Download`, run a shell command, take a still screenshot, and send Flip2 keys. These run on WebUSB in Chrome. Companion host adb is the fallback when WebUSB is not connected. Catalog Apply stays on Apps. This section does not flash, wipe, or mirror the screen.
+4. **Set up (Prepare).** Six sub-steps below. Nothing downloads until you type `yes` on **Ready**.
 
 ## Prepare sections (UI labels)
 
@@ -144,4 +145,4 @@ Prepare (Ready → Get files → … → Check phone) has been run end-to-end on
 
 Chrome WebUSB install is secondary; Linux Companion is the supported path for Managed Apply and reliable push. Rooting and factory slices remain separately gated (`erase` / `factory`).
 
-Companion smoke (`companion/` → `npm run start:safe -- --smoke`): page title **TCL Flip2 Manager**, pills **Start · Apps · Set up**, catalog includes **`sherpa-en`** / **`sherpa-uk`** with size and sha256. See [MANAGER.md](MANAGER.md) for smoke expectations.
+Companion smoke (`companion/` → `npm run start:safe -- --smoke`): page title **TCL Flip2 Manager**, pills **Start · Apps · Device · Set up**, catalog includes **`sherpa-en`** / **`sherpa-uk`** with size and sha256. See [MANAGER.md](MANAGER.md) for smoke expectations.

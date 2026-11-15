@@ -5,7 +5,7 @@
 // Every module below is loaded by index.html before this one:
 //   CATALOG/loadCatalog/sha256Hex, ADBKEY, ADB, PIPE, PROFILES, BOOTROM.
 
-var ORDER = ['start', 'apps', 'prepare'];
+var ORDER = ['start', 'apps', 'device', 'prepare'];
 var PREPARE = ['download', 'udev', 'usb', 'install', 'verify'];
 var REACHED = { start: true };
 var VERIFIED = {};            // catalog id -> ArrayBuffer of a hash-checked file
@@ -1163,6 +1163,7 @@ function onWebUsbAdbReady() {
   setStatus('phone-msg', 'Phone on WebUSB adb.', 'ok');
   updateGetReadyCollapse();
   if (shownStep === 'download') updateCreditStatusRows();
+  if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
 }
 
 var webUsbConnectGen = 0;
@@ -1178,6 +1179,7 @@ function connectWebUsbAdb(options) {
     if (!options.silent) {
       setStatus(statusEl, 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
     }
+    if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
     return Promise.reject(new Error('no WebUSB'));
   }
   if (!options.silent) {
@@ -1215,6 +1217,7 @@ function connectWebUsbAdb(options) {
         setStatus(statusEl, 'No phone selected — plug in, pick the device, allow USB debugging.', 'wait');
         if (statusEl === 'phone-msg') setStatus('strip-phone', 'no device — Connect phone', 'wait');
       }
+      if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
       return false;
     }
     if (e && e.message === 'superseded') return false;
@@ -1226,6 +1229,7 @@ function connectWebUsbAdb(options) {
       setStatus(statusEl, msg, 'bad');
       if (statusEl === 'phone-msg') setStatus('strip-phone', 'no device — Connect phone', 'wait');
     }
+    if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
     return Promise.reject(e);
   });
   var deadline = new Promise(function (_, reject) {
@@ -1241,6 +1245,7 @@ function connectWebUsbAdb(options) {
       setStatus(statusEl, msg, 'bad');
       if (statusEl === 'phone-msg') setStatus('strip-phone', 'no device — Connect phone', 'wait');
     }
+    if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
     throw e;
   });
 }
@@ -2496,6 +2501,8 @@ function init() {
     initProfile();
     initApps();
     if (typeof initPersonalBackup === 'function') initPersonalBackup();
+    if (typeof initDevice !== 'function') throw new Error('device.js did not load');
+    initDevice();
     startStripPoller();
     if (window.FLIP2_NATIVE) {
       unlockAdvancedFooter();

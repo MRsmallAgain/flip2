@@ -1,6 +1,6 @@
 # TCL Flip2 Manager
 
-The Companion window is the manager. Everything is one scrolling page. **Start** is at the top: hero, Base/Managed profile tiles, **Start setup**, and **Phone already done?** (Apps). Operate/recover cards live under **More: operate & recover**. The pill bar has three anchors: **Start**, **Apps**, and **Set up** (Prepare). Prepare continues in order: ready gate (`yes`), get files, USB rules, connect, put on phone, check phone. The sticky strip shows phone status and Prepare progress with plain labels (Ready, Get files, Connect, Put on phone, Check).
+The Companion window is the manager. Everything is one scrolling page. **Start** is at the top: hero, Base/Managed profile tiles, **Start setup**, and **Phone already done?** (Apps). Operate/recover cards live under **More: operate & recover**. The pill bar has four anchors: **Start**, **Apps**, **Device**, and **Set up** (Prepare). Prepare continues in order: ready gate (`yes`), get files, USB rules, connect, put on phone, check phone. The sticky strip shows phone status and Prepare progress with plain labels (Ready, Get files, Connect, Put on phone, Check).
 
 ## Profiles
 
@@ -98,7 +98,7 @@ The Apps step saves and restores catalog apps, contacts, and messages through Fl
 
 ## What v1 will add or remove
 
-Catalog packages and the five Magisk module ids only. There is no arbitrary APK sideload. Module install is part of Apply. There is no single-module place action, and module install is not sent through a shell command. Module remove deletes `/data/adb/modules/<id>` for an allowlisted id and asks for a reboot. It does not reboot by itself.
+Catalog packages and the five Magisk module ids only. Catalog Apply still refuses an arbitrary apk. Device is the sideload and control section. Module install is part of Apply. There is no single-module place action, and module install is not sent through a shell command. Module remove deletes `/data/adb/modules/<id>` for an allowlisted id and asks for a reboot. It does not reboot by itself.
 
 Launcher4 and Null Keyboard ask for an extra confirm, because Home or the keyboard falls back. Settings rows (home keys, display, wallpaper, Sherpa models) are part of Apply and have no Remove button.
 
@@ -110,4 +110,4 @@ From `companion/`:
 
 `npm run start:safe -- --smoke`
 
-Expect the page title `TCL Flip2 Manager`, pill bar **Start · Apps · Set up**, sticky phone/prepare strip, catalog pins including `sherpa-en` and `sherpa-uk` with size and sha256, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.
+Expect the page title `TCL Flip2 Manager`, pill bar **Start · Apps · Device · Set up**, sticky phone/prepare strip, catalog pins including `sherpa-en` and `sherpa-uk` with size and sha256, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.

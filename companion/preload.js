@@ -39,4 +39,10 @@ contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
   personalRestoreContacts: function (payload) { return ipcRenderer.invoke('personal-restore-contacts', payload); },
   personalRestoreMessages: function (payload) { return ipcRenderer.invoke('personal-restore-messages', payload); },
   personalRestoreApps: function () { return ipcRenderer.invoke('personal-restore-apps'); },
+  deviceShell: function (payload) { return ipcRenderer.invoke('device-shell', payload); },
+  deviceInstallApk: function (payload) { return ipcRenderer.invoke('device-install-apk', payload); },
+  deviceUninstallPackage: function (payload) { return ipcRenderer.invoke('device-uninstall-package', payload); },
+  devicePushFile: function (payload) { return ipcRenderer.invoke('device-push-file', payload); },
+  deviceScreencap: function () { return ipcRenderer.invoke('device-screencap'); },
+  deviceKey: function (payload) { return ipcRenderer.invoke('device-key', payload); },
 });

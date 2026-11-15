@@ -1587,3 +1587,8 @@ button.big-btn.secondary {
 .muted {
   color: var(--ink-muted);
 }
+
+#device-shot {
+  max-width: 100%;
+  height: auto;
+}

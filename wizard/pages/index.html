@@ -27,6 +27,7 @@
 	  <nav id="steps">
 	    <span data-step="start">Start</span>
 	    <span data-step="apps">Apps</span>
+	    <span data-step="device">Device</span>
 	    <span data-step="prepare">Set up</span>
 	  </nav>
 	  <div id="live-strip" class="now live" aria-live="polite">
@@ -177,6 +178,72 @@
     </div>
     <span id="apps-backup-msg" class="status"></span>
   </details>
+</section>
+
+<section class="step step-compact" id="step-device">
+  <h2>Device</h2>
+  <p class="step-lead">Sideload an apk, push a file, run a shell command, take a still screenshot, or send a key. Chrome WebUSB, or Flip2 Companion when host adb already holds USB.</p>
+  <div class="action-row action-row--compact">
+    <span id="device-transport" class="status"></span>
+    <button type="button" id="device-connect" class="small">Connect phone</button>
+  </div>
+
+  <h3>Install apk</h3>
+  <div class="action-row action-row--compact">
+    <input type="file" id="device-install-file" accept=".apk">
+    <button type="button" id="device-install-btn" data-device-action>Install</button>
+    <span id="device-install-msg" class="status"></span>
+  </div>
+
+  <h3>User apps</h3>
+  <div class="action-row action-row--compact">
+    <button type="button" id="device-apps-refresh" class="ghost" data-device-action>Refresh</button>
+    <select id="device-pkg"></select>
+    <label class="inline">Type name <input id="device-pkg-type" autocomplete="off" size="24" spellcheck="false"></label>
+    <button type="button" id="device-uninstall" data-device-action>Uninstall</button>
+    <span id="device-apps-msg" class="status"></span>
+  </div>
+  <p class="note">Launcher4 and Null Keyboard need the package name typed. Other apps ask you to confirm.</p>
+
+  <h3>Push file</h3>
+  <p class="note">Goes to /sdcard/Download. The name must be a single file name.</p>
+  <div class="action-row action-row--compact">
+    <input type="file" id="device-push-file">
+    <button type="button" id="device-push-btn" data-device-action>Push</button>
+    <span id="device-push-msg" class="status"></span>
+  </div>
+
+  <h3>Shell</h3>
+  <div class="action-row action-row--compact">
+    <input id="device-shell-cmd" autocomplete="off" size="36" spellcheck="false" placeholder="command">
+    <label class="inline">Seconds <input id="device-shell-timeout" type="number" min="1" max="60" value="30" size="3"></label>
+    <button type="button" id="device-shell-btn" data-device-action>Run</button>
+    <span id="device-shell-msg" class="status"></span>
+  </div>
+  <pre class="log hidden" id="device-shell-log"></pre>
+  <p class="note">Refuses wipe, fastboot, recovery, format, and mkfs. reboot is allowed.</p>
+
+  <h3>Screenshot</h3>
+  <div class="action-row action-row--compact">
+    <button type="button" id="device-shot-btn" data-device-action>Take screenshot</button>
+    <span id="device-shot-msg" class="status"></span>
+  </div>
+  <img id="device-shot" alt="" class="hidden">
+
+  <h3>Keys</h3>
+  <div class="btn-grid" id="device-keys">
+    <button type="button" data-device-action data-key="19">Up</button>
+    <button type="button" data-device-action data-key="20">Down</button>
+    <button type="button" data-device-action data-key="21">Left</button>
+    <button type="button" data-device-action data-key="22">Right</button>
+    <button type="button" data-device-action data-key="23">OK</button>
+    <button type="button" data-device-action data-key="1">Soft left</button>
+    <button type="button" data-device-action data-key="2">Soft right</button>
+    <button type="button" data-device-action data-key="4">Back</button>
+    <button type="button" data-device-action data-key="5">Call</button>
+    <button type="button" data-device-action data-key="6">End</button>
+  </div>
+  <span id="device-key-msg" class="status"></span>
 </section>
 
 <section class="step step-compact hidden" id="step-credit" hidden aria-hidden="true"></section>
@@ -517,6 +584,7 @@
 <script src="js/fastboot.js"></script>
 <script src="js/profiles.js"></script>
 <script src="js/manager.js"></script>
+<script src="js/device.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
