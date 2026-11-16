@@ -304,7 +304,7 @@ function refreshPhone() {
       }
       setStatus('phone-msg', 'Phone ready over host adb.', 'ok');
       setPhoneNext(
-        '<b>Next:</b> pick Base or Managed above → <b>Prepare</b> or <b>Apps</b> Apply.',
+        '<b>Next:</b> pick Base or Managed above → <b>Prepare</b> or <b>Bundled Apps</b> Apply.',
         true);
     });
   }).catch(function (e) {
@@ -566,19 +566,22 @@ function renderApps() {
   var i;
   for (i = 0; i < rows.length; i++) {
     (function (row) {
+      var st = appStatus(row);
+      var details = document.createElement('details');
+      details.className = 'app-widget-panel';
+      var summary = document.createElement('summary');
+      summary.className = 'app-widget-summary';
+      var sumTitle = document.createElement('span');
+      sumTitle.className = 'app-widget-title';
+      sumTitle.textContent = row.label;
+      summary.appendChild(sumTitle);
+      var sumSt = document.createElement('span');
+      sumSt.className = st.cls ? ('status ' + st.cls) : 'note';
+      sumSt.textContent = st.text;
+      summary.appendChild(sumSt);
+      details.appendChild(summary);
       var rowEl = document.createElement('div');
       rowEl.className = 'app-row';
-      var main = document.createElement('div');
-      main.className = 'app-main';
-      var title = document.createElement('strong');
-      title.textContent = row.label;
-      main.appendChild(title);
-      var st = appStatus(row);
-      var s = document.createElement('span');
-      s.className = st.cls ? ('status ' + st.cls) : 'note';
-      s.textContent = st.text;
-      main.appendChild(s);
-      rowEl.appendChild(main);
       var actions = document.createElement('div');
       actions.className = 'app-actions';
       if (row.kind === 'apk') {
@@ -606,7 +609,8 @@ function renderApps() {
         actions.appendChild(rm);
       }
       rowEl.appendChild(actions);
-      box.appendChild(rowEl);
+      details.appendChild(rowEl);
+      box.appendChild(details);
     })(rows[i]);
   }
   var owner = $('apps-owner');

@@ -182,6 +182,32 @@ section.step[hidden] {
   display: none !important;
 }
 
+.step-collapse-panel {
+  margin: 0;
+}
+
+.step-collapse-summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.step-collapse-summary::-webkit-details-marker {
+  display: none;
+}
+
+.step-collapse-panel[open] .step-collapse-summary {
+  margin-bottom: 12px;
+}
+
+.step-compact .step-collapse-summary {
+  font-size: 1.15rem;
+}
+
 .dl-file-list a[aria-disabled="true"] {
   opacity: 0.45;
   pointer-events: none;
@@ -947,6 +973,44 @@ table.safety-paths td:first-child {
 
 .apps-panel[open] summary {
   margin-bottom: 8px;
+}
+
+.app-widget-panel {
+  margin: 0;
+  font-size: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.app-widget-panel summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.app-widget-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-widget-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-widget-panel .app-row {
+  border-bottom: none;
+  padding-top: 0;
+  justify-content: flex-end;
+}
+
+.app-widget-panel[open] summary {
+  margin-bottom: 4px;
 }
 
 .action-row--compact {

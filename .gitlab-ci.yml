@@ -1,8 +1,8 @@
 # Device-free gates. See pipeline/ci/gates.sh for the checks themselves and why
 # the set is limited to things that pass on a fresh clone.
 #
-# Nothing here builds the installers or touches AWS: those need the packed
-# dist/ tree (gitignored) and real credentials, so they stay local.
+# Companion pack jobs build installers under companion/dist/ (gitignored) and upload
+# CI artifacts — they do not publish to AWS or the release mirror.
 # Without a workflow block, a push to a branch with an open MR creates a second,
 # duplicate pipeline. Job-level rules alone do not prevent it -- this branch
 # produced two pipelines per commit until this was added.
@@ -15,6 +15,7 @@ workflow:
 
 stages:
   - check
+  - build
 
 gates:
   stage: check
@@ -32,3 +33,55 @@ gates:
   # diffs, all sub-minute. A long timeout would just hide a hung generator.
   timeout: 10m
   interruptible: true
+
+.companion_before:
+  image: node:20-bookworm
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq --no-install-recommends jq libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xvfb xauth libasound2 fuse libfuse2 libgbm1
+  needs:
+    - gates
+  interruptible: true
+
+companion:smoke:
+  extends: .companion_before
+  stage: build
+  script:
+    - bash pipeline/ci/companion-pack.sh smoke
+  timeout: 15m
+
+companion:linux:
+  extends: .companion_before
+  stage: build
+  script:
+    - bash pipeline/ci/companion-pack.sh linux
+  artifacts:
+    when: on_success
+    expire_in: 14 days
+    paths:
+      - companion/dist/*.AppImage
+      - companion/dist/*-linux-*/
+  timeout: 30m
+
+# NSIS/portable targets need a Windows toolchain. electron-builder can use Wine on
+# Linux; if this job flakes, build on a tagged Windows runner or locally (pack:win).
+companion:win:
+  extends: .companion_before
+  stage: build
+  before_script:
+    - apt-get update -qq
+    - dpkg --add-architecture i386
+    - apt-get update -qq
+    - apt-get install -y -qq --no-install-recommends jq libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xvfb xauth libasound2 fuse libfuse2 libgbm1 wine64 wine
+  script:
+    - bash pipeline/ci/companion-pack.sh win
+  artifacts:
+    when: on_success
+    expire_in: 14 days
+    paths:
+      - companion/dist/*.exe
+  timeout: 45m
+  allow_failure: true

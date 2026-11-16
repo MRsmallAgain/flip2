@@ -1,6 +1,6 @@
 # Flip2 press kit & launch copy
 
-> **The project moved off GitHub on 2026-11-13** — the account behind it was suspended, so every `github.com/MRsmallAgain` link 404s. Start at <https://flip2burn.online/>; files live under `https://flip2burn.online/packages/` with pins in <https://flip2burn.online/catalog.json>. Full details, including paste-ready notices for existing threads: [MOVED.md](MOVED.md).
+> **The project moved off GitHub on 2026-11-13** — the account behind it was suspended, so every `github.com/MRsmallAgain` link 404s. Start at <https://flip2burn.online/>; files live under `https://flip2burn.online/packages/` with pins in <https://flip2burn.online/catalog.json>. Full details, including paste-ready notices for existing threads: [moved](MOVED.md).
 >
 > The published copy in this directory keeps its original text — an announcement is a record of what was said — with a banner at the top of each file. This index is navigation, so its own links are corrected below.
 

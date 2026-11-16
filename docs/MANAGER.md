@@ -110,4 +110,4 @@ From `companion/`:
 
 `npm run start:safe -- --smoke`
 
-Expect the page title `TCL Flip2 Manager`, pill bar **Start · Apps · Device · Set up**, sticky phone/prepare strip, catalog pins including `sherpa-en` and `sherpa-uk` with size and sha256, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.
+Expect the page title `TCL Flip2 Manager`, pill bar **Start · Bundled Apps · Device · Set up**, sticky phone/prepare strip, catalog pins including `sherpa-en` and `sherpa-uk` with size and sha256, no missing factory ids, the factory gate locked, and `factoryReadBackup("/etc/passwd")` refused. No phone is required.

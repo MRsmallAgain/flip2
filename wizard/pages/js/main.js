@@ -76,6 +76,70 @@ function updatePrepareStrip(name) {
   updateStripPhoneChrome(name);
 }
 
+var STEP_COLLAPSE_TITLE = {
+  start: 'Start',
+  apps: 'Bundled Apps',
+  device: 'Device',
+  download: 'Get files',
+  udev: 'USB rules',
+  usb: 'Allow USB debugging',
+  install: 'Put on phone',
+  verify: 'Check phone',
+  root: 'Rooting (erases the phone)',
+  factory: 'Return to factory'
+};
+
+function stepCollapseIds() {
+  return ['start', 'apps', 'device'].concat(PREPARE).concat(['root', 'factory']);
+}
+
+function initStepCollapsibles() {
+  stepCollapseIds().forEach(function (id) {
+    var section = $('step-' + id);
+    if (!section || section.dataset.stepCollapse) return;
+    section.dataset.stepCollapse = '1';
+    var h2 = section.querySelector(':scope > h2');
+    var title = STEP_COLLAPSE_TITLE[id] || id;
+    if (h2 && !h2.classList.contains('visually-hidden')) title = h2.textContent.trim();
+    else if (!h2) {
+      var heroT = section.querySelector('.step-hero-compact .hero-title');
+      if (heroT) title = heroT.textContent.trim();
+    }
+    var details = document.createElement('details');
+    details.className = 'step-collapse-panel';
+    details.id = 'step-collapse-' + id;
+    var summary = document.createElement('summary');
+    summary.className = 'step-collapse-summary';
+    summary.textContent = title;
+    var body = document.createElement('div');
+    body.className = 'step-collapse-body';
+    var kids = [];
+    var n;
+    for (n = 0; n < section.childNodes.length; n++) kids.push(section.childNodes[n]);
+    kids.forEach(function (node) {
+      if (node.nodeType === 1 && node.tagName === 'H2') {
+        node.parentNode.removeChild(node);
+        return;
+      }
+      body.appendChild(node);
+    });
+    details.appendChild(summary);
+    details.appendChild(body);
+    section.appendChild(details);
+  });
+}
+
+var STEP_COLLAPSE_PINNED = { start: true, device: true };
+
+function syncStepCollapsePanels(name) {
+  stepCollapseIds().forEach(function (id) {
+    var d = $('step-collapse-' + id);
+    if (!d) return;
+    if (id === name || STEP_COLLAPSE_PINNED[id]) d.setAttribute('open', '');
+    else d.removeAttribute('open');
+  });
+}
+
 function showStep(name) {
   if (name === 'prepare' || name === 'credit') name = 'download';
   var prepare = PREPARE.indexOf(name) >= 0;
@@ -112,6 +176,7 @@ function showStep(name) {
     }
   });
   shownStep = name;
+  syncStepCollapsePanels(name);
   updatePrepareStrip(name);
   if (name === 'download') updateCreditStatusRows();
   // The first call is the page load. Later calls jump to that section
@@ -1756,7 +1821,7 @@ function paintStripPhone(mode, ready) {
   if (mode === 'android') {
     if (ready && ready.ok) {
       label = 'phone ready';
-      hint = 'USB debugging is allowed. Phone, Profile, Apps, and Prepare stay on this page. This bar stays at the top while you scroll.';
+      hint = 'USB debugging is allowed. Phone, Profile, Bundled Apps, and Prepare stay on this page. This bar stays at the top while you scroll.';
       cls = 'ok';
       box = 'caught';
     } else if (ready && ready.checking) {
@@ -2509,6 +2574,7 @@ function init() {
       var fw = $('footer-wipe-always');
       if (fw) fw.classList.remove('hidden');
     }
+    initStepCollapsibles();
     showStep('start');
     return Promise.all([
       fetch('../device/install.sh').then(function (r) { return r.text(); }),
