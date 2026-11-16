@@ -99,7 +99,8 @@
       "sha256": "76e4c67eb23af7d8a6c934dca5cfcffae6d6c3164290500111be12b4f0916814",
       "license": "GPL-3.0",
       "author": "dozingcatsoftware (F-Droid base; Flip2 controls patch)",
-      "upstream": "f-droid.org com.dozingcatsoftware.bouncy version 43 + pipeline/bouncy"
+      "upstream": "f-droid.org com.dozingcatsoftware.bouncy version 43 + pipeline/bouncy",
+      "url": "https://flip2burn.online/packages/com.dozingcatsoftware.bouncy_43.apk"
     },
     {
       "id": "intertune",
@@ -207,7 +208,7 @@
     {
       "id": "companion-linux",
       "file": "flip2-companion-1.4.0-alpha.8-linux-x86_64.AppImage",
-      "purpose": "TCL Flip2 Manager desktop app (Linux x86_64 AppImage). Same wizard UI as flip2burn.online — Start · Bundled Apps · Device · Set up.",
+      "purpose": "TCL Flip2 Manager desktop app (Linux x86_64 AppImage). Same wizard UI as flip2burn.online \u2014 Start \u00b7 Bundled Apps \u00b7 Device \u00b7 Set up.",
       "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.8-linux-x86_64.AppImage",
       "size": 114165181,
       "sha256": "c9c09bfee1c6c92e48008ef32eb90f4b9fcd57f6ca49d83ff2f1b08b4bd7849f",
