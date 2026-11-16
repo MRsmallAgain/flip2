@@ -1,6 +1,6 @@
 id=FlipMouseArcade
 name=FlipMouse Arcade
-version=0.3.1-flip2
-versionCode=3
+version=0.3.3-flip2
+versionCode=5
 author=tim
-description=FlipMouse plus landscape gamepad in one daemon; right-soft 1s hold switches to landscape cursor. Config /data/local/flip2/gamepad.conf
+description=FlipMouse plus landscape gamepad in one daemon; left-soft 1s hold toggles input mode, right-soft is R1/Shortcuts only. Config /data/local/flip2/gamepad.conf

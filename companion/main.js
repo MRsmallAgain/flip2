@@ -1732,6 +1732,214 @@ ipcMain.handle('personal-restore-contacts', function (_e, payload) { return pers
 ipcMain.handle('personal-restore-messages', function (_e, payload) { return personalGuard(personalRestoreMessages)(payload); });
 ipcMain.handle('personal-restore-apps', function () { return personalGuard(personalRestoreApps)(); });
 
+// Device section host adb. Separate from wizardHostShell: that IPC stays an
+// arbitrary shell. These six reject wipe/fastboot/recovery/format/mkfs, keys
+// outside the Flip2 allowlist, and push/install paths outside the two
+// destinations below. WebUSB is the page's first choice; this runs only when
+// the browser client is not connected.
+const DEVICE_DOWNLOAD = '/sdcard/Download';
+const DEVICE_SCREEN_PNG = '/sdcard/Download/flip2-screen.png';
+const DEVICE_SHELL_DENY = ['wipe', 'fastboot', 'recovery', 'format', 'mkfs'];
+const DEVICE_KEY_ALLOW = { 1: true, 2: true, 4: true, 5: true, 6: true, 19: true, 20: true, 21: true, 22: true, 23: true };
+
+function deviceShellDenied(cmd) {
+  const low = String(cmd || '').toLowerCase();
+  for (let i = 0; i < DEVICE_SHELL_DENY.length; i++) {
+    if (low.indexOf(DEVICE_SHELL_DENY[i]) >= 0) return true;
+  }
+  return false;
+}
+
+function deviceStageApkPath() {
+  if (!DP || !DP.shellStaging) throw new Error('device paths are not loaded');
+  return DP.shellStaging + '/user-install.apk';
+}
+
+function deviceBytesFromBase64(b64) {
+  if (typeof b64 !== 'string' || !b64) throw new Error('file is empty');
+  const buf = Buffer.from(b64, 'base64');
+  if (!buf.length) throw new Error('file is empty');
+  return buf;
+}
+
+function deviceCommandText(res) {
+  const out = String((res && res.stdout) || '');
+  if (out.length) return out;
+  return String((res && res.stderr) || '');
+}
+
+function devicePermText(text) {
+  const t = String(text || '').toLowerCase();
+  return t.indexOf('permission') >= 0 || t.indexOf('not allowed') >= 0 || t.indexOf('operation not permitted') >= 0;
+}
+
+function deviceIsPng(buf) {
+  return Buffer.isBuffer(buf) && buf.length >= 8 &&
+    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+}
+
+function deviceSafeName(name) {
+  const base = String(name || '');
+  if (!base || base === '.' || base === '..' || base.indexOf('/') >= 0 || base.indexOf('\\') >= 0) {
+    throw new Error('file name must be a single name, not a path');
+  }
+  if (base.indexOf('\0') >= 0) throw new Error('file name must be a single name, not a path');
+  return base;
+}
+
+function deviceSafePackage(name) {
+  const pkg = String(name || '');
+  if (!pkg || pkg.indexOf('/') >= 0 || pkg.indexOf('..') >= 0 || !/^[A-Za-z0-9._]+$/.test(pkg)) {
+    throw new Error('package name is not safe');
+  }
+  return pkg;
+}
+
+function adbRunBuffer(args, timeoutMs) {
+  return new Promise(function (resolve, reject) {
+    const spawn = adbSpawnArgs(args);
+    execFile(spawn.file, spawn.args, {
+      timeout: timeoutMs || 30000,
+      maxBuffer: 8 * 1024 * 1024,
+      encoding: 'buffer',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }, function (err, stdout, stderr) {
+      if (err && err.killed) {
+        return reject(new Error(deviceBufferMessage(stderr, err)));
+      }
+      if (err && !stdout) {
+        return reject(new Error(deviceBufferMessage(stderr, err)));
+      }
+      resolve(Buffer.isBuffer(stdout) ? stdout : Buffer.alloc(0));
+    });
+  });
+}
+
+function deviceBufferMessage(stderr, err) {
+  let text = '';
+  if (Buffer.isBuffer(stderr)) text = stderr.toString('utf8').trim();
+  else if (stderr) text = String(stderr).trim();
+  return text || (err && err.message) || 'adb failed';
+}
+
+async function deviceShell(payload) {
+  const cmd = String(payload && payload.cmd || '');
+  if (!cmd.trim()) throw new Error('shell: cmd required');
+  if (deviceShellDenied(cmd)) throw new Error('that command is not allowed from Device');
+  let ms = Number(payload && payload.timeoutMs);
+  if (!Number.isFinite(ms) || ms <= 0) ms = 30000;
+  if (ms > 60000) ms = 60000;
+  const serial = await adbSerial();
+  try {
+    const res = await adbRunShell(['-s', serial, 'shell', cmd], ms);
+    const text = deviceCommandText(res);
+    if (res.code !== 0 && isRebootShellCmd(cmd) && isLikelyRebootDisconnectAdbError(text)) {
+      return { code: 0, text: 'reboot sent (USB dropped)' };
+    }
+    return { code: res.code, text: text };
+  } catch (e) {
+    const why = e && e.message ? e.message : String(e);
+    if (isRebootShellCmd(cmd) && isLikelyRebootDisconnectAdbError(why)) {
+      return { code: 0, text: 'reboot sent (USB dropped)' };
+    }
+    throw e;
+  }
+}
+
+async function deviceInstallApk(payload) {
+  const bytes = deviceBytesFromBase64(payload && payload.dataBase64);
+  const serial = await adbSerial();
+  const remote = deviceStageApkPath();
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
+  const local = path.join(dir, 'user-install.apk');
+  try {
+    await fsp.writeFile(local, bytes);
+    const mk = await adbRunShell(['-s', serial, 'shell', 'mkdir', '-p', DP.shellStaging], 30000);
+    if (mk.code !== 0) {
+      throw new Error((deviceCommandText(mk) || 'could not create staging dir').trim());
+    }
+    await adbRun(['-s', serial, 'push', local, remote], 180000);
+    const inner = 'pm install -r ' + shellQuote(remote);
+    let res = await adbRunShell(['-s', serial, 'shell', 'pm', 'install', '-r', remote], 180000);
+    let text = deviceCommandText(res);
+    if (res.code !== 0 && devicePermText(text)) {
+      res = await adbRunShell(
+        ['-s', serial, 'shell', 'su', '0', 'sh', '-c', shellQuote(inner)],
+        180000);
+      text = deviceCommandText(res);
+    }
+    return { code: res.code, text: text };
+  } finally {
+    await adbRun(['-s', serial, 'shell', 'rm', '-f', remote], 30000).catch(function () {});
+    await fsp.rm(dir, { recursive: true, force: true }).catch(function () {});
+  }
+}
+
+async function deviceUninstallPackage(payload) {
+  const pkg = deviceSafePackage(payload && payload.package);
+  const serial = await adbSerial();
+  const res = await adbRunShell(['-s', serial, 'shell', 'pm', 'uninstall', pkg], 60000);
+  return { code: res.code, text: deviceCommandText(res) };
+}
+
+async function devicePushFile(payload) {
+  const name = deviceSafeName(payload && payload.name);
+  const bytes = deviceBytesFromBase64(payload && payload.dataBase64);
+  const dest = DEVICE_DOWNLOAD + '/' + name;
+  const serial = await adbSerial();
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
+  const local = path.join(dir, name);
+  try {
+    await fsp.writeFile(local, bytes);
+    const mk = await adbRunShell(['-s', serial, 'shell', 'mkdir', '-p', DEVICE_DOWNLOAD], 30000);
+    if (mk.code !== 0) {
+      throw new Error((deviceCommandText(mk) || 'could not create Download').trim());
+    }
+    await adbRun(['-s', serial, 'push', local, dest], 180000);
+    return { code: 0, text: dest };
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true }).catch(function () {});
+  }
+}
+
+async function deviceScreencapFile(serial) {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
+  const local = path.join(dir, 'flip2-screen.png');
+  try {
+    const cap = await adbRunShell(['-s', serial, 'shell', 'screencap', '-p', DEVICE_SCREEN_PNG], 30000);
+    if (cap.code !== 0) {
+      throw new Error((deviceCommandText(cap) || 'screencap failed').trim());
+    }
+    await adbRun(['-s', serial, 'pull', DEVICE_SCREEN_PNG, local], 30000);
+    const buf = await fsp.readFile(local);
+    if (!deviceIsPng(buf)) throw new Error('screenshot was not a PNG');
+    return { dataBase64: buf.toString('base64') };
+  } finally {
+    await adbRun(['-s', serial, 'shell', 'rm', '-f', DEVICE_SCREEN_PNG], 30000).catch(function () {});
+    await fsp.rm(dir, { recursive: true, force: true }).catch(function () {});
+  }
+}
+
+async function deviceScreencap() {
+  const serial = await adbSerial();
+  let direct = null;
+  try {
+    direct = await adbRunBuffer(['-s', serial, 'exec-out', 'screencap', '-p'], 30000);
+  } catch (e) {
+    direct = null;
+  }
+  if (deviceIsPng(direct)) return { dataBase64: direct.toString('base64') };
+  return deviceScreencapFile(serial);
+}
+
+async function deviceKey(payload) {
+  const n = Number(payload && payload.code);
+  if (!Number.isInteger(n) || !DEVICE_KEY_ALLOW[n]) throw new Error('key is not allowed');
+  const serial = await adbSerial();
+  const res = await adbRunShell(['-s', serial, 'shell', 'input', 'keyevent', String(n)], 15000);
+  return { code: res.code, text: deviceCommandText(res) };
+}
+
 function createWindow() {
   const iconPath = companionIconPath();
   const win = new BrowserWindow({
@@ -1792,6 +2000,7 @@ function createWindow() {
           'return {' +
           'title: document.title,' +
           'steps: document.querySelectorAll("#steps span[data-step]").length,' +
+          'stepLabels: Array.prototype.map.call(document.querySelectorAll("#steps span[data-step]"), function (el) { return (el.textContent || "").trim(); }),' +
           'creditRows: document.querySelectorAll("#credit-table tbody tr").length,' +
           'dlRows: document.querySelectorAll("#dl-table tbody tr").length,' +
           'catalog: typeof CATALOG === "object" && CATALOG.list.length,' +
@@ -1881,6 +2090,12 @@ app.whenReady().then(function () {
   ipcMain.handle('wizard-host-remove-module', function (_e, payload) { return wizardHostRemoveModule(payload); });
   ipcMain.handle('wizard-host-set-device-owner', function (_e, payload) { return wizardHostSetDeviceOwner(payload); });
   ipcMain.handle('wizard-host-drop-root-adb', function (_e, payload) { return wizardHostDropRootAdb(payload); });
+  ipcMain.handle('device-shell', function (_e, payload) { return deviceShell(payload); });
+  ipcMain.handle('device-install-apk', function (_e, payload) { return deviceInstallApk(payload); });
+  ipcMain.handle('device-uninstall-package', function (_e, payload) { return deviceUninstallPackage(payload); });
+  ipcMain.handle('device-push-file', function (_e, payload) { return devicePushFile(payload); });
+  ipcMain.handle('device-screencap', function () { return deviceScreencap(); });
+  ipcMain.handle('device-key', function (_e, payload) { return deviceKey(payload); });
   createWindow();
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

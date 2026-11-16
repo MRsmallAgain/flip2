@@ -295,6 +295,16 @@ if want astro_loop; then
 else
   echo "NOTE: skip astro_loop"
 fi
+if want scummvm; then
+  install_apk scummvm.apk            org.scummvm.scummvm
+else
+  echo "NOTE: skip scummvm"
+fi
+if want shattered_pd; then
+  install_apk shattered-pixel-dungeon.apk com.shatteredpixel.shatteredpixeldungeon
+else
+  echo "NOTE: skip shattered_pd"
+fi
 
 if want ime; then
 # --- IME settings (manifest 70): values mirror payload data/settings.txt ---

@@ -60,6 +60,7 @@ var ADB = {
   authChain: null,
   _sendChain: null,             // tail of the serialized USB write queue
   _adbAlt: 0,
+  connected: false,             // true after CNXN; cleared if connect or the read loop fails
   log: function () {},          // main.js replaces this
 
   pickFromGranted: function () {
@@ -115,6 +116,7 @@ var ADB = {
 
   connect: function () {
     var self = this;
+    this.connected = false;
     this.tokensSeen = 0; this.pubSent = false;
     this.connectPendingAuth = false;
     this.authChain = null;
@@ -236,6 +238,7 @@ var ADB = {
   },
 
   _failConnect: function (err) {
+    this.connected = false;
     if (this.connectResolve) {
       var r = this.connectResolve;
       this.connectResolve = null;
@@ -331,6 +334,7 @@ var ADB = {
     }
     if (cmd === A_CNXN) {
       this.maxData = Math.min(arg1, 256 * 1024);
+      this.connected = true;
       this.log('Connected. adbd max data ' + arg1 + ' bytes.');
       if (this.connectResolve) {
         var r = this.connectResolve;
@@ -570,6 +574,80 @@ var ADB = {
     });
   },
 
+  // Captures shell text plus an exit code. The marker matches PIPE.shellChecked.
+  // A non-zero code is returned, not thrown. Throws only when the marker never arrives.
+  shellText: function (cmd, opts) {
+    opts = opts || {};
+    var marker = opts.marker || 'FLIP2RC';
+    var tag = marker + ':';
+    var lines = [];
+    var rc = null;
+    function isMarker(line) {
+      if (line == null) return false;
+      var at = line.lastIndexOf(tag);
+      return at >= 0 && /^[0-9]+$/.test(line.slice(at + tag.length));
+    }
+    var idle = opts.idleTimeoutMs ? opts.idleTimeoutMs : 30 * 1000;
+    return this.shell(cmd + ' 2>&1; echo "' + tag + '$?"', function (line) {
+      if (line == null) return;
+      if (isMarker(line)) {
+        var at = line.lastIndexOf(tag);
+        rc = parseInt(line.slice(at + tag.length), 10);
+        var prefix = line.slice(0, at);
+        if (prefix) lines.push(prefix);
+        return;
+      }
+      lines.push(line);
+    }, {
+      settleOn: isMarker,
+      idleTimeoutMs: idle
+    }).then(function () {
+      if (rc === null) throw new Error('no exit status from: ' + cmd);
+      return { code: rc, text: lines.join('\n') };
+    });
+  },
+
+  // exec: is not a pty, so binary output stays intact and the stream closes
+  // when the command exits. Do not send these bytes through TextDecoder.
+  execBytes: function (cmd, opts) {
+    opts = opts || {};
+    var idleMs = opts.idleTimeoutMs ? opts.idleTimeoutMs : 30 * 1000;
+    return this.open('exec:' + cmd).then(function (st) {
+      return new Promise(function (resolve, reject) {
+        var chunks = [];
+        var settled = false;
+        var idleTimer = null;
+        function finish(err) {
+          if (settled) return;
+          settled = true;
+          if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+          if (!st.closed) {
+            try {
+              var p = st.close();
+              if (p && typeof p.catch === 'function') p.catch(function () {});
+            } catch (e) { /* already closed */ }
+          }
+          if (err) reject(err);
+          else resolve(concatArrays(chunks));
+        }
+        function armIdle() {
+          if (!idleMs || settled) return;
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(function () {
+            finish(new Error('exec idle: no output for ' + Math.round(idleMs / 1000) + ' s'));
+          }, idleMs);
+        }
+        st.ondata = function (chunk) {
+          if (settled) return;
+          armIdle();
+          if (chunk && chunk.length) chunks.push(chunk);
+        };
+        st.onclose = function () { finish(null); };
+        armIdle();
+      });
+    });
+  },
+
   _syncFrame: function (id, data) {
     // id: 4-char string ('SEND' or 'DATA'), data: Uint8Array
     var b = str2ab(id);
@@ -662,5 +740,77 @@ var ADB = {
       }
       throw new Error('unexpected sync status ' + id);
     });
+  },
+
+  // sync RECV. DATA chunks are appended; DONE's length field is mtime (no
+  // payload, no trailing OKAY). FAIL is a length-prefixed message.
+  pullFile: function (remotePath) {
+    var self = this;
+    var tries = 3;
+    function attempt(n) {
+      return self._pullFileOnce(remotePath).catch(function (e) {
+        var msg = (e && e.message) || String(e);
+        var transport = /timed out opening sync|before it opened|USB write stalled|sync stalled/i.test(msg);
+        if (n > 1 && transport) {
+          self.log('pull ' + remotePath.split('/').pop() + ': ' + msg);
+          self.log('clearing USB stall — retry ' + (tries - n + 2) + '/' + tries + '…');
+          return self.clearStall()
+            .then(function () { return new Promise(function (r) { setTimeout(r, 1200); }); })
+            .then(function () { return attempt(n - 1); });
+        }
+        throw e;
+      });
+    }
+    return attempt(tries);
+  },
+
+  _pullFileOnce: function (remotePath) {
+    var self = this;
+    var wTimer = null, wReject = null;
+    var wFail = new Promise(function (resolve, reject) { wReject = reject; });
+    var arm = function () {
+      if (wTimer) clearTimeout(wTimer);
+      wTimer = setTimeout(function () {
+        wReject(new Error('sync stalled: no USB progress for 45 s'));
+      }, 45000);
+    };
+    var disarm = function () { if (wTimer) clearTimeout(wTimer); wTimer = null; };
+    arm();
+    return Promise.race([this.open('sync:'), wFail]).then(function (st) {
+      arm();
+      var chunks = [];
+      function readChunk() {
+        arm();
+        return st.read(4).then(function (idb) {
+          arm();
+          var id = String.fromCharCode(idb[0], idb[1], idb[2], idb[3]);
+          return st.read(4).then(function (lb) {
+            arm();
+            var n = new DataView(lb.buffer, lb.byteOffset, 4).getUint32(0, true);
+            if (id === 'DATA') {
+              return st.read(n).then(function (payload) {
+                arm();
+                chunks.push(payload);
+                return readChunk();
+              });
+            }
+            if (id === 'DONE') return concatArrays(chunks);
+            if (id === 'FAIL') {
+              return st.read(n).then(function (msg) {
+                throw new Error('sync FAIL: ' + new TextDecoder().decode(msg));
+              });
+            }
+            throw new Error('unexpected sync status ' + id);
+          });
+        });
+      }
+      var work = st.write(self._syncFrame('RECV', str2ab(remotePath))).then(function () {
+        return readChunk();
+      }).then(function (bytes) {
+        return st.close().then(function () { return bytes; });
+      });
+      return Promise.race([work, wFail]);
+    }).then(function (res) { disarm(); return res; },
+            function (e) { disarm(); throw e; });
   }
 };

@@ -162,8 +162,8 @@ if [ -f "$MOD/payload/data/gamepad.conf" ]; then
     [ -n "$line" ] || continue
     key="${line%%=*}"
     case "$key" in
-    block_cursor_toggle_packages)
-      sed -i "/^block_cursor_toggle_packages=/d" "$GP" 2>/dev/null || true
+    block_cursor_toggle_packages|portrait_gamepad_packages|native_keypad_bypass_packages|portrait_sdl_pointer_packages)
+      sed -i "/^${key}=/d" "$GP" 2>/dev/null || true
       echo "$line" >> "$GP"
       echo "gamepad.conf: $line"
       ;;

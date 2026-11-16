@@ -11,7 +11,13 @@ echo "$(date) service.sh start (module=$MOD)" >>"$LOG"
 
 if [ ! -f /data/local/flip2/gamepad.conf ]; then
   mkdir -p /data/local/flip2
-  printf 'landscape_auto=1\nenabled=0\n' > /data/local/flip2/gamepad.conf
+  cat > /data/local/flip2/gamepad.conf <<'EOF'
+landscape_auto=1
+enabled=0
+# block_cursor_toggle_packages=com.dozingcatsoftware.bouncy
+# portrait_gamepad_packages=com.shatteredpixel.shatteredpixeldungeon
+# portrait_sdl_pointer_packages=org.scummvm.scummvm
+EOF
 fi
 
 i=0

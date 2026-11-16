@@ -138,6 +138,22 @@ public class NullKeyboardService extends InputMethodService {
     private long mLastZeroDownMs;
     private boolean mAwaitingDoubleZeroPeriod;
 
+    /** Bound client package from last {@link #onStartInput}; used for game key passthrough. */
+    private String mBoundClientPackage;
+    /** Client uses {@link EditorInfo#TYPE_NULL} (SDL / games, not a text field). */
+    private boolean mBoundClientTypeNull;
+
+    /**
+     * TYPE_NULL packages whose D-pad, confirm, BACK, and Star must reach the
+     * activity. Launcher DecorView and SystemUI are also TYPE_NULL and stay
+     * off this list. Arcade moves the cursor with uinput; this list only stops
+     * the IME eating keys the activity still needs. Add a package when you set
+     * image_policy.portrait_sdl_pointer for an app that binds this IME.
+     */
+    private static final String[] SDL_POINTER_PACKAGES = {
+            "org.scummvm.scummvm",
+    };
+
     // ---------- lifecycle ----------
 
     @Override
@@ -203,6 +219,8 @@ public class NullKeyboardService extends InputMethodService {
     @Override
     public void onFinishInput() {
         Log.i("Flip2IME", "onFinishInput");
+        mBoundClientPackage = null;
+        mBoundClientTypeNull = false;
         hideNotice();
         restoreDtmfTone();
         restoreSoundEffects();
@@ -219,6 +237,8 @@ public class NullKeyboardService extends InputMethodService {
         // don't mute DTMF for them and don't force the IME open — otherwise the
         // dialpad stays silenced on the home screen.
         boolean textField = cls != EditorInfo.TYPE_NULL;
+        mBoundClientPackage = attribute.packageName;
+        mBoundClientTypeNull = !textField;
         if (textField) {
             muteDtmfTone();
         } else {
@@ -355,6 +375,9 @@ public class NullKeyboardService extends InputMethodService {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (shouldPassthroughSdlPointerKey(keyCode)) {
+            return false;
+        }
         if (forwardKey(keyCode, event)) {
             return true;
         }
@@ -363,6 +386,9 @@ public class NullKeyboardService extends InputMethodService {
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (shouldPassthroughSdlPointerKey(keyCode)) {
+            return false;
+        }
         if (forwardKey(keyCode, event)) {
             return true;
         }
@@ -650,6 +676,47 @@ public class NullKeyboardService extends InputMethodService {
                 && !Character.isWhitespace(before.charAt(0))
                 && text.charAt(0) != ' ';
         ic.commitText(needSpace ? (" " + text) : text, 1);
+    }
+
+    /** True when this TYPE_NULL SDL pointer client must receive the key. */
+    private boolean isSdlPointerClient() {
+        if (!mBoundClientTypeNull || mBoundClientPackage == null) {
+            return false;
+        }
+        for (String pkg : SDL_POINTER_PACKAGES) {
+            if (pkg.equals(mBoundClientPackage)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * D-pad, confirm, BACK, and Star for {@link #SDL_POINTER_PACKAGES}.
+     * Return false from onKeyDown/onKeyUp so the activity gets the event.
+     * Star is {@link KeyEvent#KEYCODE_STAR} at the framework; scan 522 is matrix-only.
+     * BACK skips the ScummVM opening movie.
+     */
+    private boolean shouldPassthroughSdlPointerKey(int keyCode) {
+        if (!isSdlPointerClient()) {
+            return false;
+        }
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_SPACE:
+            case KeyEvent.KEYCODE_ESCAPE:
+            case KeyEvent.KEYCODE_TAB:
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_STAR:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private boolean forwardKey(int keyCode, KeyEvent event) {

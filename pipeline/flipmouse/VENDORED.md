@@ -26,14 +26,21 @@ both.
   pound (523) scrolls down, keypad DEL (138) toggles drag,
   Volume-Up/Down adjusts speed. Raw key 48 is the right soft key
   (SOFT_RIGHT, the Shortcuts-bar trigger) and passes through untouched so
-  launcher shortcuts still fire while the cursor is on. (In the Arcade build
-  this applies in portrait mouse modes only — in gamepad mode a 48 *tap* is
-  R1, `BTN_TR`; see [../landscape-gamepad/README.md](../landscape-gamepad/README.md).)
+  launcher shortcuts still fire while the cursor is on. In **FlipMouseArcade**,
+  only **left-soft hold** toggles input mode; right soft (48) is **R1 tap** in
+  gamepad or Shortcuts when passed through — see
+  [../../docs/FLIPMOUSE-ARCADE.md](../../docs/FLIPMOUSE-ARCADE.md) and
+  [../landscape-gamepad/README.md](../landscape-gamepad/README.md).
 - **Exit:** star tap (522) releases the grabs, back to passive.
 - v1.3: held-key auto-repeat synthesized in-daemon (400 ms delay, 10 steps/s,
   wheel on slowed cadence) — the keypads have no kernel EV_REP and Android's
   repeater never sees grabbed keys; releases are swallowed, which also fixed
-  the double-step-per-tap quirk.
+  the double-step-per-tap quirk. Those 400/100 ms numbers are this daemon
+  (`REPEAT_DELAY_MS` / `REPEAT_INTERVAL_MS` in `pipeline/flipmouse/main.c`).
+  FlipMouse Arcade is separate: homescreen cursor 200/50 ms at speed 20, and
+  a portrait SDL pointer profile on top of that. Do not copy Arcade's numbers
+  back here. See
+  [../../docs/FLIPMOUSE-ARCADE.md](../../docs/FLIPMOUSE-ARCADE.md).
 - Upstream laptop-keymap path removed (not needed here); scancodes verified
   against this unit's `/system/usr/keylayout/matrix-keypad.kl` and `mtk-kpd.kl`.
 

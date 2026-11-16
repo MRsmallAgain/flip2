@@ -42,7 +42,7 @@ flip2 recovery           # after bad launcher Magisk module
 
 - [README.md](README.md) — overview
 - [docs/PIPELINE.md](docs/PIPELINE.md) — stages and layout
-- [docs/SETUP-WIZARD.md](docs/SETUP-WIZARD.md) · [docs/MANAGER.md](docs/MANAGER.md) — Companion / TCL Flip2 Manager (Start · Apps · Set up)
+- [docs/SETUP-WIZARD.md](docs/SETUP-WIZARD.md) · [docs/MANAGER.md](docs/MANAGER.md) — Companion / TCL Flip2 Manager (Start · Apps · Device · Set up)
 - [docs/SHERPA-STT.md](docs/SHERPA-STT.md) — on-device dictation (authoritative; [WHISPER-STT.md](docs/WHISPER-STT.md) is historical)
 - [docs/LESSONS-LEARNED.md](docs/LESSONS-LEARNED.md) — ops lessons (backup, fastbootd, Sherpa/wizard gates)
 - [docs/AGENT-OPERATING-DOCTRINE.md](docs/AGENT-OPERATING-DOCTRINE.md) — gates, recursion, validity for agents
