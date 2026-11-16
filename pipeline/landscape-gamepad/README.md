@@ -63,9 +63,10 @@ Diagonals are why the numpad keeps its own per-key bits: one key sets two direct
 
 | Key | Gamepad |
 |-----|---------|
-| Upper-left soft (139) | L1 (`BTN_TL`) |
-| Right soft (48), **tap** | R1 (`BTN_TR`) — emitted on release, so it never fires while you are still holding for the cursor gesture |
-| Right soft (48), **hold ≥1s** | Switches to the landscape cursor (see below) |
+| Upper-left soft (139), **short tap** | L1 (`BTN_TL`) pulse |
+| Upper-left soft (139), **hold ≥1s** | Toggles **input mode** (mouse / landscape cursor / back to gamepad) — see [gesture card](../../docs/FLIPMOUSE-ARCADE.md) |
+| Right soft (48), **tap** | R1 (`BTN_TR`) on release only — **never** changes cursor/gamepad mode |
+| Right soft (48), **hold** | No mode switch; Shortcuts bar when not in gamepad grab |
 | **#** | RT — `BTN_TR2` **and** `ABS_GAS` |
 | Star (522) | Mapped as face X today; prefer L2 in companion preset (TODO) |
 | Mail / Messenger (30) | RT (`BTN_TR2` + `ABS_GAS`) |
@@ -80,7 +81,11 @@ The trigger axes are declared **`0..32767`, not the sticks' symmetric `-32767..3
 
 Per-key customization will live in the **companion APK** + config file (not implemented in v0.1 — mappings are compiled in `main.c`).
 
-> **Shipped daemon:** the module that actually ships is `FlipMouseArcade` ([`../flipmouse-arcade/`](../flipmouse-arcade/)), a single daemon that covers gamepad, landscape cursor and portrait mouse. This directory is the earlier standalone gamepad (legacy, not installed). The key table above is common to both, except that the Arcade daemon decides the right-soft tap/hold split itself: tap → R1, hold → cursor.
+> **Shipped daemon:** the module that actually ships is `FlipMouseArcade` ([`../flipmouse-arcade/`](../flipmouse-arcade/)), a single daemon that covers gamepad, landscape cursor and portrait mouse. This directory is the earlier standalone gamepad (legacy, not installed). Mode changes are **left-soft hold only**; right soft is **R1 tap** in gamepad mode — see [`../../docs/FLIPMOUSE-ARCADE.md`](../../docs/FLIPMOUSE-ARCADE.md).
+
+## Portrait gamepad (selected apps)
+
+When the foreground package is listed in `portrait_gamepad_packages`, the daemon enters gamepad mode in **portrait** and maps D-pad / numpad **without** the 90° CCW rotation (Up → −Y, Down → +Y, Left → −X, Right → +X). Face buttons and triggers match the landscape table above.
 
 ## Commands
 

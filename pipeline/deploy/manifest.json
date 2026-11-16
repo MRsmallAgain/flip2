@@ -304,6 +304,55 @@
       }
     },
     {
+      "name": "scummvm",
+      "artifact": "user-apk",
+      "package": "org.scummvm.scummvm",
+      "incoming": "scummvm.apk",
+      "label": "ScummVM",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "full",
+        "wizard"
+      ],
+      "install_order": 872,
+      "image_policy": {
+        "portrait_sdl_pointer": true
+      },
+      "notes": "Host APK scummvm-flip2/apk; game data in app-private dir. Portrait SDL pointer: auto mouse, first tap half of speed/3, repeat 80/32 ms, OK debounce 280 ms. Homescreen mouse stays speed 20 at 200/50 ms. Do not set native_keypad_bypass. project-flip2-scummvm.",
+      "external": {
+        "note": "ScummVM 2026.3.0 armv7",
+        "asset": "org.scummvm.scummvm_2026030.apk",
+        "sha256": "d559ae70ea1383b823eda140f3b7562da355c4747cda77345391e63f5882430f"
+      }
+    },
+    {
+      "name": "shattered_pd",
+      "artifact": "user-apk",
+      "package": "com.shatteredpixel.shatteredpixeldungeon",
+      "incoming": "shattered-pixel-dungeon.apk",
+      "label": "Shattered Pixel Dungeon",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "full",
+        "wizard"
+      ],
+      "install_order": 873,
+      "image_policy": {
+        "portrait_gamepad": true
+      },
+      "notes": "Portrait gamepad via FlipMouseArcade; prefetch APK to deploy/sources to pin sha256.",
+      "external": {
+        "url": "https://f-droid.org/repo/com.shatteredpixel.shatteredpixeldungeon_1770.apk",
+        "asset": "com.shatteredpixel.shatteredpixeldungeon.apk"
+      }
+    },
+    {
       "name": "appshelf",
       "artifact": "user-apk",
       "package": "io.github.xtratter.appshelf",
@@ -548,6 +597,6 @@
     "bundle": "Tier D — per-component zips + APKs + SHA256SUMS",
     "base": "Tier B base — wizard Base profile: FlipMouse (not Arcade), no Astro Loop; modules + Sherpa like full"
   },
-  "version": "1.4.0-alpha.5-flip2",
+  "version": "1.4.0-alpha.6-flip2",
   "versionCode": 20261116
 }

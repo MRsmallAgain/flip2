@@ -135,3 +135,33 @@ PKGS="$(jq -r --arg flavor "$EMIT_FLAVOR" '
 if [[ -n "$PKGS" ]]; then
   echo "block_cursor_toggle_packages=$PKGS" >> "$DATA/gamepad.conf"
 fi
+
+PORTRAIT_GP="$(jq -r --arg flavor "$EMIT_FLAVOR" '
+  [.components[]
+   | select([.tiers[]] | index($flavor))
+   | select(.image_policy.portrait_gamepad == true)
+   | .package
+   | select(. != null and . != "")] | unique | join(",")' "$MANIFEST")"
+if [[ -n "$PORTRAIT_GP" ]]; then
+  echo "portrait_gamepad_packages=$PORTRAIT_GP" >> "$DATA/gamepad.conf"
+fi
+
+NATIVE_BYPASS="$(jq -r --arg flavor "$EMIT_FLAVOR" '
+  [.components[]
+   | select([.tiers[]] | index($flavor))
+   | select(.image_policy.native_keypad_bypass == true)
+   | .package
+   | select(. != null and . != "")] | unique | join(",")' "$MANIFEST")"
+if [[ -n "$NATIVE_BYPASS" ]]; then
+  echo "native_keypad_bypass_packages=$NATIVE_BYPASS" >> "$DATA/gamepad.conf"
+fi
+
+SDL_PTR="$(jq -r --arg flavor "$EMIT_FLAVOR" '
+  [.components[]
+   | select([.tiers[]] | index($flavor))
+   | select(.image_policy.portrait_sdl_pointer == true)
+   | .package
+   | select(. != null and . != "")] | unique | join(",")' "$MANIFEST")"
+if [[ -n "$SDL_PTR" ]]; then
+  echo "portrait_sdl_pointer_packages=$SDL_PTR" >> "$DATA/gamepad.conf"
+fi

@@ -182,6 +182,16 @@ if want astro_loop; then
 else
   echo "NOTE: skip astro_loop"
 fi
+if want scummvm; then
+  check "ScummVM installed" pm path org.scummvm.scummvm
+else
+  echo "NOTE: skip scummvm"
+fi
+if want shattered_pd; then
+  check "Shattered Pixel Dungeon installed" pm path com.shatteredpixel.shatteredpixeldungeon
+else
+  echo "NOTE: skip shattered_pd"
+fi
 if want tagdrawer; then
   tagdrawer_ok=0
   if pm path com.iwadjp.pixeltagdrawer >/dev/null 2>&1; then

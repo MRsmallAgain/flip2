@@ -9,5 +9,5 @@ adb push "$ZIP" /sdcard/Download/FlipMouseArcade.zip
 adb shell su -c 'magisk --install-module /sdcard/Download/FlipMouseArcade.zip' >/dev/null 2>&1 || true
 adb push "$FLIP2_ROOT/pipeline/flipmouse-arcade/scripts/ondevice-install.sh" /data/local/tmp/fma-install.sh >/dev/null
 adb shell su -c 'sh /data/local/tmp/fma-install.sh' | tr -d '\r'
-echo "Installed + started. Arcade: gamepad in landscape; soft-left 1s portrait mouse; soft-right 1s landscape cursor."
+echo "Installed + started. Gestures: docs/FLIPMOUSE-ARCADE.md — left-soft 1s = mode; right-soft = R1/Shortcuts only."
 echo "Rollback: flip2 flipmouse-arcade rollback"

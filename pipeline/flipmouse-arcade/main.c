@@ -20,10 +20,13 @@
  * flip2 landscape gamepad (same daemon — pipeline/landscape-gamepad):
  *   - when landscape (dumpsys) and gamepad.conf landscape_auto=1: auto gamepad
  *     remap (virtual uinput gamepad); no separate Flip2Gamepad process.
- *   - hold right soft key (48) HOLD_TOGGLE_MS in landscape gamepad mode: drop
- *     remap and use virtual mouse with D-pad rotated for landscape (cursor only).
- *   - tap right soft key (48) in gamepad mode: R1 (BTN_TR), press + release.
- *   - soft-left hold still toggles full passive ↔ mouse (portrait-oriented mouse).
+ *   - tap right soft key (48) in gamepad mode: R1 (BTN_TR) only; never switches mode.
+ *   - soft-left hold toggles mode: passive/portrait ↔ portrait mouse; landscape
+ *     gamepad ↔ landscape cursor (D-pad rotated for clicks). Right soft passes
+ *     through in mouse/cursor modes (Shortcuts bar).
+ *   - portrait_sdl_pointer_packages: while that app is foreground in portrait,
+ *     auto mouse mode with the SDL step profile. Does not set mouse_manual,
+ *     so leaving the app returns the launcher to the D-pad.
  */
 
 // #define DEBUG 1
@@ -53,6 +56,8 @@
 #define SPEED_FILE "/data/local/flip2/flipmouse-speed"
 #define GAMEPAD_CONFIG "/data/local/flip2/gamepad.conf"
 #define POLL_LANDSCAPE_MS 1500
+/* Portrait SDL pointer: stretch dumpsys cadence while that app is foreground. */
+#define POLL_LANDSCAPE_SDL_MS 4000
 #define BACK_REAL_HOLD_MS 2000
 #define SOFT_RIGHT_CODE 48
 #define MESSENGER_CODE 30
@@ -116,10 +121,21 @@
  * sees the keys while the keypads are grabbed, so holding a direction key
  * would otherwise move exactly one step. Synthesize Android-like repeat:
  * one step on press, then repeats after REPEAT_DELAY_MS and every
- * REPEAT_INTERVAL_MS until release. */
-#define REPEAT_DELAY_MS 400
-#define REPEAT_INTERVAL_MS 100
+ * REPEAT_INTERVAL_MS until release.
+ *
+ * Homescreen / manual portrait mouse, ONTK-verified 2026-11-15: 200/50 ms
+ * and speed 20 (FLIPMOUSE_DEFAULT_SPEED). Do not retune this for SDL apps.
+ *
+ * Portrait SDL pointer packages use SDL_PTR_* below: smaller steps, faster
+ * repeat, half step on the first tap, debounced click. */
+#define REPEAT_DELAY_MS 200
+#define REPEAT_INTERVAL_MS 50
 #define WHEEL_REPEAT_INTERVAL_MS (WHEEL_SLOWDOWN_FACTOR * REPEAT_INTERVAL_MS)
+/* Portrait SDL pointer (not homescreen). Repeat REL = max(1, speed/DEN). */
+#define SDL_PTR_REPEAT_DELAY_MS 80
+#define SDL_PTR_REPEAT_INTERVAL_MS 32
+#define SDL_PTR_MOVE_DEN 3
+#define SDL_PTR_CLICK_DEBOUNCE_MS 280
 /* Upper-left soft key (139/KEY_MENU): hold this long, then release, to toggle
  * mouse mode (enable when passive, release the cursor when active). */
 #define SOFTKEY_CODE 139
@@ -162,8 +178,8 @@ typedef struct
   unsigned trig_l_held; /* bitmask of keys asking for the left trigger */
   unsigned trig_r_held; /* bitmask of keys asking for the right trigger */
   long long back_hold_since;
-  long long right_hold_since;
   int landscape_cursor;
+  int portrait_layout; /* 1 = standard Up/-Y; 0 = 90° CCW landscape remap */
 } gamepad_t;
 
 /* Device structure */
@@ -186,6 +202,8 @@ typedef struct
   long long next_repeat_ms;  /* active: when the next repeat step is due */
   int speed;
   int drag_mode;
+  int star_held; /* Star down: Vol up/down adjust cursor speed (all mouse modes) */
+  long long last_sdl_click_ms;
   struct libevdev *dev;
   struct libevdev_uinput *uidev;
 } mouse_t;
@@ -200,13 +218,17 @@ typedef struct
   int cfg_manual_gp;
   int cfg_landscape_auto;
   char cfg_block_cursor_pkgs[512];
+  char cfg_portrait_gamepad_pkgs[512];
+  char cfg_native_bypass_pkgs[512];
+  char cfg_portrait_sdl_pointer_pkgs[512];
+  int keypad_detached;
   int landscape_cursor_override;
+  int mouse_manual; /* left-soft toggle only; portrait SDL auto-mouse does not set */
   long long last_landscape_poll;
+  int sdl_ptr_smoothing_active; /* set each sync_apply_mode; no dumpsys per repeat */
   FILE *log_fp;
   volatile sig_atomic_t running;
 } app_state_t;
-
-#define CHANGED_TO_GAMEPAD -3
 
 /* Device list */
 static const char *supported_devices[] = {
@@ -390,6 +412,7 @@ static int mouse_init(void)
   app_state.mouse.drag_mode = 0;
   app_state.mouse.held_code = 0;
   app_state.mouse.next_repeat_ms = 0;
+  app_state.mouse.star_held = 0;
 
   log_message("Virtual mouse initialized (speed=%d; passive — hold upper-left soft key 1s and release to activate)",
               app_state.mouse.speed);
@@ -416,6 +439,8 @@ static void mouse_cleanup(void)
 /* --- Activation (local patch, replaces upstream's star-tap toggle) --- */
 static long long now_ms(void);
 static void sync_apply_mode(void);
+static void sync_keypad_bypass(void);
+static void devices_rebuild_fd_set(fd_set *fds, int *maxfd);
 
 static long long now_ms(void)
 {
@@ -444,6 +469,9 @@ static void cfg_load_gamepad(void)
   app_state.cfg_manual_gp = 0;
   app_state.cfg_landscape_auto = 1;
   app_state.cfg_block_cursor_pkgs[0] = '\0';
+  app_state.cfg_portrait_gamepad_pkgs[0] = '\0';
+  app_state.cfg_native_bypass_pkgs[0] = '\0';
+  app_state.cfg_portrait_sdl_pointer_pkgs[0] = '\0';
   if (!f)
     return;
   char line[256];
@@ -461,6 +489,33 @@ static void cfg_load_gamepad(void)
         n = sizeof app_state.cfg_block_cursor_pkgs - 1;
       memcpy(app_state.cfg_block_cursor_pkgs, val, n);
       app_state.cfg_block_cursor_pkgs[n] = '\0';
+    }
+    else if (strncmp(line, "portrait_gamepad_packages=", 26) == 0)
+    {
+      char *val = line + 26;
+      size_t n = strcspn(val, "\r\n");
+      if (n >= sizeof app_state.cfg_portrait_gamepad_pkgs)
+        n = sizeof app_state.cfg_portrait_gamepad_pkgs - 1;
+      memcpy(app_state.cfg_portrait_gamepad_pkgs, val, n);
+      app_state.cfg_portrait_gamepad_pkgs[n] = '\0';
+    }
+    else if (strncmp(line, "native_keypad_bypass_packages=", 30) == 0)
+    {
+      char *val = line + 30;
+      size_t n = strcspn(val, "\r\n");
+      if (n >= sizeof app_state.cfg_native_bypass_pkgs)
+        n = sizeof app_state.cfg_native_bypass_pkgs - 1;
+      memcpy(app_state.cfg_native_bypass_pkgs, val, n);
+      app_state.cfg_native_bypass_pkgs[n] = '\0';
+    }
+    else if (strncmp(line, "portrait_sdl_pointer_packages=", 30) == 0)
+    {
+      char *val = line + 30;
+      size_t n = strcspn(val, "\r\n");
+      if (n >= sizeof app_state.cfg_portrait_sdl_pointer_pkgs)
+        n = sizeof app_state.cfg_portrait_sdl_pointer_pkgs - 1;
+      memcpy(app_state.cfg_portrait_sdl_pointer_pkgs, val, n);
+      app_state.cfg_portrait_sdl_pointer_pkgs[n] = '\0';
     }
   }
   fclose(f);
@@ -511,9 +566,11 @@ static int landscape_now(void)
   return landscape_cached;
 }
 
-static int focus_line_has_blocklisted_pkg(const char *buf)
+static int focus_line_has_pkg_in_list(const char *buf, const char *list)
 {
-  const char *pkg = app_state.cfg_block_cursor_pkgs;
+  if (!list[0])
+    return 0;
+  const char *pkg = list;
   for (;;)
   {
     const char *comma = strchr(pkg, ',');
@@ -533,44 +590,246 @@ static int focus_line_has_blocklisted_pkg(const char *buf)
   return 0;
 }
 
-static int foreground_in_blocklist(void)
+/* One dumpsys pair per poll; key path reads these bits only. */
+static int fg_cached_blocklist;
+static int fg_cached_portrait_gp;
+static int fg_cached_native_bypass;
+static int fg_cached_portrait_sdl_ptr;
+
+static int poll_interval_ms(void)
 {
-  if (!app_state.cfg_block_cursor_pkgs[0])
-    return 0;
-  const char *cmds[] = {
-      "dumpsys activity activities 2>/dev/null | grep ResumedActivity | head -1",
-      "dumpsys window 2>/dev/null | grep mCurrentFocus | grep -v 'mCurrentFocus=null' | head -1",
-      NULL};
-  for (int i = 0; cmds[i]; i++)
-  {
-    FILE *p = popen(cmds[i], "r");
-    if (!p)
-      continue;
-    char buf[512];
-    int hit = 0;
-    if (fgets(buf, sizeof buf, p) && focus_line_has_blocklisted_pkg(buf))
-      hit = 1;
-    pclose(p);
-    if (hit)
-      return 1;
-  }
-  return 0;
+  if (fg_cached_portrait_sdl_ptr)
+    return POLL_LANDSCAPE_SDL_MS;
+  return POLL_LANDSCAPE_MS;
 }
 
-static int cursor_hold_blocked(void)
+static void foreground_refresh_cache(void)
 {
+  char focus[512];
+  char window_line[512];
+  focus[0] = '\0';
+  window_line[0] = '\0';
+
+  FILE *pa = popen(
+      "dumpsys activity activities 2>/dev/null | grep -E 'ResumedActivity|topResumedActivity' | head -1",
+      "r");
+  if (pa)
+  {
+    if (fgets(focus, sizeof focus, pa))
+      focus[strcspn(focus, "\r\n")] = '\0';
+    pclose(pa);
+  }
+
+  /* Full dumpsys window is ~300-400 ms on this phone. On the launcher (and most
+   * apps) ResumedActivity already names the package; window scan only matters
+   * when activity is empty and we need an SDL pointer mCurrentFocus fallback. */
+  if (focus[0] && strchr(focus, '/'))
+    goto fg_cache_from_focus;
+
+  FILE *pw = popen(
+      "dumpsys window 2>/dev/null | grep mCurrentFocus | grep -v 'mCurrentFocus=null'",
+      "r");
+  if (pw)
+  {
+    char buf[256];
+    while (fgets(buf, sizeof buf, pw))
+    {
+      buf[strcspn(buf, "\r\n")] = '\0';
+      if (strstr(buf, "/") &&
+          focus_line_has_pkg_in_list(buf,
+                                     app_state.cfg_portrait_sdl_pointer_pkgs))
+        snprintf(window_line, sizeof window_line, "%s", buf);
+    }
+    pclose(pw);
+  }
+  if (!focus[0] && window_line[0])
+    snprintf(focus, sizeof focus, "%s", window_line);
+
+fg_cache_from_focus:
+  fg_cached_blocklist =
+      focus_line_has_pkg_in_list(focus, app_state.cfg_block_cursor_pkgs);
+  fg_cached_portrait_gp =
+      focus_line_has_pkg_in_list(focus, app_state.cfg_portrait_gamepad_pkgs);
+  fg_cached_native_bypass =
+      focus_line_has_pkg_in_list(focus, app_state.cfg_native_bypass_pkgs);
+  fg_cached_portrait_sdl_ptr =
+      !landscape_cached &&
+      focus_line_has_pkg_in_list(focus, app_state.cfg_portrait_sdl_pointer_pkgs);
+}
+
+static int foreground_in_blocklist(void)
+{
+  return fg_cached_blocklist;
+}
+
+static int foreground_in_portrait_gamepad_list(void)
+{
+  return fg_cached_portrait_gp;
+}
+
+static int foreground_in_native_bypass_list(void)
+{
+  return fg_cached_native_bypass;
+}
+
+static int foreground_in_portrait_sdl_pointer_list(void)
+{
+  return fg_cached_portrait_sdl_ptr;
+}
+
+/* Portrait SDL pointer: smaller steps (SDL_PTR_*), debounced OK only. */
+static int mouse_sdl_ptr_smoothing(void)
+{
+  return app_state.sdl_ptr_smoothing_active;
+}
+
+/* Direction held on that cursor. The poll must not run dumpsys under it. */
+static int sdl_ptr_cursor_held(void)
+{
+  return app_state.sdl_ptr_smoothing_active &&
+         app_state.mouse.enabled && app_state.mouse.held_code;
+}
+
+/* Poll only after input drained — dumpsys at loop top stalled passive launcher D-pad. */
+static int arcade_poll_due_if_overdue(void)
+{
+  if (sdl_ptr_cursor_held())
+    return 0;
+  long long now = now_ms();
+  int poll_iv = poll_interval_ms();
+  if (app_state.last_landscape_poll == 0)
+    return 1;
+  return now - app_state.last_landscape_poll >= poll_iv;
+}
+
+static void arcade_run_scheduled_poll(fd_set *fds, int *maxfd)
+{
+  landscape_cached = landscape_probe();
   cfg_load_gamepad();
+  foreground_refresh_cache();
+  sync_keypad_bypass();
+  devices_rebuild_fd_set(fds, maxfd);
+  if (!app_state.keypad_detached)
+    sync_apply_mode();
+  app_state.last_landscape_poll = now_ms();
+}
+
+static int mouse_sdl_rel_step(int sign)
+{
+  int mag = app_state.mouse.speed / SDL_PTR_MOVE_DEN;
+  if (mag < 1)
+    mag = 1;
+  return sign * mag;
+}
+
+/* First D-pad tap on a portrait SDL pointer cursor: half the repeat step. */
+static int mouse_sdl_rel_step_half(int sign)
+{
+  int s = mouse_sdl_rel_step(sign);
+  if (s > 0)
+    return (s + 1) / 2;
+  return s / 2;
+}
+
+static void mouse_sdl_emit_click(void)
+{
+  if (!app_state.mouse.uidev)
+    return;
+  long long now = now_ms();
+  if (now - app_state.mouse.last_sdl_click_ms < SDL_PTR_CLICK_DEBOUNCE_MS)
+    return;
+  app_state.mouse.last_sdl_click_ms = now;
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_LEFT, 1);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_LEFT, 0);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+}
+
+static void device_free_node(device_t *d)
+{
+  if (!d)
+    return;
+  if (d->fd >= 0)
+    ioctl(d->fd, EVIOCGRAB, 0);
+  if (d->uidev)
+    libevdev_uinput_destroy(d->uidev);
+  if (d->evdev)
+    libevdev_free(d->evdev);
+  if (d->fd >= 0)
+    close(d->fd);
+  free(d);
+}
+
+/* Drop keypad fds so this process stops read()ing — keys stay on the real node. */
+static void devices_detach_keypads(void)
+{
+  devices_set_grab(0);
+  app_state.mouse.enabled = 0;
+  app_state.landscape_cursor_override = 0;
+  app_state.mode = MODE_PASSIVE;
+  repeat_stop();
+  device_t **link = &app_state.devices;
+  while (*link)
+  {
+    device_t *d = *link;
+    if (strcmp(d->name, "matrix-keypad") == 0 ||
+        strcmp(d->name, "mtk-kpd") == 0)
+    {
+      *link = d->next;
+      log_message("keypad detach: %s (fd %d)", d->name, d->fd);
+      device_free_node(d);
+      continue;
+    }
+    link = &d->next;
+  }
+  app_state.keypad_detached = 1;
+}
+
+static void devices_reattach_keypads(void)
+{
+  app_state.keypad_detached = 0;
+  log_message("keypad reattach: scanning %s", DEV_INPUT);
+  if (devices_find_and_init() == 0)
+    log_message("keypad reattached");
+}
+
+static void sync_keypad_bypass(void)
+{
+  if (foreground_in_portrait_sdl_pointer_list())
+    return;
+  int want_detach = foreground_in_native_bypass_list();
+  if (want_detach && !app_state.keypad_detached)
+  {
+    log_message("native keypad bypass: foreground in list — detaching");
+    devices_detach_keypads();
+  }
+  else if (!want_detach && app_state.keypad_detached)
+  {
+    log_message("native keypad bypass: left foreground — reattaching");
+    devices_reattach_keypads();
+  }
+}
+
+/* Blocklist stops accidental *landscape cursor* in gamepad — not portrait mouse
+ * (SDL cutscenes need left-soft hold → mouse from passive). */
+static int landscape_cursor_hold_blocked(void)
+{
   return foreground_in_blocklist();
 }
 
 static input_mode_t mode_wanted(void)
 {
-  cfg_load_gamepad();
-  if (app_state.mouse.enabled)
+  if (app_state.mouse_manual)
     return MODE_MOUSE;
   if (app_state.landscape_cursor_override)
     return MODE_LANDSCAPE_CURSOR;
+  /* Portrait SDL pointer list: auto mouse while foreground. Does not set
+   * mouse_manual, so leaving the app returns the launcher to the D-pad. */
+  if (foreground_in_portrait_sdl_pointer_list())
+    return MODE_MOUSE;
   if (app_state.cfg_manual_gp || (app_state.cfg_landscape_auto && landscape_now()))
+    return MODE_GAMEPAD;
+  if (foreground_in_portrait_gamepad_list())
     return MODE_GAMEPAD;
   return MODE_PASSIVE;
 }
@@ -722,14 +981,28 @@ static void gp_dirs_apply(void)
   if (n & (NPAD_BIT_6 | NPAD_BIT_3 | NPAD_BIT_9))
     right = 1;
 
-  if (up)
-    hx -= STICK_EDGE;
-  if (down)
-    hx += STICK_EDGE;
-  if (left)
-    hy += STICK_EDGE;
-  if (right)
-    hy -= STICK_EDGE;
+  if (app_state.gamepad.portrait_layout)
+  {
+    if (up)
+      hy -= STICK_EDGE;
+    if (down)
+      hy += STICK_EDGE;
+    if (left)
+      hx -= STICK_EDGE;
+    if (right)
+      hx += STICK_EDGE;
+  }
+  else
+  {
+    if (up)
+      hx -= STICK_EDGE;
+    if (down)
+      hx += STICK_EDGE;
+    if (left)
+      hy += STICK_EDGE;
+    if (right)
+      hy -= STICK_EDGE;
+  }
 
   app_state.gamepad.stick_lx = hx;
   app_state.gamepad.stick_ly = hy;
@@ -844,10 +1117,25 @@ static void sync_apply_mode(void)
   if (!landscape_now())
     app_state.landscape_cursor_override = 0;
   input_mode_t want = mode_wanted();
+  app_state.sdl_ptr_smoothing_active =
+      (want == MODE_MOUSE && fg_cached_portrait_sdl_ptr);
+  if (want == MODE_GAMEPAD)
+    app_state.gamepad.portrait_layout =
+        !landscape_now() && foreground_in_portrait_gamepad_list();
+  else
+    app_state.gamepad.portrait_layout = 0;
+  int need_grab = is_grabbed_mode(want) ? 1 : 0;
+  if (want == MODE_MOUSE || want == MODE_LANDSCAPE_CURSOR)
+    app_state.mouse.enabled = 1;
+  else if (want == MODE_PASSIVE || want == MODE_GAMEPAD)
+    app_state.mouse.enabled = 0;
+
+  if (want == MODE_PASSIVE)
+    app_state.mouse_manual = 0;
+
   if (want != app_state.mode) {
     app_state.mode = want;
     app_state.gamepad.landscape_cursor = (want == MODE_LANDSCAPE_CURSOR);
-    app_state.mouse.enabled = (want == MODE_MOUSE || want == MODE_LANDSCAPE_CURSOR);
     /* Keys held across a mode change never get a release we see, so drop the
      * tracked set here or the new mode starts with directions stuck down. */
     app_state.gamepad.dpad_held = 0;
@@ -856,10 +1144,13 @@ static void sync_apply_mode(void)
     app_state.gamepad.trig_r_held = 0;
     app_state.gamepad.stick_lx = app_state.gamepad.stick_ly = 0;
     app_state.gamepad.stick_rx = app_state.gamepad.stick_ry = 0;
-    devices_set_grab(is_grabbed_mode(want) ? 1 : 0);
+    devices_set_grab(need_grab);
     gp_stick_apply();
     gp_trig_apply();
-    log_message("mode -> %d", (int)want);
+    log_message("mode -> %d portrait_gp=%d", (int)want,
+                app_state.gamepad.portrait_layout);
+  } else if (need_grab && want == MODE_MOUSE) {
+    devices_set_grab(1);
   }
 }
 
@@ -867,12 +1158,11 @@ static void sync_apply_mode(void)
  * decide where each event goes. */
 static void mouse_activate(void)
 {
-  app_state.mouse.enabled = 1;
+  app_state.mouse_manual = 1;
   app_state.mouse.softhold_since = 0;
-  app_state.mode = MODE_MOUSE;
   app_state.landscape_cursor_override = 0;
   repeat_stop();
-  devices_set_grab(1);
+  sync_apply_mode();
   log_message("Mouse mode enabled (keypads grabbed)");
 }
 
@@ -881,7 +1171,8 @@ static void mouse_activate(void)
 static void mouse_deactivate(void)
 {
   repeat_stop();
-  app_state.mouse.enabled = 0;
+  app_state.mouse.star_held = 0;
+  app_state.mouse_manual = 0;
   app_state.landscape_cursor_override = 0;
   sync_apply_mode();
   log_message("Mouse mode disabled");
@@ -921,12 +1212,27 @@ static void fire_repeat(void)
       return;
     }
   }
+  if (mouse_sdl_ptr_smoothing() &&
+      (code == KEY_UP || code == KEY_DOWN || code == KEY_LEFT || code == KEY_RIGHT))
+    interval = SDL_PTR_REPEAT_INTERVAL_MS;
   switch (code)
   {
-  case KEY_UP: rel_code = REL_Y; rel_value = -app_state.mouse.speed; break;
-  case KEY_DOWN: rel_code = REL_Y; rel_value = app_state.mouse.speed; break;
-  case KEY_LEFT: rel_code = REL_X; rel_value = -app_state.mouse.speed; break;
-  case KEY_RIGHT: rel_code = REL_X; rel_value = app_state.mouse.speed; break;
+  case KEY_UP:
+    rel_code = REL_Y;
+    rel_value = mouse_sdl_ptr_smoothing() ? mouse_sdl_rel_step(-1) : -app_state.mouse.speed;
+    break;
+  case KEY_DOWN:
+    rel_code = REL_Y;
+    rel_value = mouse_sdl_ptr_smoothing() ? mouse_sdl_rel_step(1) : app_state.mouse.speed;
+    break;
+  case KEY_LEFT:
+    rel_code = REL_X;
+    rel_value = mouse_sdl_ptr_smoothing() ? mouse_sdl_rel_step(-1) : -app_state.mouse.speed;
+    break;
+  case KEY_RIGHT:
+    rel_code = REL_X;
+    rel_value = mouse_sdl_ptr_smoothing() ? mouse_sdl_rel_step(1) : app_state.mouse.speed;
+    break;
   case KEY_MENU: rel_code = REL_WHEEL; rel_value = 1; interval = WHEEL_REPEAT_INTERVAL_MS; break;
   case KEY_SEND: rel_code = REL_WHEEL; rel_value = -1; interval = WHEEL_REPEAT_INTERVAL_MS; break;
   default: repeat_stop(); return;
@@ -934,7 +1240,6 @@ static void fire_repeat(void)
   libevdev_uinput_write_event(app_state.mouse.uidev, EV_REL, rel_code, rel_value);
   libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
   app_state.mouse.next_repeat_ms = now_ms() + interval;
-  log_message("repeat step code=%d", code);
 }
 
 static int mouse_handle_event(device_t *dev, struct input_event *ev)
@@ -945,29 +1250,40 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
   switch (keycode)
   {
   case KEY_VOLUMEUP:
-    if (ev->value == 1)
-    { /* Key press */
+    if (ev->value == 1 && app_state.mouse.star_held)
+    {
       app_state.mouse.speed++;
       mouse_save_speed(app_state.mouse.speed);
-      log_message("Mouse speed increased to %d", app_state.mouse.speed);
+      log_message("Mouse speed increased to %d (Star+VolUp)", app_state.mouse.speed);
+      return MUTE_EVENT;
     }
-    return MUTE_EVENT;
+    return PASS_THRU_EVENT;
 
   case KEY_VOLUMEDOWN:
-    if (ev->value == 1)
-    { /* Key press */
+    if (ev->value == 1 && app_state.mouse.star_held)
+    {
       app_state.mouse.speed--;
       if (app_state.mouse.speed < MIN_MOUSE_SPEED)
         app_state.mouse.speed = MIN_MOUSE_SPEED;
       mouse_save_speed(app_state.mouse.speed);
-      log_message("Mouse speed decreased to %d", app_state.mouse.speed);
+      log_message("Mouse speed decreased to %d (Star+VolDown)", app_state.mouse.speed);
+      return MUTE_EVENT;
     }
-    return MUTE_EVENT;
+    return PASS_THRU_EVENT;
 
   case KEY_ENTER:
+    if (mouse_sdl_ptr_smoothing())
+    {
+      if (ev->value == 1)
+        mouse_sdl_emit_click();
+      return MUTE_EVENT;
+    }
+    if (ev->value == 0)
+      return MUTE_EVENT;
     log_message("Mouse left click");
     ev->type = EV_KEY;
     ev->code = BTN_LEFT;
+    ev->value = 1;
     return CHANGED_TO_MOUSE;
 
   case DEL_CODE: /* keypad DEL (138) toggles drag — formerly raw 48, which is
@@ -998,10 +1314,12 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     if (ev->value == 1)
     {
       app_state.mouse.held_code = keycode;
-      app_state.mouse.next_repeat_ms =
-          now_ms() + ((keycode == KEY_MENU || keycode == KEY_SEND)
-                          ? WHEEL_REPEAT_INTERVAL_MS
-                          : REPEAT_DELAY_MS);
+      if (keycode == KEY_MENU || keycode == KEY_SEND)
+        app_state.mouse.next_repeat_ms = now_ms() + WHEEL_REPEAT_INTERVAL_MS;
+      else if (mouse_sdl_ptr_smoothing())
+        app_state.mouse.next_repeat_ms = now_ms() + SDL_PTR_REPEAT_DELAY_MS;
+      else
+        app_state.mouse.next_repeat_ms = now_ms() + REPEAT_DELAY_MS;
     }
     else
     {
@@ -1030,14 +1348,18 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     else if (keycode == KEY_UP || keycode == KEY_DOWN)
     {
       ev->code = REL_Y;
-      ev->value = (keycode == KEY_UP) ? -app_state.mouse.speed
-                                      : app_state.mouse.speed;
+      ev->value = mouse_sdl_ptr_smoothing()
+                      ? mouse_sdl_rel_step_half(keycode == KEY_UP ? -1 : 1)
+                      : ((keycode == KEY_UP) ? -app_state.mouse.speed
+                                             : app_state.mouse.speed);
     }
     else if (keycode == KEY_LEFT || keycode == KEY_RIGHT)
     {
       ev->code = REL_X;
-      ev->value = (keycode == KEY_LEFT) ? -app_state.mouse.speed
-                                        : app_state.mouse.speed;
+      ev->value = mouse_sdl_ptr_smoothing()
+                      ? mouse_sdl_rel_step_half(keycode == KEY_LEFT ? -1 : 1)
+                      : ((keycode == KEY_LEFT) ? -app_state.mouse.speed
+                                               : app_state.mouse.speed);
     }
     else /* wheel */
     {
@@ -1305,10 +1627,13 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
       {
         long long held = now_ms() - app_state.mouse.softhold_since;
         app_state.mouse.softhold_since = 0;
-        if (held >= HOLD_TOGGLE_MS && !cursor_hold_blocked())
+        if (held >= HOLD_TOGGLE_MS)
           mouse_activate();
       }
+      return MUTE_EVENT;
     }
+    /* Passive + no grab: keys already reach apps on the real node; re-injecting
+     * via the matrix clone (PASS_THRU) duplicates every press. */
     return MUTE_EVENT;
   }
 
@@ -1320,33 +1645,36 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
 
   if (app_state.mode == MODE_GAMEPAD)
   {
-    if (ev->code == SOFT_RIGHT_CODE)
+    if (ev->code == SOFTKEY_CODE)
     {
-      /* Right soft key: a tap is R1, a hold still switches to the landscape
-       * cursor. It used to be swallowed here, and gamepad_handle_key had no
-       * mapping for it either, so BTN_TR was enabled on the virtual pad but
-       * physically unreachable -- the "right key does nothing" report.
-       * Nothing is emitted on press: we cannot know yet whether this is a tap
-       * or the cursor gesture, and a speculative BTN_TR would fire an R1 hit
-       * every time someone held the key to move the cursor. */
       if (ev->value == 1)
-        app_state.gamepad.right_hold_since = now_ms();
-      else if (app_state.gamepad.right_hold_since)
+        app_state.mouse.softhold_since = now_ms();
+      else if (app_state.mouse.softhold_since)
       {
-        long long held = now_ms() - app_state.gamepad.right_hold_since;
-        app_state.gamepad.right_hold_since = 0;
-        if (held >= HOLD_TOGGLE_MS && !cursor_hold_blocked())
+        long long held = now_ms() - app_state.mouse.softhold_since;
+        app_state.mouse.softhold_since = 0;
+        if (held >= HOLD_TOGGLE_MS && landscape_now() && !landscape_cursor_hold_blocked())
         {
           app_state.landscape_cursor_override = 1;
           sync_apply_mode();
-          log_message("right soft hold: landscape cursor");
+          log_message("left soft hold: landscape cursor");
+          return MUTE_EVENT;
         }
-        else
+        if (held < HOLD_TOGGLE_MS)
         {
-          log_message("right soft tap: BTN_TR (R1)");
-          gp_emit_key(BTN_TR, 1);
-          gp_emit_key(BTN_TR, 0);
+          gp_emit_key(BTN_TL, 1);
+          gp_emit_key(BTN_TL, 0);
         }
+      }
+      return MUTE_EVENT;
+    }
+    if (ev->code == SOFT_RIGHT_CODE)
+    {
+      if (ev->value == 0)
+      {
+        log_message("right soft tap: BTN_TR (R1)");
+        gp_emit_key(BTN_TR, 1);
+        gp_emit_key(BTN_TR, 0);
       }
       return MUTE_EVENT;
     }
@@ -1386,15 +1714,24 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
       return MUTE_EVENT;
     }
 
-    if (ev->code == STAR_CODE && ev->value == 0)
+    if (ev->code == SOFT_RIGHT_CODE)
+      return PASS_THRU_EVENT;
+
+    if (ev->code == STAR_CODE)
     {
-      if (app_state.mode == MODE_LANDSCAPE_CURSOR)
-      {
-        app_state.landscape_cursor_override = 0;
-        sync_apply_mode();
-      }
+      if (ev->value == 1)
+        app_state.mouse.star_held = 1;
       else
-        mouse_deactivate();
+      {
+        app_state.mouse.star_held = 0;
+        if (app_state.mode == MODE_LANDSCAPE_CURSOR)
+        {
+          app_state.landscape_cursor_override = 0;
+          sync_apply_mode();
+        }
+        else
+          mouse_deactivate();
+      }
       return MUTE_EVENT;
     }
 
@@ -1425,6 +1762,18 @@ static void setup_signal_handlers(void)
 
 /* --- Main Event Loop --- */
 
+static void devices_rebuild_fd_set(fd_set *fds, int *maxfd)
+{
+  FD_ZERO(fds);
+  *maxfd = 0;
+  for (device_t *d = app_state.devices; d; d = d->next)
+  {
+    FD_SET(d->fd, fds);
+    if (d->fd >= *maxfd)
+      *maxfd = d->fd + 1;
+  }
+}
+
 static int run_event_loop(void)
 {
   struct input_event event;
@@ -1433,33 +1782,13 @@ static int run_event_loop(void)
   int maxfd = 0;
   char prefix[8];
 
-  /* Initialize file descriptor set */
-  FD_ZERO(&fds);
-  for (device_t *d = app_state.devices; d; d = d->next)
-  {
-    FD_SET(d->fd, &fds);
-    if (d->fd >= maxfd)
-      maxfd = d->fd + 1;
-  }
+  devices_rebuild_fd_set(&fds, &maxfd);
 
   log_message("Entering main event loop");
   app_state.running = 1;
 
   while (app_state.running)
   {
-    {
-      long long now = now_ms();
-      if (app_state.last_landscape_poll == 0 ||
-          now - app_state.last_landscape_poll >= POLL_LANDSCAPE_MS)
-      {
-        /* Exactly one dumpsys per cycle: the probe fills the cache that
-         * mode_wanted() and sync_apply_mode() both read. */
-        landscape_cached = landscape_probe();
-        sync_apply_mode();
-        app_state.last_landscape_poll = now;
-      }
-    }
-
     rfds = fds;
     /* Bound select() so the loop always wakes for its own timers:
      *   - the next auto-repeat deadline, while a mouse key is held;
@@ -1474,19 +1803,42 @@ static int run_event_loop(void)
       long long wait = -1;
 
       if (app_state.mouse.enabled && app_state.mouse.held_code)
+      {
         wait = app_state.mouse.next_repeat_ms - now_ms();
+        if (wait < 0)
+          wait = 0;
+      }
 
       long long poll_wait = app_state.last_landscape_poll
-                                ? app_state.last_landscape_poll + POLL_LANDSCAPE_MS - now_ms()
+                                ? app_state.last_landscape_poll + poll_interval_ms() -
+                                      now_ms()
                                 : 0;
       if (poll_wait < 0)
         poll_wait = 0;
-      if (wait < 0 || poll_wait < wait)
-        wait = poll_wait;
+      /* While a direction is held, never sleep past the next repeat tick.
+       * On a portrait SDL pointer cursor, ignore poll wake so an overdue
+       * dumpsys does not drive select() timeout to 0 and spin. */
+      if (!sdl_ptr_cursor_held())
+      {
+        if (wait < 0)
+          wait = poll_wait;
+        else if (poll_wait < wait)
+          wait = poll_wait;
+      }
+      else if (wait < 0)
+        wait = 50;
 
       tv.tv_sec = (time_t)(wait / 1000);
       tv.tv_usec = (suseconds_t)((wait % 1000) * 1000);
       tvp = &tv;
+
+      if (maxfd == 0)
+      {
+        usleep((useconds_t)(wait > 0 ? wait * 1000 : 50000));
+        if (arcade_poll_due_if_overdue())
+          arcade_run_scheduled_poll(&fds, &maxfd);
+        continue;
+      }
 
       if (select(maxfd, &rfds, NULL, NULL, tvp) < 0)
       {
@@ -1580,16 +1932,11 @@ static int run_event_loop(void)
 
     /* Unlink any device that died and rebuild the descriptor set. */
     if (devices_reap())
-    {
-      FD_ZERO(&fds);
-      maxfd = 0;
-      for (device_t *d = app_state.devices; d; d = d->next)
-      {
-        FD_SET(d->fd, &fds);
-        if (d->fd >= maxfd)
-          maxfd = d->fd + 1;
-      }
-    }
+      devices_rebuild_fd_set(&fds, &maxfd);
+
+    /* Run dumpsys poll after input drained so passive launcher D-pad is not blocked. */
+    if (arcade_poll_due_if_overdue())
+      arcade_run_scheduled_poll(&fds, &maxfd);
   }
 
   return 0;
@@ -1625,9 +1972,10 @@ int main(int argc, char **argv)
   if (gamepad_init() != 0)
     log_message("WARNING: gamepad uinput init failed — landscape remap disabled");
 
-  /* Prime the rotation cache before the first mode sync, or a launch into an
-   * already-landscape app starts in passive until the first poll fires. */
+  /* Prime rotation + foreground caches before the first mode sync. */
   landscape_cached = landscape_probe();
+  cfg_load_gamepad();
+  foreground_refresh_cache();
   app_state.last_landscape_poll = now_ms();
 
   sync_apply_mode();
