@@ -17,7 +17,7 @@ Turn a **TCL Flip 2** into a pocket-sized dumbphone powerhouse: T9 + offline voi
 
 Modular, pipeline-driven tooling for **built-in menu grid (slots 1–9)**, **Launcher3 RRO overlay**, and **recovery** after bad Magisk launcher experiments.
 
-**Latest:** v1.4.0-alpha.6-flip2 (public alpha). Safest first install: **Tier B** [`flip2-installer-full-magisk.zip`](https://flip2burn.online/packages/flip2-installer-full-magisk.zip) — verify its SHA-256 against [`wizard/catalog.json`](wizard/catalog.json). **Tier B `base`** installer matches wizard Base (FlipMouse, no Arcade/Astro Loop). Pack: `flip2 installer pack --flavor base|full|slim`. **Windows:** build **TCL Flip2 Manager** with `npm run pack:win` (no prebuilt `.exe` is published at the moment) — [SETUP-WIZARD-WINDOWS.md](docs/SETUP-WIZARD-WINDOWS.md). Screenshots, mosaic, and channel copy: **[docs/marketing/](docs/marketing/)**.
+**Latest:** v1.4.0-alpha.7-flip2 (public alpha). Safest first install: **Tier B** [`flip2-installer-full-magisk.zip`](https://flip2burn.online/packages/flip2-installer-full-magisk.zip) — verify its SHA-256 against [`wizard/catalog.json`](wizard/catalog.json). **Tier B `base`** installer matches wizard Base (FlipMouse, no Arcade/Astro Loop). Pack: `flip2 installer pack --flavor base|full|slim`. **Windows:** build **TCL Flip2 Manager** with `npm run pack:win` (no prebuilt `.exe` is published at the moment) — [SETUP-WIZARD-WINDOWS.md](docs/SETUP-WIZARD-WINDOWS.md). Screenshots, mosaic, and channel copy: **[docs/marketing/](docs/marketing/)**.
 
 <p align="center">
   <a href="https://flip2burn.online/">
