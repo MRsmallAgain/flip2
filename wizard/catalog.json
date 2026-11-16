@@ -20,7 +20,7 @@
       "purpose": "Flip2 Magisk installer (full): prefetched APKs, Sherpa STT tarballs, modules, home keys, 321x428, wallpaper. Self-removes after first boot. Release v1.4.0-alpha.9-flip2.",
       "url": "https://flip2burn.online/packages/flip2-installer-full-magisk.zip",
       "size": 395631574,
-      "sha256": "2166f9d95cdb0853ce8d8e37686de69b1f051936af38761f6cb41dbcc0c77f9f",
+      "sha256": "3e5b1b0db571973dad1108cb612b4474738351ed146a6cc98cc33795cb1f70d3",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.9-flip2"
@@ -33,7 +33,7 @@
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.9-flip2",
       "file": "flip2-installer-slim-magisk.zip",
       "size": 181526709,
-      "sha256": "3736695cb8cebc1da7cac16e74050da1e9204b48d7757976484bb7b308cb415d",
+      "sha256": "7dafb7901b3fbfc89dcc2e2e971a2cbd7a83f2f06e66c35e3d0adbc68e5aee03",
       "purpose": "Flip2 Magisk installer (slim): same stack as full without bundled Sherpa voices; use catalog sherpa-en/uk if needed. Release v1.4.0-alpha.9-flip2."
     },
     {
@@ -200,7 +200,7 @@
       "purpose": "Flip2 Magisk installer (base): wizard Base profile + Sherpa.",
       "url": "https://flip2burn.online/packages/flip2-installer-base-magisk.zip",
       "size": 343300564,
-      "sha256": "e8dc87a64ab48152d3584ca93462642e5c1caef961338eedd2e3fb8af8f02913",
+      "sha256": "a2414b330aae8189fcd9f7f00054645b8df05636b305117f6620b4e637555638",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.9-flip2"
