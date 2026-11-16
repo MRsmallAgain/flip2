@@ -1,7 +1,7 @@
 {
   "name": "flip2-companion",
   "productName": "TCL Flip2 Manager",
-  "version": "1.4.0-alpha.9",
+  "version": "1.4.0-alpha.10",
   "description": "Desktop companion for the Flip 2 setup wizard: host adb install/verify, catalog downloads, Linux udev one-click.",
   "license": "MIT",
   "main": "main.js",
