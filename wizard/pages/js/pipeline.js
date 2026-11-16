@@ -35,6 +35,44 @@ function textBytes(text) {
   return out;
 }
 
+/** Wizard incoming basenames required for each profile component (install.sh names). */
+var INCOMING_FOR_COMPONENT = {
+  navoverlay: ['flip2_nav_overlay-magisk.zip'],
+  keypad: ['flip2_keypad_backspace-magisk.zip'],
+  flipmouse: ['FlipMouse.zip'],
+  flipmouse_arcade: ['FlipMouseArcade.zip'],
+  tagdrawer: ['flip2_pixel_tag_drawer-magisk.zip'],
+  launcher_overlay: ['flip2_launcher_overlay-magisk.zip'],
+  launcher4: ['launcher4.apk'],
+  ime: ['nullkeyboard.apk'],
+  forkgram: ['forkgram.apk'],
+  materialfiles: ['materialfiles.apk'],
+  intertune: ['intertune.apk'],
+  bouncy: ['bouncy.apk'],
+  astro_loop: ['astro-loop.apk'],
+  scummvm: ['scummvm.apk'],
+  shattered_pd: ['shattered-pixel-dungeon.apk'],
+  appshelf: ['appshelf.apk'],
+  fdroid_basic: ['fdroid-basic.apk'],
+  newpipe: ['newpipe.apk'],
+  vlc: ['vlc.apk'],
+  'sherpa-en': ['sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2'],
+  'sherpa-uk': ['sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2'],
+  wallpaper: ['flip2-wallpaper.png']
+};
+
+function incomingAllowedForProfile(componentIds) {
+  if (!componentIds || !componentIds.length) return null;
+  var allowed = {};
+  var i, j, inc;
+  for (i = 0; i < componentIds.length; i++) {
+    inc = INCOMING_FOR_COMPONENT[componentIds[i]];
+    if (!inc) continue;
+    for (j = 0; j < inc.length; j++) allowed[inc[j]] = true;
+  }
+  return allowed;
+}
+
 function pushPayloadBytes(raw, label) {
   if (raw == null) throw new Error('push set missing bytes for ' + (label || '(unknown)'));
   if (raw instanceof Uint8Array) return raw;
@@ -47,9 +85,8 @@ function pushPayloadBytes(raw, label) {
 
 var PIPE = {
   // files: map of catalog id -> Uint8Array (verified contents).
-  // componentIds: optional. When it lists headwind, headwind.apk is added.
-  // Omitted means today's base push (no Headwind). requiredIncoming is unchanged.
-  // Returns a map remoteName -> Uint8Array ready to push.
+  // componentIds: profile component list — filters requiredIncoming and final push map.
+  // When it lists headwind/where, those APKs are added (not in requiredIncoming).
   buildPushSet: function (files, componentIds) {
     var M = typeof PUSH_MANIFEST !== 'undefined' ? PUSH_MANIFEST : null;
     if (!M) throw new Error('PUSH_MANIFEST missing — run pipeline/wizard/gen-pipeline-js.sh');
@@ -58,18 +95,25 @@ var PIPE = {
     if (!files[catId] && files['installer-full']) catId = 'installer-full';
     var manifest = (catId === 'installer-slim' && slimM) ? slimM : M;
     var installer = fflate.unzipSync(files[catId]);
+    var allowed = incomingAllowedForProfile(componentIds);
     var out = {};
     var i, name, path;
+    function skipIncoming(basename) {
+      return allowed && !allowed[basename];
+    }
+
     for (i = 0; i < manifest.installerModulePaths.length; i++) {
       path = manifest.installerModulePaths[i];
       if (!installer[path]) throw new Error('installer zip is missing ' + path);
       name = path.split('/').pop();
+      if (skipIncoming(name)) continue;
       out[name] = installer[path];
     }
     for (i = 0; i < manifest.installerApkPaths.length; i++) {
       path = manifest.installerApkPaths[i];
       if (!installer[path]) throw new Error('installer zip is missing ' + path);
       name = path.split('/').pop();
+      if (skipIncoming(name)) continue;
       out[name] = installer[path];
     }
     var sherpaPaths = manifest.installerSherpaPaths;
@@ -78,19 +122,24 @@ var PIPE = {
         path = sherpaPaths[i];
         if (!installer[path]) throw new Error('installer zip is missing ' + path);
         name = path.split('/').pop();
+        if (skipIncoming(name)) continue;
         out[name] = installer[path];
       }
     }
 
     // Tag Drawer: rebuild the module zip around the fresh F-Droid APK.
     var tdPath = manifest.tagDrawerModulePath;
-    var td = fflate.unzipSync(installer[tdPath]);
-    var tdEntry = manifest.tagDrawerApkEntry;
-    if (!td[tdEntry]) throw new Error('Tag Drawer zip is missing ' + tdEntry);
-    td[tdEntry] = files['tagdrawer'];
-    out[tdPath.split('/').pop()] = fflate.zipSync(td);
+    var tdBasename = tdPath.split('/').pop();
+    if (!allowed || allowed[tdBasename]) {
+      var td = fflate.unzipSync(installer[tdPath]);
+      var tdEntry = manifest.tagDrawerApkEntry;
+      if (!td[tdEntry]) throw new Error('Tag Drawer zip is missing ' + tdEntry);
+      td[tdEntry] = files['tagdrawer'];
+      out[tdBasename] = fflate.zipSync(td);
+    }
 
-    if (manifest.wallpaperPath && installer[manifest.wallpaperPath]) {
+    if (manifest.wallpaperPath && installer[manifest.wallpaperPath] &&
+        (!allowed || allowed['flip2-wallpaper.png'])) {
       out['flip2-wallpaper.png'] = installer[manifest.wallpaperPath];
     }
 
@@ -100,6 +149,7 @@ var PIPE = {
     for (renameId in renames) {
       if (!Object.prototype.hasOwnProperty.call(renames, renameId)) continue;
       dest = renames[renameId];
+      if (allowed && !allowed[dest]) continue;
       if (out[dest]) continue; // installer zip already supplied stable name (e.g. prefetch bundle)
       if (!files[renameId]) throw new Error('catalog file missing: ' + renameId);
       out[dest] = files[renameId];
@@ -114,13 +164,16 @@ var PIPE = {
       }
     }
     var need = manifest.requiredIncoming ? manifest.requiredIncoming.slice() : [];
-    if (wantSherpaEn || wantSherpaUk) {
+    if (!allowed && (wantSherpaEn || wantSherpaUk)) {
       var withVoices = manifest.requiredIncomingWithVoices;
       if (withVoices) need = withVoices.slice();
       else {
         if (wantSherpaEn) need.push('sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2');
         if (wantSherpaUk) need.push('sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2');
       }
+    }
+    if (allowed) {
+      need = need.filter(function (n) { return allowed[n]; });
     }
     for (i = 0; i < need.length; i++) {
       if (!out[need[i]]) throw new Error('push set incomplete: ' + need[i]);
@@ -147,6 +200,12 @@ var PIPE = {
     if (wantWhere) {
       if (!files['where-app']) throw new Error('catalog file missing: where-app');
       out['where.apk'] = files['where-app'];
+    }
+    if (allowed) {
+      for (name in out) {
+        if (!Object.prototype.hasOwnProperty.call(out, name)) continue;
+        if (!allowed[name] && name !== 'headwind.apk' && name !== 'where.apk') delete out[name];
+      }
     }
     for (name in out) {
       if (!Object.prototype.hasOwnProperty.call(out, name)) continue;
