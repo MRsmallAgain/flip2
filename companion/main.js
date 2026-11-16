@@ -408,6 +408,20 @@ async function readLocal(id, index) {
   return { id: id, path: c.name, bytes: await fsp.readFile(c.name) };
 }
 
+function verifyCatalogBytes(f, buf) {
+  if (buf.length !== f.size) {
+    throw new Error(f.file + ': got ' + buf.length + ' bytes, expected ' + f.size);
+  }
+  const hex = crypto.createHash('sha256').update(buf).digest('hex');
+  if (hex !== f.sha256) {
+    const installer = String(f.file || '').indexOf('installer') >= 0 || String(f.id || '').indexOf('installer') >= 0;
+    const hint = installer
+      ? ' Repacked installers keep the same size but change SHA-256 — stale cache was cleared; try Get again.'
+      : ' Delete any stale local copy or press Get to fetch again.';
+    throw new Error(f.file + ': SHA-256 does not match the catalog pin.' + hint);
+  }
+}
+
 async function downloadFile(id) {
   const f = await catalogEntry(id);
   if (f.size == null || f.sha256 == null) {
@@ -422,15 +436,21 @@ async function downloadFile(id) {
   try {
     const st = await fsp.stat(dst);
     if (st.isFile() && st.size === f.size) {
-      return { id: id, bytes: await fsp.readFile(dst), cached: true };
+      const cached = await fsp.readFile(dst);
+      try {
+        verifyCatalogBytes(f, cached);
+        return { id: id, bytes: cached, cached: true };
+      } catch (e) {
+        await fsp.unlink(dst).catch(function () {});
+      }
+    } else if (st.isFile()) {
+      await fsp.unlink(dst).catch(function () {});
     }
   } catch (e) { /* not cached yet */ }
   const res = await net.fetch(f.url, { redirect: 'follow' });
   if (!res.ok) throw new Error('HTTP ' + res.status + ' from ' + f.upstream);
   const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length !== f.size) {
-    throw new Error(f.file + ': got ' + buf.length + ' bytes, expected ' + f.size);
-  }
+  verifyCatalogBytes(f, buf);
   await fsp.writeFile(dst, buf);
   return { id: id, bytes: buf, cached: false };
 }

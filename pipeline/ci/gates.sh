@@ -73,6 +73,20 @@ section "generated wizard artefacts (no drift)"
 ./bin/flip2 wizard check || bad "wizard check reported drift (run: flip2 wizard render)"
 ./bin/flip2 wizard pins --check || bad "pins.json is stale (run: flip2 wizard pins)"
 
+# --- 5. catalog installer pins match dist/ (when zips exist) ---------------
+# Repacks often keep the same byte count; only SHA catches stale pins or stale cache.
+section "catalog installer pins vs dist"
+DIST="$ROOT/pipeline/deploy/dist"
+for id in installer-full installer-slim installer-base; do
+  f="$(jq -r --arg id "$id" '.files[] | select(.id==$id) | .file' "$ROOT/wizard/catalog.json" 2>/dev/null)"
+  exp="$(jq -r --arg id "$id" '.files[] | select(.id==$id) | .sha256' "$ROOT/wizard/catalog.json" 2>/dev/null)"
+  [[ -n "$f" && "$f" != null && -n "$exp" && "$exp" != null ]] || continue
+  zip="$DIST/$f"
+  [[ -f "$zip" ]] || continue
+  got="$(sha256sum "$zip" | awk '{print $1}')"
+  [[ "$got" == "$exp" ]] || bad "catalog $id sha256 mismatch (repack? run flip2 installer pack + update catalog + flip2 wizard pins)"
+done
+
 # --- verdict ---------------------------------------------------------------
 echo
 if [[ "$fail" -ne 0 ]]; then

@@ -880,7 +880,11 @@ function acceptBytes(id, bytes) {
   var view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   return sha256Hex(view).then(function (hex) {
     if (hex !== f.sha256) {
-      return { ok: false, msg: f.file + ': SHA-256 does not match the pinned value' };
+      var installer = (f.file && f.file.indexOf('installer') >= 0) || (id && String(id).indexOf('installer') >= 0);
+      var hint = installer
+        ? ' Stale copy (repacks can keep the same size). Press Get again or remove the old file from Downloads.'
+        : ' Fetch again or choose a matching local file.';
+      return { ok: false, msg: f.file + ': SHA-256 does not match the catalog pin.' + hint };
     }
     if (view.byteLength !== f.size) {
       return { ok: false, msg: f.file + ': ' + view.byteLength + ' bytes, expected ' + f.size };
