@@ -132,8 +132,8 @@
     {
       "id": "companion-linux",
       "file": "flip2-companion-1.4.0-alpha.8-linux-x86_64.AppImage",
-      "sha256": "c9c09bfee1c6c92e48008ef32eb90f4b9fcd57f6ca49d83ff2f1b08b4bd7849f",
-      "size": 114165181,
+      "sha256": "bacb2e6173b52ca61609f7b7894520fe9d504f588f707016902b640f8ee0f1d1",
+      "size": 114165200,
       "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.8-linux-x86_64.AppImage"
     }
   ]
