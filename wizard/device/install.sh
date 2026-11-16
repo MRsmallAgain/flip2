@@ -235,7 +235,22 @@ install_apk() {
   [ -f "$IN/$f" ] || fail "APK missing: $IN/$f"
   S=$STAGE/$f
   cp "$IN/$f" "$S" && chmod 644 "$S" || fail "could not stage $f"
-  pm install -r -d "$S" >/dev/null 2>&1 || { rm -f "$S"; fail "pm install failed: $pkg ($f)"; }
+  _pm_out=
+  _pm_out=$(pm install -r -d "$S" 2>&1) && _pm_ok=1 || _pm_ok=
+  if [ -z "$_pm_ok" ]; then
+    case "$_pm_out" in
+      *SIGNATURE*|*signatures*|*INSTALL_FAILED_UPDATE_INCOMPATIBLE*)
+        if pm path "$pkg" >/dev/null 2>&1; then
+          pm uninstall "$pkg" >/dev/null 2>&1 || true
+          _pm_out=$(pm install -r -d "$S" 2>&1) && _pm_ok=1 || _pm_ok=
+        fi
+        ;;
+    esac
+  fi
+  if [ -z "$_pm_ok" ]; then
+    rm -f "$S"
+    fail "pm install failed: $pkg ($f) — $(printf '%s' "$_pm_out" | tr '\n' ' ' | head -c 400)"
+  fi
   rm -f "$S"
   ok "installed: $pkg"
 }
