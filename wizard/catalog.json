@@ -203,6 +203,17 @@
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.8-flip2"
+    },
+    {
+      "id": "companion-linux",
+      "file": "flip2-companion-1.4.0-alpha.8-linux-x86_64.AppImage",
+      "purpose": "TCL Flip2 Manager desktop app (Linux x86_64 AppImage). Same wizard UI as flip2burn.online — Start · Bundled Apps · Device · Set up.",
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.8-linux-x86_64.AppImage",
+      "size": 114165181,
+      "sha256": "c9c09bfee1c6c92e48008ef32eb90f4b9fcd57f6ca49d83ff2f1b08b4bd7849f",
+      "license": "MIT (companion); wizard assets see flip2 repo",
+      "author": "MRsmallAgain (flip2 project)",
+      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.8-flip2"
     }
   ],
   "not_downloaded": [

@@ -136,9 +136,20 @@ for n in "${ASSET_NAMES[@]}"; do
 done
 ASSETS+=("$DIST/SHA256SUMS")
 
+# Optional mirror assets (not part of Magisk SHA256SUMS): Linux Companion AppImage.
+COMPANION_VER="$(jq -r '.version // empty' "$ROOT/companion/package.json" 2>/dev/null || true)"
+COMPANION_LINUX_NAME=""
+if [[ -n "$COMPANION_VER" ]]; then
+  COMPANION_LINUX_NAME="flip2-companion-${COMPANION_VER}-linux-x86_64.AppImage"
+  if [[ ! -f "$DIST/$COMPANION_LINUX_NAME" ]]; then
+    COMPANION_LINUX_NAME=""
+  fi
+fi
+
 # What the GitLab backend links to. SHA256SUMS is included so a release page can
 # be checked with `sha256sum -c` without going back to the repo.
 RELEASE_NAMES=("${ASSET_NAMES[@]}" "SHA256SUMS")
+[[ -n "$COMPANION_LINUX_NAME" ]] && RELEASE_NAMES+=("$COMPANION_LINUX_NAME")
 
 file_size() { stat -c%s "$DIST/$1"; }
 file_sha() { sha256sum "$DIST/$1" | awk '{print $1}'; }
