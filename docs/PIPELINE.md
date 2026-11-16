@@ -95,15 +95,24 @@ flip2 ci                                  # ~3s
 bash pipeline/ci/install-hooks.sh         # run the same gates before every commit
 ```
 
-`.gitlab-ci.yml` runs the identical script. It is deliberately limited to checks
-that pass on a fresh clone — no adb, no AWS credentials, no packed `dist/` —
-because a gate that fails for environmental reasons teaches people to ignore the
-whole pipeline. That is also why shellcheck is not wired in yet: every script in
-the tree would need a clean baseline first, and a red pipeline from day one gets
-ignored rather than fixed.
+`pipeline/ci/gates.sh` is the **check** stage: device-free only (fresh clone, no
+adb, no AWS, no packed `dist/`). A gate that fails for environmental reasons
+teaches people to ignore the whole pipeline.
 
-Both commands print how many files they covered, so read the count from the run
-rather than from this page.
+The **build** stage packs the Electron Companion via `pipeline/ci/companion-pack.sh`
+(smoke, Linux AppImage + unpacked dir, Windows NSIS/portable). Artifacts live under
+`companion/dist/` for 14 days; they are not uploaded to the release mirror. Windows
+pack uses Wine on the Linux image and is marked `allow_failure` until a Windows
+runner is available.
+
+```bash
+bash pipeline/ci/companion-pack.sh smoke   # headless pill-bar smoke
+bash pipeline/ci/companion-pack.sh linux   # AppImage + linux-unpacked
+bash pipeline/ci/companion-pack.sh win     # .exe targets (needs Windows or Wine)
+```
+
+Both gate and pack commands print how many files they covered where relevant, so
+read the count from the run rather than from this page.
 
 ## Extending
 

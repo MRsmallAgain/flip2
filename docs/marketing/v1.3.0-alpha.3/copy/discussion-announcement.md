@@ -5,7 +5,7 @@
 > unaffected: start at <https://flip2burn.online/>, downloads under
 > `https://flip2burn.online/packages/`, pins in
 > <https://flip2burn.online/catalog.json>, source on
-> <https://gitlab.com/mrsmallagain-group/flip2>. Details: [MOVED.md](../../MOVED.md).
+> <https://gitlab.com/mrsmallagain-group/flip2>. Details: [moved](../../MOVED.md).
 > The text below is unchanged from publication.
 
 We just tagged **v1.3.0-alpha.3-flip2** as the latest release on [MRsmallAgain/flip2](https://github.com/MRsmallAgain/flip2/releases/tag/v1.3.0-alpha.3-flip2): tooling to turn a **TCL Flip 2** into a serious dumbphone setup while staying honest about alpha status and safety.

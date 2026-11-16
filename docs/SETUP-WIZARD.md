@@ -145,4 +145,4 @@ Prepare (Ready → Get files → … → Check phone) has been run end-to-end on
 
 Chrome WebUSB install is secondary; Linux Companion is the supported path for Managed Apply and reliable push. Rooting and factory slices remain separately gated (`erase` / `factory`).
 
-Companion smoke (`companion/` → `npm run start:safe -- --smoke`): page title **TCL Flip2 Manager**, pills **Start · Apps · Device · Set up**, catalog includes **`sherpa-en`** / **`sherpa-uk`** with size and sha256. See [MANAGER.md](MANAGER.md) for smoke expectations.
+Companion smoke (`companion/` → `npm run start:safe -- --smoke`): page title **TCL Flip2 Manager**, pills **Start · Bundled Apps · Device · Set up**, catalog includes **`sherpa-en`** / **`sherpa-uk`** with size and sha256. See [MANAGER.md](MANAGER.md) for smoke expectations.
