@@ -597,6 +597,6 @@
     "bundle": "Tier D \u2014 per-component zips + APKs + SHA256SUMS",
     "base": "Tier B base \u2014 wizard Base profile: FlipMouse (not Arcade), no Astro Loop; modules + Sherpa like full"
   },
-  "version": "1.4.0-alpha.8-flip2",
-  "versionCode": 20261118
+  "version": "1.4.0-alpha.9-flip2",
+  "versionCode": 20261116
 }

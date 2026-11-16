@@ -1,6 +1,6 @@
 {
-  "version": "1.4.0-alpha.8-flip2",
-  "pinned": "2026-11-18",
+  "version": "1.4.0-alpha.9-flip2",
+  "pinned": "2026-11-16",
   "catalog": "wizard/catalog.json",
   "files": [
     {
@@ -131,10 +131,10 @@
     },
     {
       "id": "companion-linux",
-      "file": "flip2-companion-1.4.0-alpha.8-linux-x86_64.AppImage",
-      "sha256": "bacb2e6173b52ca61609f7b7894520fe9d504f588f707016902b640f8ee0f1d1",
-      "size": 114165200,
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.8-linux-x86_64.AppImage"
+      "file": "flip2-companion-1.4.0-alpha.9-linux-x86_64.AppImage",
+      "sha256": "1097a2c6c41e06dbd51fff73822b0203af62d40687dce52aeb4bb4dcdac14ddb",
+      "size": 114165134,
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.9-linux-x86_64.AppImage"
     }
   ]
 }
