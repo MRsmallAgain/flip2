@@ -1,5 +1,5 @@
 {
-  "$schema_comment": "Flip2 deployment manifest — source of truth for all deploy tiers. Consumed by pack-all.sh, pack-installer.sh, setup.sh, image/build-tree.sh.",
+  "$schema_comment": "Flip2 deployment manifest \u2014 source of truth for all deploy tiers. Consumed by pack-all.sh, pack-installer.sh, setup.sh, image/build-tree.sh.",
   "version_scheme": "<name> X.Y.Z-flip2 + monotonic versionCode",
   "components": [
     {
@@ -189,7 +189,7 @@
         "repo": "MRsmallAgain/TelegramAndroid",
         "tag": "flip2-13.0.2.0-r1",
         "asset": "forkgram-13.0.2.0-flip2-patched.apk",
-        "note": "GPL; not stored in this repo — downloaded at install time"
+        "note": "GPL; not stored in this repo \u2014 downloaded at install time"
       }
     },
     {
@@ -292,7 +292,7 @@
         "image"
       ],
       "install_order": 871,
-      "notes": "F-Droid v1.5; upstream InputRouter supports DPAD/gamepad. No Flip2 smali patch yet — see pipeline/astro-loop/README.md.",
+      "notes": "F-Droid v1.5; upstream InputRouter supports DPAD/gamepad. No Flip2 smali patch yet \u2014 see pipeline/astro-loop/README.md.",
       "image_preload": {
         "system_app_dir": "AstroLoop",
         "source": "sources/com.astroloop.game_6.apk"
@@ -590,13 +590,13 @@
     ]
   },
   "tiers": {
-    "image": "Tier A — system tree for base-image builds (system/app + product/overlay + system FlipMouse)",
-    "image-post": "Tier B after Tier A flash — GPL sideloads + IME settings + deroot helper; no duplicate modules/APKs",
-    "clean": "Tier B clean — user APKs + settings only; installer self-removes; de-root friendly",
-    "full": "Tier B full / Tier C — everything, root required",
-    "bundle": "Tier D — per-component zips + APKs + SHA256SUMS",
-    "base": "Tier B base — wizard Base profile: FlipMouse (not Arcade), no Astro Loop; modules + Sherpa like full"
+    "image": "Tier A \u2014 system tree for base-image builds (system/app + product/overlay + system FlipMouse)",
+    "image-post": "Tier B after Tier A flash \u2014 GPL sideloads + IME settings + deroot helper; no duplicate modules/APKs",
+    "clean": "Tier B clean \u2014 user APKs + settings only; installer self-removes; de-root friendly",
+    "full": "Tier B full / Tier C \u2014 everything, root required",
+    "bundle": "Tier D \u2014 per-component zips + APKs + SHA256SUMS",
+    "base": "Tier B base \u2014 wizard Base profile: FlipMouse (not Arcade), no Astro Loop; modules + Sherpa like full"
   },
-  "version": "1.4.0-alpha.7-flip2",
-  "versionCode": 20261117
+  "version": "1.4.0-alpha.8-flip2",
+  "versionCode": 20261118
 }
