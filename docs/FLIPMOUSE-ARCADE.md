@@ -63,7 +63,8 @@ Two profiles. Homescreen left-soft mouse was verified on ONTK (`ONTKKB9L7PEUX4Z5
 | Speed | **20** (`FLIPMOUSE_DEFAULT_SPEED`, file `/data/local/flip2/flipmouse-speed`) |
 | First tap | full `mouse.speed` REL |
 | Repeat | **200 ms** delay, then every **50 ms** |
-| OK | one `BTN_LEFT` press (value forced to 1); the key release is swallowed |
+| OK | **Launcher4** (`com.tim.flip2.launcher4`): `input tap` at tracked cursor (pointer open, not DPAD focus). **Else:** timed `BTN_LEFT` hold (~60 ms) on the virtual mouse |
+| Hover | Manual portrait: virtual mouse emits **ABS_X/ABS_Y** (0–320 × 0–427) with each REL step so Launcher4 sees pointer position; BTN_LEFT released before moves (unless drag). OK still uses `input tap` on Launcher4 |
 | Star | release exits manual mouse; **hold Star + Vol up/down** adjusts cursor speed |
 | Vol alone (mouse) | pass through to the system (no accidental speed change in ScummVM etc.) |
 

@@ -694,7 +694,8 @@ public class NullKeyboardService extends InputMethodService {
     /**
      * D-pad, confirm, BACK, and Star for {@link #SDL_POINTER_PACKAGES}.
      * Return false from onKeyDown/onKeyUp so the activity gets the event.
-     * Star is Flip2 matrix scan 522. BACK skips the ScummVM opening movie.
+     * Star is {@link KeyEvent#KEYCODE_STAR} at the framework; scan 522 is matrix-only.
+     * BACK skips the ScummVM opening movie.
      */
     private boolean shouldPassthroughSdlPointerKey(int keyCode) {
         if (!isSdlPointerClient()) {
@@ -711,7 +712,7 @@ public class NullKeyboardService extends InputMethodService {
             case KeyEvent.KEYCODE_ESCAPE:
             case KeyEvent.KEYCODE_TAB:
             case KeyEvent.KEYCODE_BACK:
-            case 522: /* STAR on Flip2 matrix */
+            case KeyEvent.KEYCODE_STAR:
                 return true;
             default:
                 return false;

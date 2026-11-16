@@ -136,6 +136,12 @@
 #define SDL_PTR_REPEAT_INTERVAL_MS 32
 #define SDL_PTR_MOVE_DEN 3
 #define SDL_PTR_CLICK_DEBOUNCE_MS 280
+/* Homescreen / Launcher4: press then release after this hold (not back-to-back). */
+#define HOMESCREEN_CLICK_HOLD_MS 60
+/* InputReader motion ranges for FlipMouse Virtual Mouse (portrait inner panel). */
+#define PTR_X_MAX 320
+#define PTR_Y_MAX 427
+#define LAUNCHER4_PKG "com.tim.flip2.launcher4"
 /* Upper-left soft key (139/KEY_MENU): hold this long, then release, to toggle
  * mouse mode (enable when passive, release the cursor when active). */
 #define SOFTKEY_CODE 139
@@ -204,6 +210,9 @@ typedef struct
   int drag_mode;
   int star_held; /* Star down: Vol up/down adjust cursor speed (all mouse modes) */
   long long last_sdl_click_ms;
+  long long pending_click_release_ms; /* 0 = none; homescreen OK timed release */
+  int cursor_x; /* tracked for Launcher4 input tap (manual portrait mouse) */
+  int cursor_y;
   struct libevdev *dev;
   struct libevdev_uinput *uidev;
 } mouse_t;
@@ -388,6 +397,15 @@ static int mouse_init(void)
 
   libevdev_set_name(app_state.mouse.dev, "FlipMouse Virtual Mouse");
 
+  struct input_absinfo ptr_abs = {
+      .value = 0, .minimum = 0, .maximum = PTR_X_MAX, .fuzz = 0, .flat = 0};
+  struct input_absinfo ptr_abs_y = ptr_abs;
+  ptr_abs_y.maximum = PTR_Y_MAX;
+
+  libevdev_enable_event_type(app_state.mouse.dev, EV_ABS);
+  libevdev_enable_event_code(app_state.mouse.dev, EV_ABS, ABS_X, &ptr_abs);
+  libevdev_enable_event_code(app_state.mouse.dev, EV_ABS, ABS_Y, &ptr_abs_y);
+
   /* Configure mouse capabilities */
   libevdev_enable_event_code(app_state.mouse.dev, EV_REL, REL_X, NULL);
   libevdev_enable_event_code(app_state.mouse.dev, EV_REL, REL_Y, NULL);
@@ -413,6 +431,15 @@ static int mouse_init(void)
   app_state.mouse.held_code = 0;
   app_state.mouse.next_repeat_ms = 0;
   app_state.mouse.star_held = 0;
+  app_state.mouse.pending_click_release_ms = 0;
+  app_state.mouse.cursor_x = PTR_X_MAX / 2;
+  app_state.mouse.cursor_y = PTR_Y_MAX / 2;
+
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_ABS, ABS_X,
+                              app_state.mouse.cursor_x);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_ABS, ABS_Y,
+                              app_state.mouse.cursor_y);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
 
   log_message("Virtual mouse initialized (speed=%d; passive — hold upper-left soft key 1s and release to activate)",
               app_state.mouse.speed);
@@ -595,6 +622,7 @@ static int fg_cached_blocklist;
 static int fg_cached_portrait_gp;
 static int fg_cached_native_bypass;
 static int fg_cached_portrait_sdl_ptr;
+static int fg_cached_launcher4;
 
 static int poll_interval_ms(void)
 {
@@ -655,6 +683,12 @@ fg_cache_from_focus:
   fg_cached_portrait_sdl_ptr =
       !landscape_cached &&
       focus_line_has_pkg_in_list(focus, app_state.cfg_portrait_sdl_pointer_pkgs);
+  fg_cached_launcher4 = strstr(focus, LAUNCHER4_PKG) != NULL;
+}
+
+static int foreground_in_launcher4(void)
+{
+  return fg_cached_launcher4;
 }
 
 static int foreground_in_blocklist(void)
@@ -731,6 +765,37 @@ static int mouse_sdl_rel_step_half(int sign)
   return s / 2;
 }
 
+static void mouse_release_left_button(void)
+{
+  if (!app_state.mouse.uidev)
+    return;
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_LEFT, 0);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+}
+
+static void mouse_emit_left_click(void)
+{
+  if (!app_state.mouse.uidev)
+    return;
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_LEFT, 1);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_LEFT, 0);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+}
+
+/* Launcher4: down now, release after HOMESCREEN_CLICK_HOLD_MS in the event loop. */
+static void mouse_homescreen_emit_click(void)
+{
+  if (!app_state.mouse.uidev)
+    return;
+  if (app_state.mouse.pending_click_release_ms)
+    mouse_release_left_button();
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_LEFT, 1);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+  app_state.mouse.pending_click_release_ms =
+      now_ms() + HOMESCREEN_CLICK_HOLD_MS;
+}
+
 static void mouse_sdl_emit_click(void)
 {
   if (!app_state.mouse.uidev)
@@ -739,9 +804,103 @@ static void mouse_sdl_emit_click(void)
   if (now - app_state.mouse.last_sdl_click_ms < SDL_PTR_CLICK_DEBOUNCE_MS)
     return;
   app_state.mouse.last_sdl_click_ms = now;
-  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_LEFT, 1);
+  mouse_emit_left_click();
+}
+
+static void mouse_clamp_cursor_xy(int *x, int *y)
+{
+  if (*x < 0)
+    *x = 0;
+  if (*x > PTR_X_MAX)
+    *x = PTR_X_MAX;
+  if (*y < 0)
+    *y = 0;
+  if (*y > PTR_Y_MAX)
+    *y = PTR_Y_MAX;
+}
+
+/* Launcher4: keyboard focus ignores BTN_LEFT; open tiles with injected tap. */
+static void mouse_launcher4_tap_at_cursor(void)
+{
+  char cmd[96];
+  int x = app_state.mouse.cursor_x;
+  int y = app_state.mouse.cursor_y;
+  mouse_clamp_cursor_xy(&x, &y);
+  snprintf(cmd, sizeof cmd, "/system/bin/input tap %d %d 2>/dev/null", x, y);
+  log_message("Launcher4 input tap %d,%d", x, y);
+  FILE *fp = popen(cmd, "r");
+  if (fp)
+    pclose(fp);
+}
+
+static int mouse_use_abs_pointer(void)
+{
+  return app_state.mouse_manual && !mouse_sdl_ptr_smoothing();
+}
+
+static void mouse_track_rel(int rel_x, int rel_y)
+{
+  if (mouse_sdl_ptr_smoothing())
+    return;
+  int x = app_state.mouse.cursor_x + rel_x;
+  int y = app_state.mouse.cursor_y + rel_y;
+  mouse_clamp_cursor_xy(&x, &y);
+  app_state.mouse.cursor_x = x;
+  app_state.mouse.cursor_y = y;
+}
+
+static void mouse_prepare_movement(void)
+{
+  if (app_state.mouse.pending_click_release_ms)
+  {
+    mouse_release_left_button();
+    app_state.mouse.pending_click_release_ms = 0;
+  }
+  else if (app_state.mouse.drag_mode)
+    return;
+  else
+    mouse_release_left_button();
+}
+
+/* REL only (SDL profile, landscape cursor, wheel). */
+static void mouse_emit_rel_only(int rel_code, int rel_value)
+{
+  if (!app_state.mouse.uidev)
+    return;
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_REL, rel_code, rel_value);
   libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
-  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_LEFT, 0);
+}
+
+/* REL move; manual homescreen/Launcher4 also sync ABS so hover works. */
+static void mouse_apply_step(int rel_x, int rel_y)
+{
+  if (!app_state.mouse.uidev)
+    return;
+  mouse_prepare_movement();
+  if (rel_x || rel_y)
+    mouse_track_rel(rel_x, rel_y);
+  if (rel_x)
+    libevdev_uinput_write_event(app_state.mouse.uidev, EV_REL, REL_X, rel_x);
+  if (rel_y)
+    libevdev_uinput_write_event(app_state.mouse.uidev, EV_REL, REL_Y, rel_y);
+  if (mouse_use_abs_pointer() && (rel_x || rel_y))
+  {
+    libevdev_uinput_write_event(app_state.mouse.uidev, EV_ABS, ABS_X,
+                                app_state.mouse.cursor_x);
+    libevdev_uinput_write_event(app_state.mouse.uidev, EV_ABS, ABS_Y,
+                                app_state.mouse.cursor_y);
+  }
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+}
+
+static void mouse_sync_abs_pointer(void)
+{
+  if (!app_state.mouse.uidev || !mouse_use_abs_pointer())
+    return;
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_ABS, ABS_X,
+                              app_state.mouse.cursor_x);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_ABS, ABS_Y,
+                              app_state.mouse.cursor_y);
   libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
 }
 
@@ -1161,8 +1320,14 @@ static void mouse_activate(void)
   app_state.mouse_manual = 1;
   app_state.mouse.softhold_since = 0;
   app_state.landscape_cursor_override = 0;
+  if (app_state.mouse.pending_click_release_ms)
+  {
+    mouse_release_left_button();
+    app_state.mouse.pending_click_release_ms = 0;
+  }
   repeat_stop();
   sync_apply_mode();
+  mouse_sync_abs_pointer();
   log_message("Mouse mode enabled (keypads grabbed)");
 }
 
@@ -1172,6 +1337,11 @@ static void mouse_deactivate(void)
 {
   repeat_stop();
   app_state.mouse.star_held = 0;
+  if (app_state.mouse.pending_click_release_ms)
+  {
+    mouse_release_left_button();
+    app_state.mouse.pending_click_release_ms = 0;
+  }
   app_state.mouse_manual = 0;
   app_state.landscape_cursor_override = 0;
   sync_apply_mode();
@@ -1206,8 +1376,9 @@ static void fire_repeat(void)
     }
     if (rel_code)
     {
-      libevdev_uinput_write_event(app_state.mouse.uidev, EV_REL, rel_code, rel_value);
-      libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+      int rx = (rel_code == REL_X) ? rel_value : 0;
+      int ry = (rel_code == REL_Y) ? rel_value : 0;
+      mouse_apply_step(rx, ry);
       app_state.mouse.next_repeat_ms = now_ms() + interval;
       return;
     }
@@ -1237,8 +1408,14 @@ static void fire_repeat(void)
   case KEY_SEND: rel_code = REL_WHEEL; rel_value = -1; interval = WHEEL_REPEAT_INTERVAL_MS; break;
   default: repeat_stop(); return;
   }
-  libevdev_uinput_write_event(app_state.mouse.uidev, EV_REL, rel_code, rel_value);
-  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+  if (rel_code == REL_X || rel_code == REL_Y)
+  {
+    int rx = (rel_code == REL_X) ? rel_value : 0;
+    int ry = (rel_code == REL_Y) ? rel_value : 0;
+    mouse_apply_step(rx, ry);
+  }
+  else
+    mouse_emit_rel_only(rel_code, rel_value);
   app_state.mouse.next_repeat_ms = now_ms() + interval;
 }
 
@@ -1278,13 +1455,20 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
         mouse_sdl_emit_click();
       return MUTE_EVENT;
     }
-    if (ev->value == 0)
-      return MUTE_EVENT;
-    log_message("Mouse left click");
-    ev->type = EV_KEY;
-    ev->code = BTN_LEFT;
-    ev->value = 1;
-    return CHANGED_TO_MOUSE;
+    if (ev->value == 1)
+    {
+      if (foreground_in_launcher4())
+      {
+        log_message("Mouse OK (Launcher4 input tap)");
+        mouse_launcher4_tap_at_cursor();
+      }
+      else
+      {
+        log_message("Mouse left click (homescreen timed)");
+        mouse_homescreen_emit_click();
+      }
+    }
+    return MUTE_EVENT;
 
   case DEL_CODE: /* keypad DEL (138) toggles drag — formerly raw 48, which is
                   * the right soft key (Shortcuts trigger) and must pass
@@ -1327,46 +1511,40 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
         repeat_stop();
       return MUTE_EVENT;
     }
-    ev->type = EV_REL;
-    if (app_state.gamepad.landscape_cursor &&
-        (keycode == KEY_UP || keycode == KEY_DOWN || keycode == KEY_LEFT ||
-         keycode == KEY_RIGHT))
     {
-      if (keycode == KEY_UP || keycode == KEY_DOWN)
+      int rel_x = 0, rel_y = 0;
+      if (app_state.gamepad.landscape_cursor &&
+          (keycode == KEY_UP || keycode == KEY_DOWN || keycode == KEY_LEFT ||
+           keycode == KEY_RIGHT))
       {
-        ev->code = REL_X;
-        ev->value = (keycode == KEY_UP) ? -app_state.mouse.speed
+        if (keycode == KEY_UP || keycode == KEY_DOWN)
+          rel_x = (keycode == KEY_UP) ? -app_state.mouse.speed
+                                      : app_state.mouse.speed;
+        else
+          rel_y = (keycode == KEY_LEFT) ? -app_state.mouse.speed
                                         : app_state.mouse.speed;
+        mouse_apply_step(rel_x, rel_y);
+      }
+      else if (keycode == KEY_UP || keycode == KEY_DOWN)
+      {
+        rel_y = mouse_sdl_ptr_smoothing()
+                    ? mouse_sdl_rel_step_half(keycode == KEY_UP ? -1 : 1)
+                    : ((keycode == KEY_UP) ? -app_state.mouse.speed
+                                           : app_state.mouse.speed);
+        mouse_apply_step(0, rel_y);
+      }
+      else if (keycode == KEY_LEFT || keycode == KEY_RIGHT)
+      {
+        rel_x = mouse_sdl_ptr_smoothing()
+                    ? mouse_sdl_rel_step_half(keycode == KEY_LEFT ? -1 : 1)
+                    : ((keycode == KEY_LEFT) ? -app_state.mouse.speed
+                                             : app_state.mouse.speed);
+        mouse_apply_step(rel_x, 0);
       }
       else
-      {
-        ev->code = REL_Y;
-        ev->value = (keycode == KEY_LEFT) ? -app_state.mouse.speed
-                                          : app_state.mouse.speed;
-      }
+        mouse_emit_rel_only(REL_WHEEL, (keycode == KEY_MENU) ? 1 : -1);
     }
-    else if (keycode == KEY_UP || keycode == KEY_DOWN)
-    {
-      ev->code = REL_Y;
-      ev->value = mouse_sdl_ptr_smoothing()
-                      ? mouse_sdl_rel_step_half(keycode == KEY_UP ? -1 : 1)
-                      : ((keycode == KEY_UP) ? -app_state.mouse.speed
-                                             : app_state.mouse.speed);
-    }
-    else if (keycode == KEY_LEFT || keycode == KEY_RIGHT)
-    {
-      ev->code = REL_X;
-      ev->value = mouse_sdl_ptr_smoothing()
-                      ? mouse_sdl_rel_step_half(keycode == KEY_LEFT ? -1 : 1)
-                      : ((keycode == KEY_LEFT) ? -app_state.mouse.speed
-                                               : app_state.mouse.speed);
-    }
-    else /* wheel */
-    {
-      ev->code = REL_WHEEL;
-      ev->value = (keycode == KEY_MENU) ? 1 : -1;
-    }
-    return CHANGED_TO_MOUSE;
+    return MUTE_EVENT;
 
   default:
     return PASS_THRU_EVENT;
@@ -1653,11 +1831,16 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
       {
         long long held = now_ms() - app_state.mouse.softhold_since;
         app_state.mouse.softhold_since = 0;
-        if (held >= HOLD_TOGGLE_MS && landscape_now() && !landscape_cursor_hold_blocked())
+        if (held >= HOLD_TOGGLE_MS)
         {
-          app_state.landscape_cursor_override = 1;
-          sync_apply_mode();
-          log_message("left soft hold: landscape cursor");
+          if (landscape_now() && !landscape_cursor_hold_blocked())
+          {
+            app_state.landscape_cursor_override = 1;
+            sync_apply_mode();
+            log_message("left soft hold: landscape cursor");
+          }
+          else
+            mouse_activate();
           return MUTE_EVENT;
         }
         if (held < HOLD_TOGGLE_MS)
@@ -1707,10 +1890,7 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
         }
       }
       if (app_state.mode == MODE_MOUSE)
-      {
-        libevdev_uinput_write_event(app_state.mouse.uidev, EV_REL, REL_WHEEL, 1);
-        libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
-      }
+        mouse_emit_rel_only(REL_WHEEL, 1);
       return MUTE_EVENT;
     }
 
@@ -1809,6 +1989,17 @@ static int run_event_loop(void)
           wait = 0;
       }
 
+      if (app_state.mouse.pending_click_release_ms)
+      {
+        long long click_wait = app_state.mouse.pending_click_release_ms - now_ms();
+        if (click_wait < 0)
+          click_wait = 0;
+        if (wait < 0)
+          wait = click_wait;
+        else if (click_wait < wait)
+          wait = click_wait;
+      }
+
       long long poll_wait = app_state.last_landscape_poll
                                 ? app_state.last_landscape_poll + poll_interval_ms() -
                                       now_ms()
@@ -1854,6 +2045,13 @@ static int run_event_loop(void)
       {
         /* select() hit the repeat deadline: emit one step and reschedule. */
         fire_repeat();
+        continue;
+      }
+      if (app_state.mouse.pending_click_release_ms &&
+          now_ms() >= app_state.mouse.pending_click_release_ms)
+      {
+        mouse_release_left_button();
+        app_state.mouse.pending_click_release_ms = 0;
         continue;
       }
     }
