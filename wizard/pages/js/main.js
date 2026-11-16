@@ -275,15 +275,15 @@ function updateCreditStatusRows() {
 }
 
 function updateDlHubSummary(ids, missing) {
-  var wrap = $('dl-hub-summary');
+  var panel = $('dl-files-panel');
   var count = $('dl-hub-count');
   var banner = $('dl-hub-banner');
-  if (!wrap || !count) return;
-  wrap.classList.remove('hidden');
+  if (!count) return;
+  if (panel && ids.length) panel.classList.remove('hidden');
   var have = ids.length - missing.length;
   count.textContent = have + ' / ' + ids.length;
   if (banner) {
-    if (missing.length === 0) banner.classList.remove('hidden');
+    if (missing.length === 0 && ids.length) banner.classList.remove('hidden');
     else banner.classList.add('hidden');
   }
 }

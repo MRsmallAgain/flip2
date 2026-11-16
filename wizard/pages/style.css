@@ -975,6 +975,32 @@ table.safety-paths td:first-child {
   margin-bottom: 8px;
 }
 
+.dl-files-panel summary.dl-files-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink);
+  list-style: none;
+}
+
+.dl-files-panel summary.dl-files-summary::-webkit-details-marker {
+  display: none;
+}
+
+.dl-files-summary-label {
+  font-weight: 700;
+}
+
+.dl-files-panel #dl-hub-count {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.dl-files-panel .dl-file-list {
+  margin-top: 4px;
+}
+
 .app-widget-panel {
   margin: 0;
   font-size: 14px;

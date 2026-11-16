@@ -219,11 +219,14 @@
 	    <p class="warn">Prepare: no super/system/preloader. Tier 3: <code>docs/SAFETY.md</code>.</p>
 	  </details>
 	  <p class="note">The first full download can take <b>10+ minutes</b> — large installer zips and voice models verify one file at a time. The status line may sit on one number for a while; that is normal.</p>
-	  <div id="dl-hub-summary" class="status-rows hidden" aria-live="polite">
-	    <div class="status-row"><span>Files</span><strong id="dl-hub-count">—</strong></div>
+	  <details class="apps-panel dl-files-panel" id="dl-files-panel" open>
+	    <summary class="dl-files-summary">
+	      <span class="dl-files-summary-label">Files</span>
+	      <strong id="dl-hub-count" aria-live="polite">—</strong>
+	    </summary>
 	    <p id="dl-hub-banner" class="one-liner ok hidden">All verified</p>
-	  </div>
-	  <div id="dl-file-list" class="dl-file-list" role="list"></div>
+	    <div id="dl-file-list" class="dl-file-list" role="list"></div>
+	  </details>
   <input type="file" id="dl-pick" multiple class="hidden">
   <div class="action-row">
     <button id="dl-local-btn" class="hidden">Use files already on this PC</button>
