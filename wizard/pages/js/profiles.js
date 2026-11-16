@@ -77,6 +77,8 @@ var PROFILES = {
   arcadeAccepted: false,
   // flagId -> true when the user checked it. Defaults come from profiles.json.
   flagState: {},
+  // componentId -> false when user unchecked an optional bundled row (default on).
+  componentInclude: {},
   // Confirmed from the pinned 15400 APK. The Companion handler ignores any
   // other component the page might send and uses this same string.
   deviceOwnerComponent: 'com.hmdm.launcher/.AdminReceiver',
@@ -104,6 +106,7 @@ var PROFILES = {
       }
       PROFILES.selectedId = 'base';
       PROFILES.initFlags();
+      PROFILES.initComponentInclude('base');
       return data;
     });
   },
@@ -128,6 +131,25 @@ var PROFILES = {
     for (var i = 0; i < this._listeners.length; i++) this._listeners[i](this.selectedId);
   },
 
+  isComponentIncluded: function (componentId) {
+    return this.componentInclude[componentId] !== false;
+  },
+
+  setComponentInclude: function (componentId, on) {
+    this.componentInclude[componentId] = !!on;
+    for (var i = 0; i < this._listeners.length; i++) this._listeners[i](this.selectedId);
+  },
+
+  initComponentInclude: function (id) {
+    var comps = this.profileComponentIds(id || this.selectedId);
+    var i;
+    for (i = 0; i < comps.length; i++) {
+      if (!Object.prototype.hasOwnProperty.call(this.componentInclude, comps[i])) {
+        this.componentInclude[comps[i]] = true;
+      }
+    }
+  },
+
   list: function () {
     return (this.data && this.data.profiles) || [];
   },
@@ -146,6 +168,7 @@ var PROFILES = {
     if (p.enabled === false) throw new Error('profile is not selectable: ' + id);
     this.selectedId = id;
     if (id !== 'arcade') this.arcadeAccepted = false;
+    this.initComponentInclude(id);
     for (var i = 0; i < this._listeners.length; i++) this._listeners[i](id);
     return id;
   },
@@ -168,13 +191,13 @@ var PROFILES = {
     for (var i = 0; i < this._listeners.length; i++) this._listeners[i](this.selectedId);
   },
 
-  // Full component id list. Managed is base.components concatenated with adds.
-  componentIds: function (id) {
+  // Profile template list (no user toggles). Managed is base + adds.
+  profileComponentIds: function (id) {
     var p = this.byId(id || this.selectedId);
     if (!p) throw new Error('unknown profile: ' + (id || this.selectedId));
     if (p.components) return p.components.slice();
     if (p.extends) {
-      var base = this.componentIds(p.extends);
+      var base = this.profileComponentIds(p.extends);
       var adds = p.adds || [];
       for (var i = 0; i < adds.length; i++) {
         if (base.indexOf(adds[i]) < 0) base.push(adds[i]);
@@ -182,6 +205,17 @@ var PROFILES = {
       return base;
     }
     return [];
+  },
+
+  // Included components for Apply / profile.list (respects bundled-app toggles).
+  componentIds: function (id) {
+    var comps = this.profileComponentIds(id || this.selectedId);
+    var out = [];
+    var i;
+    for (i = 0; i < comps.length; i++) {
+      if (this.isComponentIncluded(comps[i])) out.push(comps[i]);
+    }
+    return out;
   },
 
   // Catalog ids the download gate and Apply must have verified.
@@ -227,7 +261,7 @@ var PROFILES = {
   },
 
   rows: function (id) {
-    var comps = this.componentIds(id);
+    var comps = this.profileComponentIds(id);
     var out = [];
     for (var i = 0; i < comps.length; i++) {
       var meta = COMPONENT_META[comps[i]];

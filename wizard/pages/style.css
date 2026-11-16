@@ -1013,6 +1013,46 @@ table.safety-paths td:first-child {
   margin-bottom: 4px;
 }
 
+.app-row-static {
+  border-bottom: 1px solid var(--line);
+}
+
+.app-row-static .app-main strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.app-row--excluded,
+.app-widget-panel--excluded summary .app-widget-title {
+  opacity: 0.72;
+}
+
+.app-include {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  cursor: pointer;
+  flex: none;
+  user-select: none;
+}
+
+.app-include input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.app-include--summary {
+  order: -1;
+  margin-right: 4px;
+}
+
+.app-row-static .app-include {
+  margin-left: auto;
+}
+
 .action-row--compact {
   gap: 8px 10px;
   margin: 10px 0;

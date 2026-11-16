@@ -501,7 +501,12 @@ function apkBytesFor(row) {
 }
 
 function appStatus(row) {
-  if (row.kind === 'settings') return { text: 'with Apply', cls: '' };
+  if (row.kind === 'settings') {
+    return PROFILES.isComponentIncluded(row.id)
+      ? { text: 'with Apply', cls: '' }
+      : { text: 'off for Apply', cls: 'wait' };
+  }
+  if (!PROFILES.isComponentIncluded(row.id)) return { text: 'off for Apply', cls: 'wait' };
   if (!APPS_STATE) return { text: 'not checked', cls: 'wait' };
   if (row.kind === 'module') {
     if (!APPS_STATE.modsKnown) return { text: 'not checked', cls: 'wait' };
@@ -558,6 +563,24 @@ function refreshAppsStatus(doneMsg) {
   });
 }
 
+function appendAppIncludeToggle(parent, row, onSummary) {
+  var lab = document.createElement('label');
+  lab.className = 'app-include' + (onSummary ? ' app-include--summary' : '');
+  var input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = PROFILES.isComponentIncluded(row.id);
+  input.title = 'Include in profile.list on Apply';
+  input.addEventListener('click', function (ev) { ev.stopPropagation(); });
+  input.addEventListener('change', function () {
+    PROFILES.setComponentInclude(row.id, input.checked);
+  });
+  lab.appendChild(input);
+  var span = document.createElement('span');
+  span.textContent = 'Include on Apply';
+  lab.appendChild(span);
+  parent.appendChild(lab);
+}
+
 function renderApps() {
   var box = $('apps-rows');
   if (!box || !PROFILES.data) return;
@@ -567,10 +590,30 @@ function renderApps() {
   for (i = 0; i < rows.length; i++) {
     (function (row) {
       var st = appStatus(row);
+      var included = PROFILES.isComponentIncluded(row.id);
+      if (row.kind === 'settings') {
+        var staticRow = document.createElement('div');
+        staticRow.className = 'app-row app-row-static';
+        var main = document.createElement('div');
+        main.className = 'app-main';
+        var title = document.createElement('strong');
+        title.textContent = row.label;
+        main.appendChild(title);
+        var note = document.createElement('span');
+        note.className = st.cls ? ('status ' + st.cls) : 'note';
+        note.textContent = st.text;
+        main.appendChild(note);
+        staticRow.appendChild(main);
+        appendAppIncludeToggle(staticRow, row, false);
+        if (!included) staticRow.classList.add('app-row--excluded');
+        box.appendChild(staticRow);
+        return;
+      }
       var details = document.createElement('details');
       details.className = 'app-widget-panel';
       var summary = document.createElement('summary');
       summary.className = 'app-widget-summary';
+      appendAppIncludeToggle(summary, row, true);
       var sumTitle = document.createElement('span');
       sumTitle.className = 'app-widget-title';
       sumTitle.textContent = row.label;
@@ -610,6 +653,7 @@ function renderApps() {
       }
       rowEl.appendChild(actions);
       details.appendChild(rowEl);
+      if (!included) details.classList.add('app-widget-panel--excluded');
       box.appendChild(details);
     })(rows[i]);
   }
