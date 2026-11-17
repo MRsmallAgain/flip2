@@ -700,8 +700,9 @@ fg_cache_from_focus:
       focus_line_has_pkg_in_list(focus, app_state.cfg_portrait_gamepad_pkgs);
   fg_cached_native_bypass =
       focus_line_has_pkg_in_list(focus, app_state.cfg_native_bypass_pkgs);
+  /* SDL pointer apps (ScummVM) need injected REL + OK click in landscape too;
+   * portrait-only gating left landscape on auto gamepad (OK = Select, not click). */
   fg_cached_portrait_sdl_ptr =
-      !landscape_cached &&
       focus_line_has_pkg_in_list(focus, app_state.cfg_portrait_sdl_pointer_pkgs);
   fg_cached_launcher4 = strstr(focus, LAUNCHER4_PKG) != NULL;
 }
@@ -1161,6 +1162,39 @@ static void gamepad_cleanup(void)
  *
  * The landscape cross is a true 90-degree rotation: Up->left, left->down,
  * down->right, right->up. */
+
+/* Same 90° CCW as gp_dirs_apply landscape branch: physical up -> screen left.
+ * step must be a positive magnitude; sign comes only from keycode. */
+static void mouse_keypad_to_rel(int keycode, int step, int *rel_x, int *rel_y)
+{
+  if (step < 0)
+    step = -step;
+  *rel_x = 0;
+  *rel_y = 0;
+  if (landscape_now())
+  {
+    switch (keycode)
+    {
+    case KEY_UP: *rel_x = -step; break;
+    case KEY_DOWN: *rel_x = step; break;
+    case KEY_LEFT: *rel_y = step; break;
+    case KEY_RIGHT: *rel_y = -step; break;
+    default: break;
+    }
+  }
+  else
+  {
+    switch (keycode)
+    {
+    case KEY_UP: *rel_y = -step; break;
+    case KEY_DOWN: *rel_y = step; break;
+    case KEY_LEFT: *rel_x = -step; break;
+    case KEY_RIGHT: *rel_x = step; break;
+    default: break;
+    }
+  }
+}
+
 static void gp_dirs_apply(void)
 {
   int d = app_state.gamepad.dpad_held;
@@ -1406,45 +1440,45 @@ static void fire_repeat(void)
 
   if (!app_state.mouse.enabled || !code)
     return;
-  if (app_state.gamepad.landscape_cursor)
+  if (code == KEY_UP || code == KEY_DOWN || code == KEY_LEFT || code == KEY_RIGHT)
   {
-    switch (code)
+    if (app_state.gamepad.landscape_cursor || mouse_sdl_ptr_smoothing() ||
+        landscape_now())
     {
-    case KEY_UP: rel_code = REL_X; rel_value = -app_state.mouse.speed; break;
-    case KEY_DOWN: rel_code = REL_X; rel_value = app_state.mouse.speed; break;
-    case KEY_LEFT: rel_code = REL_Y; rel_value = -app_state.mouse.speed; break;
-    case KEY_RIGHT: rel_code = REL_Y; rel_value = app_state.mouse.speed; break;
-    default: break;
-    }
-    if (rel_code)
-    {
-      int rx = (rel_code == REL_X) ? rel_value : 0;
-      int ry = (rel_code == REL_Y) ? rel_value : 0;
+      int step = app_state.mouse.speed;
+      if (mouse_sdl_ptr_smoothing())
+      {
+        step = mouse_sdl_rel_step(1);
+        if (step < 0)
+          step = -step;
+        interval = SDL_PTR_REPEAT_INTERVAL_MS;
+      }
+      int rx, ry;
+      mouse_keypad_to_rel(code, step, &rx, &ry);
       mouse_apply_step(rx, ry);
       app_state.mouse.next_repeat_ms = now_ms() + interval;
       return;
     }
+    if (mouse_sdl_ptr_smoothing())
+      interval = SDL_PTR_REPEAT_INTERVAL_MS;
   }
-  if (mouse_sdl_ptr_smoothing() &&
-      (code == KEY_UP || code == KEY_DOWN || code == KEY_LEFT || code == KEY_RIGHT))
-    interval = SDL_PTR_REPEAT_INTERVAL_MS;
   switch (code)
   {
   case KEY_UP:
     rel_code = REL_Y;
-    rel_value = mouse_sdl_ptr_smoothing() ? mouse_sdl_rel_step(-1) : -app_state.mouse.speed;
+    rel_value = -app_state.mouse.speed;
     break;
   case KEY_DOWN:
     rel_code = REL_Y;
-    rel_value = mouse_sdl_ptr_smoothing() ? mouse_sdl_rel_step(1) : app_state.mouse.speed;
+    rel_value = app_state.mouse.speed;
     break;
   case KEY_LEFT:
     rel_code = REL_X;
-    rel_value = mouse_sdl_ptr_smoothing() ? mouse_sdl_rel_step(-1) : -app_state.mouse.speed;
+    rel_value = -app_state.mouse.speed;
     break;
   case KEY_RIGHT:
     rel_code = REL_X;
-    rel_value = mouse_sdl_ptr_smoothing() ? mouse_sdl_rel_step(1) : app_state.mouse.speed;
+    rel_value = app_state.mouse.speed;
     break;
   case KEY_MENU: rel_code = REL_WHEEL; rel_value = 1; interval = WHEEL_REPEAT_INTERVAL_MS; break;
   case KEY_SEND: rel_code = REL_WHEEL; rel_value = -1; interval = WHEEL_REPEAT_INTERVAL_MS; break;
@@ -1536,34 +1570,28 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
       return MUTE_EVENT;
     }
     {
-      int rel_x = 0, rel_y = 0;
-      if (app_state.gamepad.landscape_cursor &&
-          (keycode == KEY_UP || keycode == KEY_DOWN || keycode == KEY_LEFT ||
-           keycode == KEY_RIGHT))
+      if (keycode == KEY_UP || keycode == KEY_DOWN || keycode == KEY_LEFT ||
+          keycode == KEY_RIGHT)
       {
-        if (keycode == KEY_UP || keycode == KEY_DOWN)
-          rel_x = (keycode == KEY_UP) ? -app_state.mouse.speed
-                                      : app_state.mouse.speed;
+        int step;
+        if (mouse_sdl_ptr_smoothing())
+        {
+          int s = mouse_sdl_rel_step_half((keycode == KEY_UP || keycode == KEY_LEFT) ? -1 : 1);
+          step = s < 0 ? -s : s;
+        }
         else
-          rel_y = (keycode == KEY_LEFT) ? -app_state.mouse.speed
-                                        : app_state.mouse.speed;
-        mouse_apply_step(rel_x, rel_y);
-      }
-      else if (keycode == KEY_UP || keycode == KEY_DOWN)
-      {
-        rel_y = mouse_sdl_ptr_smoothing()
-                    ? mouse_sdl_rel_step_half(keycode == KEY_UP ? -1 : 1)
-                    : ((keycode == KEY_UP) ? -app_state.mouse.speed
-                                           : app_state.mouse.speed);
-        mouse_apply_step(0, rel_y);
-      }
-      else if (keycode == KEY_LEFT || keycode == KEY_RIGHT)
-      {
-        rel_x = mouse_sdl_ptr_smoothing()
-                    ? mouse_sdl_rel_step_half(keycode == KEY_LEFT ? -1 : 1)
-                    : ((keycode == KEY_LEFT) ? -app_state.mouse.speed
-                                             : app_state.mouse.speed);
-        mouse_apply_step(rel_x, 0);
+          step = app_state.mouse.speed;
+        if (app_state.gamepad.landscape_cursor || mouse_sdl_ptr_smoothing() ||
+            landscape_now())
+        {
+          int rel_x, rel_y;
+          mouse_keypad_to_rel(keycode, step, &rel_x, &rel_y);
+          mouse_apply_step(rel_x, rel_y);
+        }
+        else if (keycode == KEY_UP || keycode == KEY_DOWN)
+          mouse_apply_step(0, (keycode == KEY_UP) ? -step : step);
+        else
+          mouse_apply_step((keycode == KEY_LEFT) ? -step : step, 0);
       }
       else
         mouse_emit_rel_only(REL_WHEEL, (keycode == KEY_MENU) ? 1 : -1);
