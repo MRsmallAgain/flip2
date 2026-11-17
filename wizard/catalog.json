@@ -1,7 +1,7 @@
 {
   "$comment": "Flip2 setup wizard download catalog. Every hash below was computed from the real upstream file (sha256sum), not guessed; sizes are exact byte counts. The browser verifies each download with WebCrypto SHA-256 against these pins before anything is pushed to the phone. Nothing in this catalog is stored in the repo or attached to releases — these are pointers to upstream artifacts.",
-  "version": "1.4.0-alpha.10-flip2",
-  "pinned": "2026-11-16",
+  "version": "1.4.0-alpha.11-flip2",
+  "pinned": "2026-11-17",
   "files": [
     {
       "id": "neutron",
@@ -17,10 +17,10 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "purpose": "Flip2 Magisk installer (full): prefetched APKs, Sherpa STT tarballs, modules, home keys, 321x428, wallpaper. Self-removes after first boot. Release v1.4.0-alpha.10-flip2.",
+      "purpose": "Flip2 Magisk installer (full): prefetched APKs, Sherpa STT tarballs, modules, home keys, 321x428, wallpaper. Self-removes after first boot. Release v1.4.0-alpha.11-flip2.",
       "url": "https://flip2burn.online/packages/flip2-installer-full-magisk.zip",
-      "size": 395631574,
-      "sha256": "f9303584759fb39c10d63e2a60268abc9994993528d337ebd3de0a9398d859dc",
+      "size": 395631674,
+      "sha256": "0367136357fab3e52ce59b8ea78e3bdda6e200a4664ad612a13577d5856ab6b0",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.10-flip2"
@@ -32,8 +32,8 @@
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.10-flip2",
       "file": "flip2-installer-slim-magisk.zip",
-      "size": 181526709,
-      "sha256": "df28d64dd80398da825e436104518a0382c79568d941202a4525a7af42ab6cc3",
+      "size": 181526809,
+      "sha256": "b5ffd7121b92aad0383d2a706fda3df0982f0cbe088ca1bd8a40e60ed8ff49f2",
       "purpose": "Flip2 Magisk installer (slim): same stack as full without bundled Sherpa voices; use catalog sherpa-en/uk if needed. Release v1.4.0-alpha.10-flip2."
     },
     {
@@ -199,22 +199,22 @@
       "file": "flip2-installer-base-magisk.zip",
       "purpose": "Flip2 Magisk installer (base): wizard Base profile + Sherpa.",
       "url": "https://flip2burn.online/packages/flip2-installer-base-magisk.zip",
-      "size": 343300564,
-      "sha256": "1a5dcbade2c78bdd27c93a02ef64a8e02155f47e52f303ad44503be3cf06d612",
+      "size": 343300565,
+      "sha256": "0fe5a701bb13facd872a610b625f85221c860b5efb8f97ff4de8c9afb6add73e",
       "license": "See flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.10-flip2"
     },
     {
       "id": "companion-linux",
-      "file": "flip2-companion-1.4.0-alpha.10-linux-x86_64.AppImage",
+      "file": "flip2-companion-1.4.0-alpha.11-linux-x86_64.AppImage",
       "purpose": "TCL Flip2 Manager desktop app (Linux x86_64 AppImage). Same wizard UI as flip2burn.online — Start · Bundled Apps · Device · Set up.",
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.10-linux-x86_64.AppImage",
-      "size": 114165152,
-      "sha256": "0781fced3334a39450a453e6f2d4c927248c00e2b72612dc39d9ce8f3c8b23cf",
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.11-linux-x86_64.AppImage",
+      "size": 114165186,
+      "sha256": "883459e630365129c684fb04c1533da8b3bda38a0106d0e314bff5a0690aca35",
       "license": "MIT (companion); wizard assets see flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.10-flip2"
+      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.11-flip2"
     }
   ],
   "not_downloaded": [
