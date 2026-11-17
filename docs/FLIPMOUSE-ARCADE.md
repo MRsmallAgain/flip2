@@ -32,6 +32,8 @@ Passive returns mute. The key already reached the app on the real node; re-injec
 ```ini
 landscape_auto=1
 enabled=0
+# back_short=android   # default: short keypad Back -> Android KEY_BACK in gamepad
+# back_short=start     # legacy: short Back -> BTN_START; hold 2s -> real Back
 # Comma-separated package names (no spaces):
 # block_cursor_toggle_packages=com.dozingcatsoftware.bouncy
 # portrait_gamepad_packages=com.shatteredpixel.shatteredpixeldungeon
@@ -46,6 +48,8 @@ enabled=0
 | `portrait_gamepad_packages` | Virtual gamepad in **portrait** with standard Up/Down/Left/Right stick mapping (not 90° CCW) |
 | `portrait_sdl_pointer_packages` | Portrait software-cursor apps. Auto mouse with the SDL step profile below while that package is foreground. Does not stick after you leave |
 | `native_keypad_bypass_packages` | While that app is foreground, Arcade closes matrix-keypad and mtk-kpd so it stops reading physical keys, then reattaches when you leave. For apps that need the raw keypad. Keep portrait SDL pointer packages off this list. `sync_keypad_bypass()` also refuses to detach while one of them is foreground |
+| `back_short=android` | **Landscape gamepad:** short **Back** (key 158) sends real Android Back. Long hold ≥2 s then release → `BTN_START` pulse (pause / in-game Start). Default. |
+| `back_short=start` | Legacy: short Back → `BTN_START`; real Back only after ≥2 s hold |
 
 The Magisk `service.sh` seed writes `gamepad.conf` only when the file is missing. Installing Arcade does not rewrite a live conf.
 
@@ -104,11 +108,15 @@ Foreground cache, once per poll: the first `ResumedActivity` / `topResumedActivi
 
 `org.scummvm.scummvm` is the first portrait SDL pointer package. Its launcher is a software cursor, and injected REL moves it. The in-app Direct mouse control is a touch setting; Flip2 injects a REL mouse.
 
-In portrait SDL pointer mode while ScummVM is foreground:
+In SDL pointer mode while ScummVM is foreground (portrait or landscape — same **90° CCW** numpad/D-pad rotation in landscape):
 
 | Key | Injected action |
 |-----|-----------------|
 | D-pad | Move cursor |
+| **Numpad 2/4/6/8** | Same as D-pad Up/Left/Right/Down (phone layout: 2 = up row) |
+| **Numpad 1/3/7/9** | Diagonal cursor steps (same geometry as landscape gamepad cross) |
+| **5** | **Left click** — alternate to OK under the thumb |
+| **0** | **Right click** — alternate to right soft |
 | OK / Enter | **Left click** (Walk / Look / Talk / select verb on icon bar) |
 | Right soft (48) | **Right click** (Use in BASS; verb change in classic point-and-click) |
 
@@ -126,7 +134,9 @@ Set `portrait_gamepad_packages=com.shatteredpixel.shatteredpixeldungeon`. D-pad 
 
 ## Landscape stick rotation
 
-In **landscape** gamepad, D-pad and numpad use **90° CCW** mapping (phone top to your left). In **portrait gamepad** profile, mapping is **standard** (Up = −Y, etc.). Details: [landscape-gamepad README](../pipeline/landscape-gamepad/README.md).
+In **landscape** gamepad, D-pad and numpad use **90° CCW** mapping (phone top to your left). In **portrait gamepad** profile, mapping is **standard** (Up = −Y, etc.). The same layout helpers drive the virtual stick/hat and **landscape cursor** REL steps (`layout_for_gamepad` / `layout_for_mouse_cursor` in `main.c`); orientation flips clear held directions so a cross held across rotate cannot stick the wrong axis. Details: [landscape-gamepad README](../pipeline/landscape-gamepad/README.md).
+
+**Arcade supersedes** the standalone **Flip2Gamepad** Magisk module — do not install both with grab active.
 
 ## Commands
 

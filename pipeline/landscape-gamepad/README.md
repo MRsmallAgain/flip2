@@ -1,5 +1,7 @@
 # Landscape gamepad companion (Flip 2)
 
+**Arcade profile:** use **`FlipMouseArcade`** (`pipeline/flipmouse-arcade`) — one daemon with the same rotation and mapping as below. This standalone **Flip2Gamepad** module is legacy; do not run it alongside Arcade with both grabbing the keypad.
+
 When the display is in **landscape** (horizontal games), the physical keypad is sideways. **Flip2Gamepad** (Magisk) grabs the matrix keypad (+ volume on `mtk-kpd`) and exposes a **virtual uinput gamepad** with your rotated D-pad and dual-stick layout.
 
 ## Activation
@@ -56,8 +58,8 @@ Diagonals are why the numpad keeps its own per-key bits: one key sets two direct
 | **0** | B (`BTN_EAST`) |
 | *** | X (`BTN_NORTH`) |
 | D-pad center (OK) | Select — left stick click (`BTN_THUMBL`), like pressing the stick |
-| **Back** (short tap) | Start (`BTN_START` press/release) |
-| **Back** (hold ≥2s, release) | Real Android Back (re-injected through matrix uinput clone) |
+| **Back** (short tap) | **FlipMouse Arcade (default):** real Android Back. Legacy `back_short=start` or standalone module: Start (`BTN_START`) |
+| **Back** (hold ≥2s, release) | **Arcade default:** `BTN_START` pulse. Legacy `back_short=start`: real Android Back |
 
 ### Triggers / shoulders
 

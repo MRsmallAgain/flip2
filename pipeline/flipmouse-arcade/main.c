@@ -176,6 +176,12 @@ typedef enum
   MODE_MOUSE = 3
 } input_mode_t;
 
+typedef enum
+{
+  LAYOUT_PORTRAIT_STD = 0,
+  LAYOUT_LANDSCAPE_CCW = 1
+} input_axis_layout_t;
+
 typedef struct
 {
   struct libevdev *dev;
@@ -228,6 +234,7 @@ typedef struct
   input_mode_t mode;
   int cfg_manual_gp;
   int cfg_landscape_auto;
+  int cfg_back_short_android; /* 1 = short Back -> KEY_BACK; 0 = legacy short -> BTN_START */
   char cfg_block_cursor_pkgs[512];
   char cfg_portrait_gamepad_pkgs[512];
   char cfg_native_bypass_pkgs[512];
@@ -488,6 +495,9 @@ static long long now_ms(void);
 static void sync_apply_mode(void);
 static void sync_keypad_bypass(void);
 static void devices_rebuild_fd_set(fd_set *fds, int *maxfd);
+static void gp_clear_held_directions(void);
+static void gp_stick_apply(void);
+static void gp_trig_apply(void);
 
 static long long now_ms(void)
 {
@@ -515,6 +525,7 @@ static void cfg_load_gamepad(void)
   FILE *f = fopen(GAMEPAD_CONFIG, "r");
   app_state.cfg_manual_gp = 0;
   app_state.cfg_landscape_auto = 1;
+  app_state.cfg_back_short_android = 1;
   app_state.cfg_block_cursor_pkgs[0] = '\0';
   app_state.cfg_portrait_gamepad_pkgs[0] = '\0';
   app_state.cfg_native_bypass_pkgs[0] = '\0';
@@ -528,6 +539,13 @@ static void cfg_load_gamepad(void)
       app_state.cfg_manual_gp = (line[8] == '1');
     else if (strncmp(line, "landscape_auto=", 15) == 0)
       app_state.cfg_landscape_auto = (line[15] == '1');
+    else if (strncmp(line, "back_short=", 11) == 0)
+    {
+      if (strncmp(line + 11, "start", 5) == 0)
+        app_state.cfg_back_short_android = 0;
+      else
+        app_state.cfg_back_short_android = 1; /* android or default */
+    }
     else if (strncmp(line, "block_cursor_toggle_packages=", 29) == 0)
     {
       char *val = line + 29;
@@ -574,6 +592,8 @@ static void cfg_load_gamepad(void)
  * Probe once per cycle; everything else reads the cache. A rotation change is
  * still picked up within one poll interval. */
 static int landscape_cached;
+static int landscape_cached_prev = -1;
+static int portrait_layout_prev = -1;
 
 static int landscape_probe(void)
 {
@@ -581,14 +601,19 @@ static int landscape_probe(void)
   if (!p)
     return 0;
   char buf[1024];
-  /* This TCL build never prints AOSP's "rotation=1"/"rotation=3" -- it prints
-   * "mCurrentRotation=ROTATION_90" plus a "cur=WxH" size. Match both forms and
-   * fall back to width>height. (mLandscapeRotation is a constant on this build,
-   * so it must never be matched.) */
+  /* Scope to mDisplayId=0 — secondary displays (e.g. 128×128 cover) must not
+   * flip landscape mode or rotation mapping for the main panel. */
+  int in_main_display = 0;
   int rot_land = 0;
   int size_land = -1;
   while (fgets(buf, sizeof buf, p))
   {
+    if (strstr(buf, "Display: mDisplayId=0"))
+      in_main_display = 1;
+    else if (strstr(buf, "Display: mDisplayId=") && !strstr(buf, "Display: mDisplayId=0"))
+      in_main_display = 0;
+    if (!in_main_display)
+      continue;
     if (strstr(buf, "mCurrentRotation=ROTATION_90") ||
         strstr(buf, "mCurrentRotation=ROTATION_270") ||
         strstr(buf, "rotation=1") || strstr(buf, "rotation=3"))
@@ -759,6 +784,7 @@ static int arcade_poll_due_if_overdue(void)
 
 static void arcade_run_scheduled_poll(fd_set *fds, int *maxfd)
 {
+  int land_before = landscape_cached;
   landscape_cached = landscape_probe();
   mouse_reload_speed_for_orientation();
   cfg_load_gamepad();
@@ -767,6 +793,19 @@ static void arcade_run_scheduled_poll(fd_set *fds, int *maxfd)
   devices_rebuild_fd_set(fds, maxfd);
   if (!app_state.keypad_detached)
     sync_apply_mode();
+  {
+    int pl = app_state.gamepad.portrait_layout;
+    if (landscape_cached_prev >= 0 &&
+        (land_before != landscape_cached ||
+         (portrait_layout_prev >= 0 && portrait_layout_prev != pl)))
+    {
+      if (is_grabbed_mode(app_state.mode))
+        gp_clear_held_directions();
+      log_message("orientation land=%d portrait_gp=%d", landscape_cached, pl);
+    }
+    landscape_cached_prev = landscape_cached;
+    portrait_layout_prev = pl;
+  }
   app_state.last_landscape_poll = now_ms();
 }
 
@@ -1012,6 +1051,167 @@ static void sync_keypad_bypass(void)
   }
 }
 
+/* Single transform for gamepad stick/hat and landscape-cursor REL (direct_cursor). */
+static input_axis_layout_t layout_for_gamepad(void)
+{
+  return app_state.gamepad.portrait_layout ? LAYOUT_PORTRAIT_STD
+                                           : LAYOUT_LANDSCAPE_CCW;
+}
+
+static input_axis_layout_t layout_for_mouse_cursor(void)
+{
+  if (app_state.mode == MODE_GAMEPAD)
+    return layout_for_gamepad();
+  if (app_state.mode == MODE_LANDSCAPE_CURSOR)
+    return LAYOUT_LANDSCAPE_CCW;
+  /* SDL pointer (ScummVM) uses portrait steps in portrait, 90° CCW in landscape —
+   * same as gamepad stick; portrait-only mapping here was the "rotation off" bug. */
+  if (landscape_now())
+    return LAYOUT_LANDSCAPE_CCW;
+  return LAYOUT_PORTRAIT_STD;
+}
+
+static void keypad_dirs_to_stick(int up, int down, int left, int right,
+                                 input_axis_layout_t layout, int *hx, int *hy)
+{
+  *hx = 0;
+  *hy = 0;
+  if (layout == LAYOUT_PORTRAIT_STD)
+  {
+    if (up)
+      *hy -= STICK_EDGE;
+    if (down)
+      *hy += STICK_EDGE;
+    if (left)
+      *hx -= STICK_EDGE;
+    if (right)
+      *hx += STICK_EDGE;
+  }
+  else
+  {
+    if (up)
+      *hx -= STICK_EDGE;
+    if (down)
+      *hx += STICK_EDGE;
+    if (left)
+      *hy += STICK_EDGE;
+    if (right)
+      *hy -= STICK_EDGE;
+  }
+}
+
+/* Numpad cross (phone layout: 2=up, 8=down, 4=left, 6=right, 1/3/7/9 diagonals). */
+static void keypad_numpad_to_rel(int keycode, int step, input_axis_layout_t layout,
+                                 int *rel_x, int *rel_y)
+{
+  int up = 0, down = 0, left = 0, right = 0;
+
+  switch (keycode)
+  {
+  case KEY_2: up = 1; break;
+  case KEY_8: down = 1; break;
+  case KEY_4: left = 1; break;
+  case KEY_6: right = 1; break;
+  case KEY_1: up = 1; left = 1; break;
+  case KEY_3: up = 1; right = 1; break;
+  case KEY_7: down = 1; left = 1; break;
+  case KEY_9: down = 1; right = 1; break;
+  default:
+    *rel_x = *rel_y = 0;
+    return;
+  }
+  {
+    int hx = 0, hy = 0;
+    keypad_dirs_to_stick(up, down, left, right, layout, &hx, &hy);
+    *rel_x = 0;
+    *rel_y = 0;
+    if (layout == LAYOUT_LANDSCAPE_CCW)
+    {
+      if (hx < 0)
+        *rel_x = -step;
+      else if (hx > 0)
+        *rel_x = step;
+      if (hy < 0)
+        *rel_y = -step;
+      else if (hy > 0)
+        *rel_y = step;
+    }
+    else
+    {
+      if (hy < 0)
+        *rel_y = -step;
+      else if (hy > 0)
+        *rel_y = step;
+      if (hx < 0)
+        *rel_x = -step;
+      else if (hx > 0)
+        *rel_x = step;
+    }
+  }
+}
+
+static int keypad_is_numpad_cursor(int keycode)
+{
+  return keycode == KEY_1 || keycode == KEY_2 || keycode == KEY_3 || keycode == KEY_4 ||
+         keycode == KEY_6 || keycode == KEY_7 || keycode == KEY_8 || keycode == KEY_9;
+}
+
+static void keypad_keycode_to_rel(int keycode, int step, input_axis_layout_t layout,
+                                  int *rel_x, int *rel_y)
+{
+  if (step < 0)
+    step = -step;
+  *rel_x = 0;
+  *rel_y = 0;
+  if (keypad_is_numpad_cursor(keycode))
+  {
+    keypad_numpad_to_rel(keycode, step, layout, rel_x, rel_y);
+    return;
+  }
+  if (layout == LAYOUT_LANDSCAPE_CCW)
+  {
+    switch (keycode)
+    {
+    case KEY_UP: *rel_x = -step; break;
+    case KEY_DOWN: *rel_x = step; break;
+    case KEY_LEFT: *rel_y = step; break;
+    case KEY_RIGHT: *rel_y = -step; break;
+    default: break;
+    }
+  }
+  else
+  {
+    switch (keycode)
+    {
+    case KEY_UP: *rel_y = -step; break;
+    case KEY_DOWN: *rel_y = step; break;
+    case KEY_LEFT: *rel_x = -step; break;
+    case KEY_RIGHT: *rel_x = step; break;
+    default: break;
+    }
+  }
+}
+
+static void gp_clear_held_directions(void)
+{
+  app_state.gamepad.dpad_held = 0;
+  app_state.gamepad.numpad_held = 0;
+  app_state.gamepad.trig_l_held = 0;
+  app_state.gamepad.trig_r_held = 0;
+  app_state.gamepad.stick_lx = app_state.gamepad.stick_ly = 0;
+  app_state.gamepad.stick_rx = app_state.gamepad.stick_ry = 0;
+  app_state.mouse.held_code = 0;
+  app_state.mouse.next_repeat_ms = 0;
+  if (app_state.gamepad.uidev)
+  {
+    gp_stick_apply();
+    gp_trig_apply();
+    libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_HAT0X, 0);
+    libevdev_uinput_write_event(app_state.gamepad.uidev, EV_ABS, ABS_HAT0Y, 0);
+    libevdev_uinput_write_event(app_state.gamepad.uidev, EV_SYN, SYN_REPORT, 0);
+  }
+}
+
 /* Blocklist stops accidental *landscape cursor* in gamepad — not portrait mouse
  * (SDL cutscenes need left-soft hold → mouse from passive). */
 static int landscape_cursor_hold_blocked(void)
@@ -1019,6 +1219,8 @@ static int landscape_cursor_hold_blocked(void)
   return foreground_in_blocklist();
 }
 
+/* Mode priority: manual mouse → landscape cursor override → portrait SDL pointer
+ * → landscape_auto gamepad → portrait_gamepad list → passive. */
 static input_mode_t mode_wanted(void)
 {
   if (app_state.mouse_manual)
@@ -1163,36 +1365,9 @@ static void gamepad_cleanup(void)
  * The landscape cross is a true 90-degree rotation: Up->left, left->down,
  * down->right, right->up. */
 
-/* Same 90° CCW as gp_dirs_apply landscape branch: physical up -> screen left.
- * step must be a positive magnitude; sign comes only from keycode. */
 static void mouse_keypad_to_rel(int keycode, int step, int *rel_x, int *rel_y)
 {
-  if (step < 0)
-    step = -step;
-  *rel_x = 0;
-  *rel_y = 0;
-  if (landscape_now())
-  {
-    switch (keycode)
-    {
-    case KEY_UP: *rel_x = -step; break;
-    case KEY_DOWN: *rel_x = step; break;
-    case KEY_LEFT: *rel_y = step; break;
-    case KEY_RIGHT: *rel_y = -step; break;
-    default: break;
-    }
-  }
-  else
-  {
-    switch (keycode)
-    {
-    case KEY_UP: *rel_y = -step; break;
-    case KEY_DOWN: *rel_y = step; break;
-    case KEY_LEFT: *rel_x = -step; break;
-    case KEY_RIGHT: *rel_x = step; break;
-    default: break;
-    }
-  }
+  keypad_keycode_to_rel(keycode, step, layout_for_mouse_cursor(), rel_x, rel_y);
 }
 
 static void gp_dirs_apply(void)
@@ -1216,28 +1391,7 @@ static void gp_dirs_apply(void)
   if (n & (NPAD_BIT_6 | NPAD_BIT_3 | NPAD_BIT_9))
     right = 1;
 
-  if (app_state.gamepad.portrait_layout)
-  {
-    if (up)
-      hy -= STICK_EDGE;
-    if (down)
-      hy += STICK_EDGE;
-    if (left)
-      hx -= STICK_EDGE;
-    if (right)
-      hx += STICK_EDGE;
-  }
-  else
-  {
-    if (up)
-      hx -= STICK_EDGE;
-    if (down)
-      hx += STICK_EDGE;
-    if (left)
-      hy += STICK_EDGE;
-    if (right)
-      hy -= STICK_EDGE;
-  }
+  keypad_dirs_to_stick(up, down, left, right, layout_for_gamepad(), &hx, &hy);
 
   app_state.gamepad.stick_lx = hx;
   app_state.gamepad.stick_ly = hy;
@@ -1329,16 +1483,30 @@ static int gamepad_handle_key(int code, int value)
   case KEY_BACK:
     if (value == 1) {
       app_state.gamepad.back_hold_since = now_ms();
-      gp_emit_key(BTN_START, 1);
+      if (!app_state.cfg_back_short_android)
+        gp_emit_key(BTN_START, 1);
       return MUTE_EVENT;
     }
     {
-      long long held = app_state.gamepad.back_hold_since ? now_ms() - app_state.gamepad.back_hold_since : 0;
+      long long held =
+          app_state.gamepad.back_hold_since
+              ? now_ms() - app_state.gamepad.back_hold_since
+              : 0;
       app_state.gamepad.back_hold_since = 0;
-      gp_emit_key(BTN_START, 0);
-      if (held >= BACK_REAL_HOLD_MS) {
-        pass_through_matrix(KEY_BACK, 1);
-        pass_through_matrix(KEY_BACK, 0);
+      if (app_state.cfg_back_short_android) {
+        if (held >= BACK_REAL_HOLD_MS) {
+          gp_emit_key(BTN_START, 1);
+          gp_emit_key(BTN_START, 0);
+        } else {
+          pass_through_matrix(KEY_BACK, 1);
+          pass_through_matrix(KEY_BACK, 0);
+        }
+      } else {
+        gp_emit_key(BTN_START, 0);
+        if (held >= BACK_REAL_HOLD_MS) {
+          pass_through_matrix(KEY_BACK, 1);
+          pass_through_matrix(KEY_BACK, 0);
+        }
       }
       return MUTE_EVENT;
     }
@@ -1440,46 +1608,25 @@ static void fire_repeat(void)
 
   if (!app_state.mouse.enabled || !code)
     return;
-  if (code == KEY_UP || code == KEY_DOWN || code == KEY_LEFT || code == KEY_RIGHT)
+  if (code == KEY_UP || code == KEY_DOWN || code == KEY_LEFT || code == KEY_RIGHT ||
+      keypad_is_numpad_cursor(code))
   {
-    if (app_state.gamepad.landscape_cursor || mouse_sdl_ptr_smoothing() ||
-        landscape_now())
-    {
-      int step = app_state.mouse.speed;
-      if (mouse_sdl_ptr_smoothing())
-      {
-        step = mouse_sdl_rel_step(1);
-        if (step < 0)
-          step = -step;
-        interval = SDL_PTR_REPEAT_INTERVAL_MS;
-      }
-      int rx, ry;
-      mouse_keypad_to_rel(code, step, &rx, &ry);
-      mouse_apply_step(rx, ry);
-      app_state.mouse.next_repeat_ms = now_ms() + interval;
-      return;
-    }
+    int step = app_state.mouse.speed;
     if (mouse_sdl_ptr_smoothing())
+    {
+      step = mouse_sdl_rel_step(1);
+      if (step < 0)
+        step = -step;
       interval = SDL_PTR_REPEAT_INTERVAL_MS;
+    }
+    int rx, ry;
+    mouse_keypad_to_rel(code, step, &rx, &ry);
+    mouse_apply_step(rx, ry);
+    app_state.mouse.next_repeat_ms = now_ms() + interval;
+    return;
   }
   switch (code)
   {
-  case KEY_UP:
-    rel_code = REL_Y;
-    rel_value = -app_state.mouse.speed;
-    break;
-  case KEY_DOWN:
-    rel_code = REL_Y;
-    rel_value = app_state.mouse.speed;
-    break;
-  case KEY_LEFT:
-    rel_code = REL_X;
-    rel_value = -app_state.mouse.speed;
-    break;
-  case KEY_RIGHT:
-    rel_code = REL_X;
-    rel_value = app_state.mouse.speed;
-    break;
   case KEY_MENU: rel_code = REL_WHEEL; rel_value = 1; interval = WHEEL_REPEAT_INTERVAL_MS; break;
   case KEY_SEND: rel_code = REL_WHEEL; rel_value = -1; interval = WHEEL_REPEAT_INTERVAL_MS; break;
   default: repeat_stop(); return;
@@ -1505,6 +1652,24 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
   case KEY_VOLUMEUP:
   case KEY_VOLUMEDOWN:
     return PASS_THRU_EVENT;
+
+  case KEY_5:
+    if (mouse_sdl_ptr_smoothing())
+    {
+      if (ev->value == 1)
+        mouse_sdl_emit_click();
+      return MUTE_EVENT;
+    }
+    break;
+
+  case KEY_0:
+    if (mouse_sdl_ptr_smoothing())
+    {
+      if (ev->value == 1)
+        mouse_sdl_emit_right_click();
+      return MUTE_EVENT;
+    }
+    break;
 
   case KEY_ENTER:
     if (mouse_sdl_ptr_smoothing())
@@ -1548,11 +1713,19 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
   case KEY_DOWN:
   case KEY_LEFT:
   case KEY_RIGHT:
+  case KEY_1:
+  case KEY_2:
+  case KEY_3:
+  case KEY_4:
+  case KEY_6:
+  case KEY_7:
+  case KEY_8:
+  case KEY_9:
   case KEY_MENU: /* scroll up */
   case KEY_SEND: /* scroll down */
     /* Local patch: press = one step now + synthesized auto-repeat until
      * release; release is swallowed (the press already emitted the step).
-     * Wheel keys repeat on the slowed wheel cadence. */
+     * Numpad cross mirrors gamepad layout for SDL pointer (ScummVM). */
     if (ev->value == 1)
     {
       app_state.mouse.held_code = keycode;
@@ -1571,27 +1744,29 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
     }
     {
       if (keycode == KEY_UP || keycode == KEY_DOWN || keycode == KEY_LEFT ||
-          keycode == KEY_RIGHT)
+          keycode == KEY_RIGHT || keypad_is_numpad_cursor(keycode))
       {
         int step;
         if (mouse_sdl_ptr_smoothing())
         {
-          int s = mouse_sdl_rel_step_half((keycode == KEY_UP || keycode == KEY_LEFT) ? -1 : 1);
-          step = s < 0 ? -s : s;
+          if (keypad_is_numpad_cursor(keycode))
+          {
+            int s = mouse_sdl_rel_step_half(1);
+            step = s < 0 ? -s : s;
+          }
+          else
+          {
+            int s = mouse_sdl_rel_step_half((keycode == KEY_UP || keycode == KEY_LEFT) ? -1 : 1);
+            step = s < 0 ? -s : s;
+          }
         }
         else
           step = app_state.mouse.speed;
-        if (app_state.gamepad.landscape_cursor || mouse_sdl_ptr_smoothing() ||
-            landscape_now())
         {
           int rel_x, rel_y;
           mouse_keypad_to_rel(keycode, step, &rel_x, &rel_y);
           mouse_apply_step(rel_x, rel_y);
         }
-        else if (keycode == KEY_UP || keycode == KEY_DOWN)
-          mouse_apply_step(0, (keycode == KEY_UP) ? -step : step);
-        else
-          mouse_apply_step((keycode == KEY_LEFT) ? -step : step, 0);
       }
       else
         mouse_emit_rel_only(REL_WHEEL, (keycode == KEY_MENU) ? 1 : -1);

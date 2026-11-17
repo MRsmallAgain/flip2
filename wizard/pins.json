@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0-alpha.12-flip2",
+  "version": "1.4.0-alpha.13-flip2",
   "pinned": "2026-11-17",
   "catalog": "wizard/catalog.json",
   "files": [
@@ -13,15 +13,15 @@
     {
       "id": "installer-full",
       "file": "flip2-installer-full-magisk.zip",
-      "sha256": "c6a7612412b399c67d30e422065054f8e3cf6982f2f3c64d34927a55821a0ec5",
-      "size": 395631609,
+      "sha256": "ad290cfadffbfddd446e535c24cc12d47593838ec8ad6c1f14ff572826f8ffa4",
+      "size": 395632336,
       "url": "https://flip2burn.online/packages/flip2-installer-full-magisk.zip"
     },
     {
       "id": "installer-slim",
       "file": "flip2-installer-slim-magisk.zip",
-      "sha256": "da99ca4ab854b1db9407d7e15f52c4a176a94226f9c3ec3384cb1f644e6a7115",
-      "size": 181526744,
+      "sha256": "c708adc3d6d513dae2d7242ddd8d4689de3112a3a2939bb7a788bb11d40e23e9",
+      "size": 181527471,
       "url": "https://flip2burn.online/packages/flip2-installer-slim-magisk.zip"
     },
     {
@@ -125,16 +125,16 @@
     {
       "id": "installer-base",
       "file": "flip2-installer-base-magisk.zip",
-      "sha256": "a6faf4eed2935a7b4b76eadd0b498065807f6571a3f5210188806f22f1a69a9c",
-      "size": 343300565,
+      "sha256": "f109b6c5252d0780a813fb0f53e23acde4cda67be098856edb680823a8bcd311",
+      "size": 343300564,
       "url": "https://flip2burn.online/packages/flip2-installer-base-magisk.zip"
     },
     {
       "id": "companion-linux",
-      "file": "flip2-companion-1.4.0-alpha.12-linux-x86_64.AppImage",
-      "sha256": "aee2dfcce2cf50d1148e97f8edf9292a1528afcb5c731213d2aa039d4a41ccc6",
-      "size": 114165202,
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.12-linux-x86_64.AppImage"
+      "file": "flip2-companion-1.4.0-alpha.13-linux-x86_64.AppImage",
+      "sha256": "d783666b9be180b2592b0f12dd1e96c1537af4086bfb0d0ed4537cda1060f341",
+      "size": 114165200,
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.13-linux-x86_64.AppImage"
     }
   ]
 }
