@@ -116,7 +116,7 @@ Set `onscreen_control=true` in `[scummvm]` and per-game sections in `scummvm.ini
 
 Game data, `scummvm.ini`, and scaling: memory `project-flip2-scummvm`.
 
-Landscape play uses the normal `landscape_auto` gamepad. The blocklist is for Bouncy-style pinball only.
+Apps in `portrait_sdl_pointer_packages` keep SDL pointer mode in **landscape** as well (cursor + OK click + right-soft right click). Other landscape apps still use `landscape_auto` gamepad unless you toggle landscape cursor. The blocklist is for Bouncy-style pinball only.
 
 `./build.sh --debug` logs keypad detach/reattach to `/cache/FlipMouse.log`.
 
