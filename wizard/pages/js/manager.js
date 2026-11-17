@@ -254,6 +254,7 @@ function refreshPhone() {
         : 'Use Chrome or Flip 2 Companion.',
       'wait'
     );
+    setMouseSpeedPanelEnabled(false);
     return;
   }
   setStatus('phone-msg', 'reading the phone\u2026', 'wait');
@@ -271,6 +272,7 @@ function refreshPhone() {
         factRow(box, 'USB', copy.fact, copy.cls);
         setStatus('phone-msg', copy.status, copy.cls);
         setPhoneNext(copy.next, true);
+        setMouseSpeedPanelEnabled(false);
       });
     }
     factRow(box, 'Serial', ready.serial || '(unknown)', 'ok');
@@ -300,18 +302,111 @@ function refreshPhone() {
         setPhoneNext(
           '<b>Tier 1 needs root.</b> Tier 3 <b>Erase and root</b> or the release zip, then <b>Refresh</b>. Push and install need <code>su</code>.',
           true);
+        setMouseSpeedPanelEnabled(false);
         return;
       }
       setStatus('phone-msg', 'Phone ready over host adb.', 'ok');
       setPhoneNext(
         '<b>Next:</b> pick Base or Managed above → <b>Prepare</b> or <b>Bundled Apps</b> Apply.',
         true);
+      if (typeof loadMouseSpeedsFromPhone === 'function') loadMouseSpeedsFromPhone();
     });
   }).catch(function (e) {
     phoneHostRootState = null;
     setTier1RootPrereqVisible(false);
     setStatus('phone-msg', cleanErr(e), 'bad');
+    setMouseSpeedPanelEnabled(false);
   });
+}
+
+var mouseSpeedBusy = false;
+
+function syncMouseSpeedOutputs() {
+  var p = $('mouse-speed-portrait');
+  var l = $('mouse-speed-landscape');
+  var po = $('mouse-speed-portrait-out');
+  var lo = $('mouse-speed-landscape-out');
+  if (po && p) po.textContent = p.value;
+  if (lo && l) lo.textContent = l.value;
+}
+
+function setMouseSpeedPanelEnabled(on) {
+  var ids = ['mouse-speed-portrait', 'mouse-speed-landscape', 'mouse-speed-apply'];
+  var i, el;
+  for (i = 0; i < ids.length; i++) {
+    el = $(ids[i]);
+    if (el) el.disabled = !on || mouseSpeedBusy;
+  }
+}
+
+function loadMouseSpeedsFromPhone() {
+  var N = window.FLIP2_NATIVE;
+  if (!N || typeof N.wizardHostReadFlipmouseSpeeds !== 'function') {
+    setMouseSpeedPanelEnabled(false);
+    return;
+  }
+  if (phoneHostRootState !== true) {
+    setMouseSpeedPanelEnabled(false);
+    return;
+  }
+  N.wizardHostReadFlipmouseSpeeds().then(function (r) {
+    if (!r) return;
+    var p = $('mouse-speed-portrait');
+    var l = $('mouse-speed-landscape');
+    if (p && typeof r.portrait === 'number') p.value = String(r.portrait);
+    if (l && typeof r.landscape === 'number') l.value = String(r.landscape);
+    syncMouseSpeedOutputs();
+    setMouseSpeedPanelEnabled(true);
+  }).catch(function () {
+    setMouseSpeedPanelEnabled(phoneHostRootState === true);
+  });
+}
+
+function applyMouseSpeedsToPhone() {
+  var N = window.FLIP2_NATIVE;
+  if (!N || typeof N.wizardHostWriteFlipmouseSpeeds !== 'function') {
+    setStatus('mouse-speed-msg', 'Mouse speed needs Flip 2 Companion.', 'bad');
+    return;
+  }
+  if (phoneHostRootState !== true) {
+    setStatus('mouse-speed-msg', 'Root required — Refresh after rooting.', 'wait');
+    return;
+  }
+  if (mouseSpeedBusy) return;
+  var pEl = $('mouse-speed-portrait');
+  var lEl = $('mouse-speed-landscape');
+  if (!pEl || !lEl) return;
+  mouseSpeedBusy = true;
+  setMouseSpeedPanelEnabled(true);
+  setStatus('mouse-speed-msg', 'writing speeds\u2026', 'wait');
+  N.wizardHostWriteFlipmouseSpeeds({
+    portrait: pEl.value,
+    landscape: lEl.value
+  }).then(function (r) {
+    if (!r || r.ok === false) {
+      setStatus('mouse-speed-msg', (r && r.error) || 'could not write speed files', 'bad');
+      return;
+    }
+    setStatus('mouse-speed-msg', 'Applied. Arcade reloads speeds while running.', 'ok');
+  }).catch(function (e) {
+    setStatus('mouse-speed-msg', cleanErr(e), 'bad');
+  }).then(function () {
+    mouseSpeedBusy = false;
+    setMouseSpeedPanelEnabled(phoneHostRootState === true);
+  });
+}
+
+function initMouseSpeed() {
+  if (initMouseSpeed.bound) return;
+  initMouseSpeed.bound = true;
+  var p = $('mouse-speed-portrait');
+  var l = $('mouse-speed-landscape');
+  var applyBtn = $('mouse-speed-apply');
+  if (p) p.addEventListener('input', syncMouseSpeedOutputs);
+  if (l) l.addEventListener('input', syncMouseSpeedOutputs);
+  if (applyBtn) applyBtn.addEventListener('click', applyMouseSpeedsToPhone);
+  syncMouseSpeedOutputs();
+  setMouseSpeedPanelEnabled(false);
 }
 
 function initPhone() {
@@ -321,6 +416,7 @@ function initPhone() {
   if (udevBtn) udevBtn.addEventListener('click', function () { showStep('udev'); });
   var usbBtn = $('phone-usb');
   if (usbBtn) usbBtn.addEventListener('click', function () { showStep('usb'); });
+  initMouseSpeed();
   refreshPhone();
 }
 

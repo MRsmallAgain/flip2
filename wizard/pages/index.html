@@ -43,6 +43,26 @@
         <pre class="log hidden" id="get-ready-adb-log" aria-live="polite"></pre>
         <div id="phone-facts" class="now strip-phone-facts"></div>
         <p id="phone-next" class="note hidden"></p>
+        <details class="strip-phone-details mouse-speed-panel" id="mouse-speed-details">
+          <summary class="strip-phone-summary">Mouse cursor speed</summary>
+          <div class="mouse-speed-body">
+            <p class="note">FlipMouse Arcade: separate step size for portrait (homescreen, ScummVM) vs landscape (landscape cursor). Requires root and Companion.</p>
+            <div class="mouse-speed-row">
+              <label class="mouse-speed-label" for="mouse-speed-portrait">Portrait (vertical phone)</label>
+              <input type="range" id="mouse-speed-portrait" min="1" max="99" value="20" aria-valuemin="1" aria-valuemax="99">
+              <output id="mouse-speed-portrait-out" for="mouse-speed-portrait">20</output>
+            </div>
+            <div class="mouse-speed-row">
+              <label class="mouse-speed-label" for="mouse-speed-landscape">Landscape (horizontal phone)</label>
+              <input type="range" id="mouse-speed-landscape" min="1" max="99" value="20" aria-valuemin="1" aria-valuemax="99">
+              <output id="mouse-speed-landscape-out" for="mouse-speed-landscape">20</output>
+            </div>
+            <div class="action-row action-row--compact">
+              <button type="button" id="mouse-speed-apply" class="small">Apply to phone</button>
+              <span id="mouse-speed-msg" class="status"></span>
+            </div>
+          </div>
+        </details>
         <div class="action-row action-row--compact strip-phone-actions">
           <button type="button" id="get-ready-reset-adb-key" class="small ghost" title="After Revoke USB authorizations on the phone">New browser ADB key</button>
           <button type="button" id="phone-refresh" class="small ghost strip-action-refresh">Refresh</button>

@@ -60,15 +60,15 @@ Two profiles. Homescreen left-soft mouse was verified on ONTK (`ONTKKB9L7PEUX4Z5
 | | |
 |--|--|
 | How it turns on | Left soft (139) hold ≥ 1 s from passive. Sets `mouse_manual` |
-| Speed | **20** (`FLIPMOUSE_DEFAULT_SPEED`, file `/data/local/flip2/flipmouse-speed`) |
+| Speed | **20** default; file `/data/local/flip2/flipmouse-speed-portrait` (falls back to legacy `/data/local/flip2/flipmouse-speed`) |
 | First tap | full `mouse.speed` REL |
 | Repeat | **200 ms** delay, then every **50 ms** |
 | OK | **Launcher4** (`com.tim.flip2.launcher4`): `input tap` at tracked cursor (pointer open, not DPAD focus). **Else:** timed `BTN_LEFT` hold (~60 ms) on the virtual mouse |
 | Hover | Manual portrait: virtual mouse emits **ABS_X/ABS_Y** (0–320 × 0–427) with each REL step so Launcher4 sees pointer position; BTN_LEFT released before moves (unless drag). OK still uses `input tap` on Launcher4 |
-| Star | release exits manual mouse; **hold Star + Vol up/down** adjusts cursor speed |
-| Vol alone (mouse) | pass through to the system (no accidental speed change in ScummVM etc.) |
+| Star | release exits manual mouse / landscape cursor |
+| Vol (mouse) | pass through to the system |
 
-The speed file is read at daemon start. **Star + Vol up** / **Star + Vol down** change live speed and write `/data/local/flip2/flipmouse-speed` (all portrait/landscape mouse modes, including ScummVM SDL auto-mouse). Plain volume keys pass through while the cursor is grabbed. Repeat timing is compiled into the Arcade binary.
+Portrait speed comes from `/data/local/flip2/flipmouse-speed-portrait` (falls back to legacy `/data/local/flip2/flipmouse-speed`, default **20**). Landscape cursor speed uses `/data/local/flip2/flipmouse-speed-landscape`. Arcade reloads both on its poll when files change; Flip 2 Companion / Manager can write them (then `killall mouse`). There is no in-game Star+Vol adjustment.
 
 Base FlipMouse (`pipeline/flipmouse`, the other daemon) is still 400 ms / 100 ms. Leave those defines there.
 
@@ -88,8 +88,6 @@ Active when wanted mode is mouse and the foreground app is in `portrait_sdl_poin
 
 A 1-pixel negative half step truncates to 0 in integer division. At speed 20 the half step is 3 either sign. Leave that truncation alone.
 
-Speed changes use the same **Star + Vol** combo as homescreen mouse; plain volume passes through.
-
 Star release calls `mouse_deactivate()`, which clears `mouse_manual`. While the package is still foreground, `mode_wanted()` returns mouse again, so the cursor stays. BACK is passed through on the matrix clone (ScummVM uses it to skip the opening movie).
 
 Foreground cache, once per poll: the first `ResumedActivity` / `topResumedActivity` line. If that line is empty, a non-null `mCurrentFocus` line that names a portrait SDL pointer package is the fallback. The key path reads the cache and does not call `popen`.
@@ -105,6 +103,16 @@ Foreground cache, once per poll: the first `ResumedActivity` / `topResumedActivi
 ## ScummVM
 
 `org.scummvm.scummvm` is the first portrait SDL pointer package. Its launcher is a software cursor, and injected REL moves it. The in-app Direct mouse control is a touch setting; Flip2 injects a REL mouse.
+
+In portrait SDL pointer mode while ScummVM is foreground:
+
+| Key | Injected action |
+|-----|-----------------|
+| D-pad | Move cursor |
+| OK / Enter | **Left click** (Walk / Look / Talk / select verb on icon bar) |
+| Right soft (48) | **Right click** (Use in BASS; verb change in classic point-and-click) |
+
+Set `onscreen_control=true` in `[scummvm]` and per-game sections in `scummvm.ini` on the phone so Android shows verb / menu touch overlays when a physical right button is awkward. Templates: `~/scummvm-flip2/scummvm.ini`.
 
 Game data, `scummvm.ini`, and scaling: memory `project-flip2-scummvm`.
 

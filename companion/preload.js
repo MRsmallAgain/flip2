@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
   wizardHostCleanup: function () { return ipcRenderer.invoke('wizard-host-cleanup'); },
   wizardHostVerify: function (payload) { return ipcRenderer.invoke('wizard-host-verify', payload); },
   wizardHostWriteProfile: function (payload) { return ipcRenderer.invoke('wizard-host-write-profile', payload); },
+  wizardHostReadFlipmouseSpeeds: function () { return ipcRenderer.invoke('wizard-host-read-flipmouse-speeds'); },
+  wizardHostWriteFlipmouseSpeeds: function (payload) { return ipcRenderer.invoke('wizard-host-write-flipmouse-speeds', payload); },
   wizardHostInstallApk: function (payload) { return ipcRenderer.invoke('wizard-host-install-apk', payload); },
   wizardHostUninstallPackage: function (payload) { return ipcRenderer.invoke('wizard-host-uninstall-package', payload); },
   wizardHostRemoveModule: function (payload) { return ipcRenderer.invoke('wizard-host-remove-module', payload); },

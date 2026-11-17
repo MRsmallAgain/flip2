@@ -227,6 +227,14 @@ if [ ! -f /data/local/flip2/flipmouse-speed ]; then
   echo "@MOUSE_SPEED@" > /data/local/flip2/flipmouse-speed
   echo "flipmouse-speed seeded: @MOUSE_SPEED@"
 fi
+if [ ! -f /data/local/flip2/flipmouse-speed-portrait ]; then
+  echo "@MOUSE_SPEED@" > /data/local/flip2/flipmouse-speed-portrait
+  echo "flipmouse-speed-portrait seeded: @MOUSE_SPEED@"
+fi
+if [ ! -f /data/local/flip2/flipmouse-speed-landscape ]; then
+  echo "@MOUSE_SPEED@" > /data/local/flip2/flipmouse-speed-landscape
+  echo "flipmouse-speed-landscape seeded: @MOUSE_SPEED@"
+fi
 
 echo "first-boot done. Reboot to apply the logical display size."
 FB_TAIL

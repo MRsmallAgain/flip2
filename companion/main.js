@@ -789,18 +789,63 @@ function installOutputLooksOk(lines) {
   return /DONE: install complete/.test(text);
 }
 
+const FLIPMOUSE_SPEED_PATHS = Object.create(null);
+FLIPMOUSE_SPEED_PATHS[DP.flipmouseSpeedPortrait] = true;
+FLIPMOUSE_SPEED_PATHS[DP.flipmouseSpeedLandscape] = true;
+const FLIPMOUSE_SPEED_DEFAULT = 20;
+const FLIPMOUSE_SPEED_MIN = 1;
+const FLIPMOUSE_SPEED_MAX = 99;
+
+function parseFlipmouseSpeedText(text) {
+  const s = String(text == null ? '' : text).trim().split(/\s/)[0];
+  const v = parseInt(s, 10);
+  if (!Number.isFinite(v) || v < FLIPMOUSE_SPEED_MIN || v > FLIPMOUSE_SPEED_MAX) {
+    throw new Error('speed must be ' + FLIPMOUSE_SPEED_MIN + '–' + FLIPMOUSE_SPEED_MAX);
+  }
+  return String(v) + '\n';
+}
+
+async function wizardHostReadFlipmouseSpeeds() {
+  const serial = await adbSerial();
+  const readOne = async (path, allowLegacy) => {
+    const cmd = allowLegacy
+      ? 'cat ' + shellQuote(path) + ' 2>/dev/null || cat ' + shellQuote(DP.flipmouseSpeedLegacy) + ' 2>/dev/null || echo ' + FLIPMOUSE_SPEED_DEFAULT
+      : 'cat ' + shellQuote(path) + ' 2>/dev/null || echo ' + FLIPMOUSE_SPEED_DEFAULT;
+    const out = await wizardHostSu(serial, cmd, 30000);
+    const v = parseInt(String(out).trim().split(/\s/)[0], 10);
+    if (!Number.isFinite(v)) return FLIPMOUSE_SPEED_DEFAULT;
+    return Math.min(FLIPMOUSE_SPEED_MAX, Math.max(FLIPMOUSE_SPEED_MIN, v));
+  };
+  const portrait = await readOne(DP.flipmouseSpeedPortrait, true);
+  const landscape = await readOne(DP.flipmouseSpeedLandscape, false);
+  return { portrait, landscape };
+}
+
+async function wizardHostWriteFlipmouseSpeeds(payload) {
+  const portrait = parseFlipmouseSpeedText(payload && payload.portrait);
+  const landscape = parseFlipmouseSpeedText(payload && payload.landscape);
+  const serial = await adbSerial();
+  await wizardHostWriteRootFile(serial, DP.flipmouseSpeedPortrait, portrait, '664');
+  await wizardHostWriteRootFile(serial, DP.flipmouseSpeedLandscape, landscape, '664');
+  await wizardHostSu(serial, 'killall mouse 2>/dev/null; true', 15000);
+  return { ok: true };
+}
+
 async function wizardHostWriteRootFile(serial, destPath, content, mode) {
   // adbd's shell cannot create files under /data/local/flip2 (SELinux), and a
   // heredoc redirection in `adb shell` is applied by that shell before su runs.
   // Stage on sdcard, then copy into place as root. The script is one quoted
   // argument so the outer shell does not split on &&.
-  if (destPath !== PROFILE_PATH) throw new Error('refusing to write that path');
+  const allowed =
+    destPath === PROFILE_PATH || FLIPMOUSE_SPEED_PATHS[destPath];
+  if (!allowed) throw new Error('refusing to write that path');
   const modeStr = String(mode || '644');
   if (!/^[0-7]{3,4}$/.test(modeStr)) throw new Error('bad file mode');
   if (!wizardHostTmp) wizardHostTmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'flip2-wiz-'));
-  const local = path.join(wizardHostTmp, 'profile.list');
+  const base = path.basename(destPath);
+  const local = path.join(wizardHostTmp, base);
   await fsp.writeFile(local, String(content), 'utf8');
-  const remoteStage = WIZARD_STAGING + '/profile.list';
+  const remoteStage = WIZARD_STAGING + '/' + base;
   await wizardHostSu(serial, 'mkdir -p ' + shellQuote(WIZARD_STAGING) + ' ' + shellQuote(DP.stageRoot), 60000);
   await adbRun(['-s', serial, 'push', local, remoteStage], 120000);
   // chmod on the stage root is denied even as root. install -m sets the mode
@@ -2105,6 +2150,8 @@ app.whenReady().then(function () {
   ipcMain.handle('wizard-host-cleanup', function () { return wizardHostCleanup(); });
   ipcMain.handle('wizard-host-verify', function (_e, payload) { return wizardHostVerify(payload); });
   ipcMain.handle('wizard-host-write-profile', function (_e, payload) { return wizardHostWriteProfile(payload); });
+  ipcMain.handle('wizard-host-read-flipmouse-speeds', function () { return wizardHostReadFlipmouseSpeeds(); });
+  ipcMain.handle('wizard-host-write-flipmouse-speeds', function (_e, payload) { return wizardHostWriteFlipmouseSpeeds(payload); });
   ipcMain.handle('wizard-host-install-apk', function (_e, payload) { return wizardHostInstallApk(payload); });
   ipcMain.handle('wizard-host-uninstall-package', function (_e, payload) { return wizardHostUninstallPackage(payload); });
   ipcMain.handle('wizard-host-remove-module', function (_e, payload) { return wizardHostRemoveModule(payload); });

@@ -821,6 +821,43 @@ table.safety-paths td:first-child {
   margin: 0 0 4px;
 }
 
+.mouse-speed-panel .mouse-speed-body {
+  margin: 6px 0 8px;
+  padding: 0 2px;
+}
+
+.mouse-speed-panel .note {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.mouse-speed-row {
+  display: grid;
+  grid-template-columns: 1fr auto 2.5rem;
+  gap: 8px 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.mouse-speed-label {
+  font-size: 13px;
+}
+
+.mouse-speed-row input[type="range"] {
+  min-width: 0;
+  width: 100%;
+}
+
+.mouse-speed-row output {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+#get-ready-details .mouse-speed-panel + .action-row {
+  margin-top: 4px;
+}
+
 .get-ready-panel > summary.get-ready-summary {
   cursor: pointer;
   justify-content: flex-start;

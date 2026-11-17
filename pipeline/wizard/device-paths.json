@@ -9,6 +9,9 @@
   "stageRoot": "/data/local/flip2",
   "incomingDir": "/data/local/flip2/incoming",
   "profileList": "/data/local/flip2/profile.list",
+  "flipmouseSpeedPortrait": "/data/local/flip2/flipmouse-speed-portrait",
+  "flipmouseSpeedLandscape": "/data/local/flip2/flipmouse-speed-landscape",
+  "flipmouseSpeedLegacy": "/data/local/flip2/flipmouse-speed",
   "wallpaperDevice": "/data/system/users/0/wallpaper",
   "installSh": "/data/local/flip2/install.sh",
   "verifySh": "/data/local/flip2/verify.sh"

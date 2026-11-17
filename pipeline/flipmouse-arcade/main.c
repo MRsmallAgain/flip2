@@ -53,7 +53,9 @@
 /* Configuration */
 #define DEV_INPUT "/dev/input"
 #define LOG_FILE "/cache/FlipMouse.log"
-#define SPEED_FILE "/data/local/flip2/flipmouse-speed"
+#define SPEED_FILE_LEGACY "/data/local/flip2/flipmouse-speed"
+#define SPEED_FILE_PORTRAIT "/data/local/flip2/flipmouse-speed-portrait"
+#define SPEED_FILE_LANDSCAPE "/data/local/flip2/flipmouse-speed-landscape"
 #define GAMEPAD_CONFIG "/data/local/flip2/gamepad.conf"
 #define POLL_LANDSCAPE_MS 1500
 /* Portrait SDL pointer: stretch dumpsys cadence while that app is foreground. */
@@ -208,7 +210,7 @@ typedef struct
   long long next_repeat_ms;  /* active: when the next repeat step is due */
   int speed;
   int drag_mode;
-  int star_held; /* Star down: Vol up/down adjust cursor speed (all mouse modes) */
+  int star_held; /* Star held during mouse/landscape cursor exit gesture */
   long long last_sdl_click_ms;
   long long pending_click_release_ms; /* 0 = none; homescreen OK timed release */
   int cursor_x; /* tracked for Launcher4 input tap (manual portrait mouse) */
@@ -235,6 +237,7 @@ typedef struct
   int mouse_manual; /* left-soft toggle only; portrait SDL auto-mouse does not set */
   long long last_landscape_poll;
   int sdl_ptr_smoothing_active; /* set each sync_apply_mode; no dumpsys per repeat */
+  int speed_landscape_cached; /* last landscape_now() used for mouse.speed */
   FILE *log_fp;
   volatile sig_atomic_t running;
 } app_state_t;
@@ -280,6 +283,8 @@ static void setup_signal_handlers(void);
 
 /* Main loop */
 static int run_event_loop(void);
+
+static int landscape_now(void);
 
 /* --- Logging Functions --- */
 
@@ -361,27 +366,41 @@ static void log_event(const char *prefix, struct input_event *ev)
 
 /* --- Mouse Functions --- */
 
-static void mouse_save_speed(int speed)
+static int mouse_read_speed_file(const char *path)
 {
-  FILE *f = fopen(SPEED_FILE, "w");
-  if (!f)
-    return;
-  fprintf(f, "%d\n", speed);
-  fclose(f);
-}
-
-static int mouse_load_speed(void)
-{
-  FILE *f = fopen(SPEED_FILE, "r");
+  FILE *f = fopen(path, "r");
   int v = FLIPMOUSE_DEFAULT_SPEED;
   if (!f)
-    return v;
+    return -1;
   if (fscanf(f, "%d", &v) != 1)
     v = FLIPMOUSE_DEFAULT_SPEED;
   fclose(f);
   if (v < MIN_MOUSE_SPEED)
     v = MIN_MOUSE_SPEED;
   return v;
+}
+
+static int mouse_speed_for_orientation(int landscape)
+{
+  const char *path = landscape ? SPEED_FILE_LANDSCAPE : SPEED_FILE_PORTRAIT;
+  int v = mouse_read_speed_file(path);
+  if (v >= 0)
+    return v;
+  v = mouse_read_speed_file(SPEED_FILE_LEGACY);
+  if (v >= 0)
+    return v;
+  return FLIPMOUSE_DEFAULT_SPEED;
+}
+
+static void mouse_reload_speed_for_orientation(void)
+{
+  int land = landscape_now();
+  if (land == app_state.speed_landscape_cached)
+    return;
+  app_state.speed_landscape_cached = land;
+  int next = mouse_speed_for_orientation(land);
+  app_state.mouse.speed = next;
+  log_message("Mouse speed -> %d (%s)", next, land ? "landscape" : "portrait");
 }
 
 static int mouse_init(void)
@@ -426,7 +445,8 @@ static int mouse_init(void)
   /* Initialize mouse parameters */
   app_state.mouse.enabled = 0;
   app_state.mouse.softhold_since = 0;
-  app_state.mouse.speed = mouse_load_speed();
+  app_state.mouse.speed = mouse_speed_for_orientation(landscape_now());
+  app_state.speed_landscape_cached = landscape_now();
   app_state.mouse.drag_mode = 0;
   app_state.mouse.held_code = 0;
   app_state.mouse.next_repeat_ms = 0;
@@ -739,6 +759,7 @@ static int arcade_poll_due_if_overdue(void)
 static void arcade_run_scheduled_poll(fd_set *fds, int *maxfd)
 {
   landscape_cached = landscape_probe();
+  mouse_reload_speed_for_orientation();
   cfg_load_gamepad();
   foreground_refresh_cache();
   sync_keypad_bypass();
@@ -796,6 +817,16 @@ static void mouse_homescreen_emit_click(void)
       now_ms() + HOMESCREEN_CLICK_HOLD_MS;
 }
 
+static void mouse_emit_right_click(void)
+{
+  if (!app_state.mouse.uidev)
+    return;
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_RIGHT, 1);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_KEY, BTN_RIGHT, 0);
+  libevdev_uinput_write_event(app_state.mouse.uidev, EV_SYN, SYN_REPORT, 0);
+}
+
 static void mouse_sdl_emit_click(void)
 {
   if (!app_state.mouse.uidev)
@@ -805,6 +836,17 @@ static void mouse_sdl_emit_click(void)
     return;
   app_state.mouse.last_sdl_click_ms = now;
   mouse_emit_left_click();
+}
+
+static void mouse_sdl_emit_right_click(void)
+{
+  if (!app_state.mouse.uidev)
+    return;
+  long long now = now_ms();
+  if (now - app_state.mouse.last_sdl_click_ms < SDL_PTR_CLICK_DEBOUNCE_MS)
+    return;
+  app_state.mouse.last_sdl_click_ms = now;
+  mouse_emit_right_click();
 }
 
 static void mouse_clamp_cursor_xy(int *x, int *y)
@@ -1427,25 +1469,7 @@ static int mouse_handle_event(device_t *dev, struct input_event *ev)
   switch (keycode)
   {
   case KEY_VOLUMEUP:
-    if (ev->value == 1 && app_state.mouse.star_held)
-    {
-      app_state.mouse.speed++;
-      mouse_save_speed(app_state.mouse.speed);
-      log_message("Mouse speed increased to %d (Star+VolUp)", app_state.mouse.speed);
-      return MUTE_EVENT;
-    }
-    return PASS_THRU_EVENT;
-
   case KEY_VOLUMEDOWN:
-    if (ev->value == 1 && app_state.mouse.star_held)
-    {
-      app_state.mouse.speed--;
-      if (app_state.mouse.speed < MIN_MOUSE_SPEED)
-        app_state.mouse.speed = MIN_MOUSE_SPEED;
-      mouse_save_speed(app_state.mouse.speed);
-      log_message("Mouse speed decreased to %d (Star+VolDown)", app_state.mouse.speed);
-      return MUTE_EVENT;
-    }
     return PASS_THRU_EVENT;
 
   case KEY_ENTER:
@@ -1895,7 +1919,15 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
     }
 
     if (ev->code == SOFT_RIGHT_CODE)
+    {
+      if (mouse_sdl_ptr_smoothing() && ev->value == 0)
+      {
+        log_message("SDL pointer right soft: BTN_RIGHT");
+        mouse_sdl_emit_right_click();
+        return MUTE_EVENT;
+      }
       return PASS_THRU_EVENT;
+    }
 
     if (ev->code == STAR_CODE)
     {
