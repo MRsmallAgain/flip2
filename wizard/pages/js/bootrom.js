@@ -42,6 +42,11 @@ var BOOTROM = {
     });
   },
 
+  _portPickerCancelled: function (e) {
+    var msg = String((e && e.message) || e || '');
+    return /No port selected/i.test(msg) || /user canceled|cancelled/i.test(msg);
+  },
+
   requestPort: function () {
     // Chrome's chooser updates live: when the battery is pulled/reinserted
     // and the preloader enumerates, it appears in the open chooser and the
@@ -100,15 +105,48 @@ var BOOTROM = {
   // Runs until success, hard stop, or the 2-minute timeout. Resolves with
   // the serial port (kept only for symmetry — the fastboot step re-picks
   // the phone over WebUSB after it re-enumerates).
+  _inCompanion: function () {
+    return !!window.FLIP2_NATIVE;
+  },
+
   boot: async function (bootseq) {
     var confirm = this._confirm(bootseq);
+    var companion = this._inCompanion();
     this.log('Listening for the phone. Leave the USB cable plugged in.');
+    if (companion) {
+      this.log('Companion auto-connects when exactly one MTK preloader (0e8d:2000) appears — no port chooser. Remove the battery, put it back in within the next two minutes.');
+    }
     var port = await this.grantedPort();
     var deadline = Date.now() + 120000;
+    var chooserHinted = false;
     while (Date.now() < deadline) {
       if (!port) {
-        this.log('Take the battery out and put it back in.');
-        port = await this.requestPort();   // chooser stays open and updates live
+        if (!chooserHinted) {
+          if (companion) {
+            this.log('Waiting for the preloader on USB serial… pull the battery now if you have not yet.');
+          } else {
+            this.log('A port picker will open. Leave it open, remove the battery, put it back in, then click the MTK preloader (0e8d:2000) entry — do not press Cancel.');
+          }
+          chooserHinted = true;
+        } else {
+          this.log('Take the battery out and put it back in.');
+        }
+        try {
+          port = await this.requestPort();
+        } catch (e) {
+          if (this._portPickerCancelled(e)) {
+            if (companion) {
+              this.log('Preloader not connected yet — pull battery, reinsert, and keep waiting (up to 2 minutes). On Windows install the MediaTek USB VCOM driver if the preloader never connects.');
+            } else {
+              this.log('Port not chosen — the picker will open again. Remove the battery, put it back, then pick the preloader.');
+            }
+            port = null;
+            await new Promise(function (res) { setTimeout(res, 300); });
+            continue;
+          }
+          throw e;
+        }
+        if (!port) continue;
       }
       var r = await this.tryPort(port, bootseq);
       if (r === 'ok') {

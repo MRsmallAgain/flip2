@@ -46,6 +46,17 @@ function bundledPlatformToolsDir() {
   return null;
 }
 
+const USBDK_MSI = 'UsbDk_1.0.22_x64.msi';
+
+function bundledPreloaderDriversDir() {
+  if (process.platform !== 'win32') return null;
+  const dir = app.isPackaged
+    ? path.join(process.resourcesPath, 'preloader-drivers')
+    : path.join(__dirname, 'preloader-drivers-win');
+  if (!fs.existsSync(dir)) return null;
+  return dir;
+}
+
 function adbExecutable() {
   const fromEnv = process.env.FLIP2_ADB;
   if (fromEnv) return fromEnv;
@@ -62,6 +73,33 @@ function adbExecutable() {
 function adbSpawnArgs(args) {
   const exe = adbExecutable();
   return { file: exe, args: args };
+}
+
+function fastbootExecutable() {
+  const bundled = bundledPlatformToolsDir();
+  if (bundled) {
+    const name = process.platform === 'win32' ? 'fastboot.exe' : 'fastboot';
+    const full = path.join(bundled, name);
+    if (fs.existsSync(full)) return full;
+  }
+  return process.platform === 'win32' ? 'fastboot.exe' : 'fastboot';
+}
+
+function fastbootRun(args, timeoutMs) {
+  return new Promise(function (resolve, reject) {
+    const file = fastbootExecutable();
+    execFile(file, args, {
+      timeout: timeoutMs || 15000,
+      maxBuffer: 4 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }, function (err, stdout, stderr) {
+      if (err) {
+        const why = String(stderr || err.message || '').trim();
+        return reject(new Error(why || 'fastboot failed'));
+      }
+      resolve(String(stdout || ''));
+    });
+  });
 }
 
 // Catalog files land here when the wizard downloads them in-app, so a retry
@@ -134,9 +172,116 @@ function readPhoneStateLinux() {
   return { mode: h.mode, id: h.id, port: h.port, serial: h.serial || null };
 }
 
-// Windows and macOS have no Flip2 sysfs map; host adb is the live USB signal for the strip.
+let winPnpCache;
+let winPnpCacheAt = 0;
+const WIN_PNP_CACHE_MS = 2000;
+
+function parsePnpInstanceId(instanceId) {
+  if (!instanceId || typeof instanceId !== 'string') return null;
+  const m = instanceId.match(/VID_([0-9A-Fa-f]{4})&PID_([0-9A-Fa-f]{4})/i);
+  if (!m) return null;
+  const id = m[1].toLowerCase() + ':' + m[2].toLowerCase();
+  const mode = USB_MODES[id];
+  if (!mode) return null;
+  return { mode: mode, id: id };
+}
+
+function readPhoneStateFromWindowsPnpSync(stdout) {
+  const hits = [];
+  const seen = {};
+  const lines = String(stdout || '').split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const parsed = parsePnpInstanceId(lines[i].trim());
+    if (!parsed || seen[parsed.id]) continue;
+    seen[parsed.id] = true;
+    hits.push(Object.assign({ detail: 'windows pnp' }, parsed));
+  }
+  if (hits.length === 0) return null;
+  const modes = {};
+  hits.forEach(function (h) { modes[h.mode] = (modes[h.mode] || 0) + 1; });
+  const kinds = Object.keys(modes);
+  const flashModes = { preloader: 1, fastboot: 1, bootrom: 1 };
+  if (kinds.length > 1) {
+    const flashy = hits.filter(function (h) { return flashModes[h.mode]; });
+    if (flashy.length === 1) {
+      const h = flashy[0];
+      return { mode: h.mode, id: h.id, detail: h.detail, serial: null };
+    }
+    return {
+      mode: 'conflict',
+      detail: hits.length + ' Flip2 USB entries',
+      ids: hits.map(function (h) { return h.id; }),
+    };
+  }
+  const h = hits[0];
+  return { mode: h.mode, id: h.id, detail: h.detail, serial: null };
+}
+
+function winPnpProbePromise() {
+  if (process.platform !== 'win32') return Promise.resolve(null);
+  const now = Date.now();
+  if (winPnpCache !== undefined && now - winPnpCacheAt < WIN_PNP_CACHE_MS) {
+    return Promise.resolve(winPnpCache);
+  }
+  const ps = [
+    '-NoProfile', '-NonInteractive', '-Command',
+    "Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | " +
+      "Where-Object { $_.InstanceId -match 'VID_0E8D|VID_1BBB|VID_18D1' } | " +
+      "ForEach-Object { $_.InstanceId }",
+  ];
+  return new Promise(function (resolve) {
+    execFile('powershell.exe', ps, {
+      timeout: 6000,
+      maxBuffer: 512 * 1024,
+      windowsHide: true,
+    }, function (_err, stdout) {
+      const state = readPhoneStateFromWindowsPnpSync(stdout);
+      winPnpCache = state;
+      winPnpCacheAt = Date.now();
+      resolve(state);
+    });
+  });
+}
+
+function phoneStateFromHostLayers(usbEnum, pnp) {
+  const flashModes = { fastboot: 1, preloader: 1, bootrom: 1 };
+  if (usbEnum && flashModes[usbEnum.mode]) return usbEnum;
+  if (pnp && flashModes[pnp.mode]) return pnp;
+  if (usbEnum) return usbEnum;
+  if (pnp) return pnp;
+  return null;
+}
+
+// Windows and macOS have no Flip2 sysfs map; host adb + fastboot are the live USB signal.
 async function readPhoneStateFromAdb() {
   try {
+    let fbSerial = null;
+    try {
+      const fbOut = await fastbootRun(['devices'], 8000);
+      const fbLines = fbOut.split('\n').map((l) => l.trim()).filter(Boolean);
+      if (fbLines.length > 1) {
+        return {
+          mode: 'conflict',
+          detail: fbLines.length + ' phones in fastboot',
+          serials: fbLines.map((l) => l.split(/\s+/)[0]),
+        };
+      }
+      if (fbLines.length === 1) {
+        fbSerial = fbLines[0].split(/\s+/)[0];
+        return { mode: 'fastboot', serial: fbSerial, detail: 'fastboot device' };
+      }
+      const fbUsb = readPhoneStateFromUsbEnumeration();
+      const fbPnp = await winPnpProbePromise();
+      const fbLayered = phoneStateFromHostLayers(fbUsb, fbPnp);
+      if (fbLayered && fbLayered.mode === 'fastboot') return fbLayered;
+    } catch (e) {
+      // fastboot.exe can fail (timeout, driver) while 0e8d:201c is still on USB —
+      // do not skip the layered probe that sysfs-less Windows relies on.
+      const fbUsb = readPhoneStateFromUsbEnumeration();
+      const fbPnp = await winPnpProbePromise();
+      const fbLayered = phoneStateFromHostLayers(fbUsb, fbPnp);
+      if (fbLayered && fbLayered.mode === 'fastboot') return fbLayered;
+    }
     const out = await adbRun(['devices', '-l'], 15000);
     const ready = [];
     let unauthorized = 0;
@@ -162,10 +307,96 @@ async function readPhoneStateFromAdb() {
     if (unauthorized > 0) {
       return { mode: 'android', serial: null, detail: 'adb unauthorized - accept the prompt on the phone' };
     }
+    const usb = readPhoneStateFromUsbEnumeration();
+    const pnp = await winPnpProbePromise();
+    const layered = phoneStateFromHostLayers(usb, pnp);
+    if (layered) return layered;
     return { mode: 'absent', detail: 'no phone ready over adb' };
   } catch (e) {
     return { mode: 'unknown', detail: String((e && e.message) || e) };
   }
+}
+
+// Electron USB/serial lists seen on select-* and added/removed events. Windows has no
+// sysfs; when fastboot.exe lists nothing (driver timing) 0e8d:201c may still appear here.
+const usbSnapshotUsb = [];
+const usbSnapshotSerial = [];
+let usbSnapshotWired = false;
+
+function usbSnapshotMerge(list, item, remove) {
+  const key = pick.itemKey(item);
+  if (!key) return;
+  const idx = list.findIndex(function (cur) { return pick.itemKey(cur) === key; });
+  if (remove) {
+    if (idx >= 0) list.splice(idx, 1);
+    return;
+  }
+  if (idx >= 0) list[idx] = item;
+  else list.push(item);
+}
+
+function readPhoneStateFromUsbEnumeration() {
+  const hits = [];
+  for (let i = 0; i < usbSnapshotUsb.length; i++) {
+    const d = usbSnapshotUsb[i];
+    let mode = null;
+    if (pick.isFastbootUsb(d)) mode = 'fastboot';
+    else if (pick.isAdb(d)) mode = 'android';
+    if (!mode) continue;
+    const pair = pick.vendorProduct(d);
+    const id = (pair.v != null && pair.p != null)
+      ? ('0' + Number(pair.v).toString(16)).slice(-4) + ':' +
+        ('0' + Number(pair.p).toString(16)).slice(-4)
+      : null;
+    hits.push({ mode: mode, id: id, detail: 'usb enumeration' });
+  }
+  for (let j = 0; j < usbSnapshotSerial.length; j++) {
+    if (pick.isPreloader(usbSnapshotSerial[j])) {
+      hits.push({ mode: 'preloader', id: '0e8d:2000', detail: 'serial enumeration' });
+    }
+  }
+  if (hits.length === 0) return null;
+  if (hits.length > 1) {
+    const modes = {};
+    hits.forEach(function (h) { modes[h.mode] = (modes[h.mode] || 0) + 1; });
+    const kinds = Object.keys(modes);
+    if (kinds.length > 1) {
+      // Handover: fastboot USB often appears before serial preloader drops off the list.
+      const fastbootHit = hits.find(function (h) { return h.mode === 'fastboot'; });
+      if (fastbootHit) {
+        return { mode: fastbootHit.mode, id: fastbootHit.id, detail: fastbootHit.detail, serial: null };
+      }
+      return { mode: 'conflict', detail: hits.length + ' USB modes at once', ids: hits.map(function (h) { return h.id; }) };
+    }
+  }
+  const h = hits[0];
+  return { mode: h.mode, id: h.id, detail: h.detail, serial: null };
+}
+
+function invalidateWinPnpCache() {
+  winPnpCache = undefined;
+  winPnpCacheAt = 0;
+}
+
+function wireUsbSnapshot(ses) {
+  if (usbSnapshotWired) return;
+  usbSnapshotWired = true;
+  ses.on('usb-device-added', function (_e, item) {
+    usbSnapshotMerge(usbSnapshotUsb, item, false);
+    invalidateWinPnpCache();
+  });
+  ses.on('usb-device-removed', function (_e, item) {
+    usbSnapshotMerge(usbSnapshotUsb, item, true);
+    invalidateWinPnpCache();
+  });
+  ses.on('serial-port-added', function (_e, item) {
+    usbSnapshotMerge(usbSnapshotSerial, item, false);
+    invalidateWinPnpCache();
+  });
+  ses.on('serial-port-removed', function (_e, item) {
+    usbSnapshotMerge(usbSnapshotSerial, item, true);
+    invalidateWinPnpCache();
+  });
 }
 
 function readPhoneState() {
@@ -225,6 +456,7 @@ function serveWizard(request) {
 const PERMISSIONS = ['usb', 'serial', 'usb-private-access'];
 
 function wireSession(ses) {
+  wireUsbSnapshot(ses);
   ses.setPermissionRequestHandler(function (_wc, permission, cb) {
     cb(PERMISSIONS.indexOf(permission) >= 0);
   });
@@ -239,6 +471,7 @@ function wireSession(ses) {
   ses.on('select-usb-device', function (event, details, callback) {
     event.preventDefault();
     const list = (details.deviceList || []).slice();
+    list.forEach(function (d) { usbSnapshotMerge(usbSnapshotUsb, d, false); });
     pick.holdChoice(ses, null, list, 'usb-device-added', 'usb-device-removed',
       pick.soleUsbDeviceId, function (deviceId) {
         pick.deliverUsb(callback, deviceId);
@@ -247,8 +480,24 @@ function wireSession(ses) {
   ses.on('select-serial-port', function (event, portList, webContents, callback) {
     event.preventDefault();
     const list = (portList || []).slice();
+    list.forEach(function (p) { usbSnapshotMerge(usbSnapshotSerial, p, false); });
+    if (process.env.FLIP2_SERIAL_DEBUG || process.argv.includes('--serial-debug')) {
+      console.log('[serial] select-serial-port n=' + list.length +
+        ' ports=' + JSON.stringify(list.map(function (p) {
+          return {
+            portId: p.portId,
+            vendorId: p.vendorId,
+            productId: p.productId,
+            usbVendorId: p.usbVendorId,
+            usbProductId: p.usbProductId,
+          };
+        })));
+    }
     pick.holdChoice(ses, webContents, list, 'serial-port-added', 'serial-port-removed',
       pick.onlyPreloaderPortId, function (portId) {
+        if (process.env.FLIP2_SERIAL_DEBUG || process.argv.includes('--serial-debug')) {
+          console.log('[serial] chose portId=' + (portId || '(none/cancel)'));
+        }
         pick.deliverSerial(callback, portId);
       });
   });
@@ -329,6 +578,61 @@ async function installUdev() {
   } finally {
     if (dir) fsp.rm(dir, { recursive: true, force: true }).catch(function () {});
   }
+}
+
+function preloaderDriversStatus() {
+  const dir = bundledPreloaderDriversDir();
+  if (process.platform !== 'win32') {
+    return { available: false, platform: process.platform, na: true };
+  }
+  if (!dir) {
+    return {
+      available: false,
+      platform: 'win32',
+      message: 'Bundled preloader helpers not found. Re-run npm run fetch:preloader-drivers:win or use a packaged build.',
+    };
+  }
+  const msi = path.join(dir, USBDK_MSI);
+  const readme = path.join(dir, 'README.txt');
+  return {
+    available: true,
+    platform: 'win32',
+    dir,
+    usbdkPresent: fs.existsSync(msi),
+    readmePresent: fs.existsSync(readme),
+    vcomBundled: false,
+    message:
+      'UsbDk is bundled for optional install. MediaTek USB VCOM is not included — see README in the driver folder.',
+  };
+}
+
+async function openBundledPreloaderDrivers() {
+  const st = preloaderDriversStatus();
+  if (!st.available || !st.dir) {
+    return { ok: false, message: st.message || 'Preloader driver folder is not available on this OS.' };
+  }
+  const err = await shell.openPath(st.dir);
+  if (err) return { ok: false, message: err };
+  return { ok: true, message: 'Opened the bundled preloader drivers folder.' };
+}
+
+async function installBundledUsbdk() {
+  const st = preloaderDriversStatus();
+  if (!st.available || !st.usbdkPresent) {
+    return {
+      ok: false,
+      message:
+        st.message ||
+        'UsbDk installer is missing. Run npm run fetch:preloader-drivers:win before packing, or open the driver folder.',
+    };
+  }
+  const msi = path.join(st.dir, USBDK_MSI);
+  const err = await shell.openPath(msi);
+  if (err) return { ok: false, message: err };
+  return {
+    ok: true,
+    message: 'UsbDk installer opened — approve the admin prompt if Windows asks. VCOM is still a separate manual install.',
+  };
 }
 
 // --- catalog files ----------------------------------------------------------
@@ -2132,6 +2436,9 @@ app.whenReady().then(function () {
   });
   ipcMain.handle('udev-status', udevStatus);
   ipcMain.handle('install-udev', installUdev);
+  ipcMain.handle('preloader-drivers-status', function () { return preloaderDriversStatus(); });
+  ipcMain.handle('open-bundled-preloader-drivers', function () { return openBundledPreloaderDrivers(); });
+  ipcMain.handle('install-bundled-usbdk', function () { return installBundledUsbdk(); });
   ipcMain.handle('phone-state', function () { return readPhoneStateAsync(); });
   ipcMain.handle('local-files', function () { return localFiles(); });
   ipcMain.handle('read-local', function (_e, id, index) { return readLocal(id, index); });

@@ -64,3 +64,4 @@ Repeated workflows are in `.agents/skills/`. Read the matching `SKILL.md` before
 | `flip2-ondevice-keys` | `sendevent` holds on `/dev/input/event2` |
 | `flip2-deploy` | Tiers A–D, `flip2 setup full`, de-root, image flash |
 | `flip2-release` | Pack the four zips and publish a release on GitLab (assets link into the mirror) |
+| `flip2-companion-pack` | Sync + `pipeline/ci/companion-pack.sh` (smoke/linux/win); local Windows `pack:win` after a release |

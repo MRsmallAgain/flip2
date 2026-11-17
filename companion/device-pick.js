@@ -32,10 +32,20 @@ function parseDec(text) {
   return inUsbId(n) ? n : null;
 }
 
+function vendorProduct(device) {
+  if (!device) return { v: null, p: null };
+  let v = device.vendorId;
+  let p = device.productId;
+  if (v == null && device.usbVendorId != null) v = device.usbVendorId;
+  if (p == null && device.usbProductId != null) p = device.usbProductId;
+  return { v: v, p: p };
+}
+
 function idsMatch(device, vendorId, productId) {
   if (!device) return false;
-  const v = device.vendorId;
-  const p = device.productId;
+  const pair = vendorProduct(device);
+  const v = pair.v;
+  const p = pair.p;
   if (typeof v === 'number' && typeof p === 'number') {
     return v === vendorId && p === productId;
   }
@@ -193,4 +203,6 @@ module.exports = {
   holdChoice: holdChoice,
   deliverUsb: deliverUsb,
   deliverSerial: deliverSerial,
+  itemKey: itemKey,
+  vendorProduct: vendorProduct,
 };

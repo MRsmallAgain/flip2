@@ -36,7 +36,6 @@
         <span class="now-label">Get ready</span>
         <span id="strip-phone" class="status wait">Checking USB…</span>
         <button type="button" id="get-ready-connect" class="small get-ready-connect">Connect phone</button>
-        <span id="phone-msg" class="status get-ready-summary-msg"></span>
       </summary>
       <div class="get-ready-body">
         <p id="strip-hint" class="now-hint">Plug in USB, run <code>adb kill-server</code> on the PC if host adb was used, then Connect phone. Pick TCL (1bbb) in Chrome — not preloader. The debugging prompt appears on the <b>phone</b> after connect (unlock the screen).</p>
@@ -389,6 +388,7 @@
         <div id="boot-count" class="count hidden"></div>
       </div>
       <p><b>Do this:</b> leave the USB cable plugged in. Press <b>Start watching</b>, then take the battery out and put it back in.</p>
+      <p class="note hidden" id="preloader-drivers-win-note">On Windows, install the <b>MediaTek USB VCOM</b> driver so the preloader shows as a COM port — Google adb drivers do not. Companion bundles <b>UsbDk</b> (optional). <button type="button" id="preloader-open-folder" class="ghost hidden">Open bundled drivers</button> <button type="button" id="preloader-install-usbdk" class="ghost hidden">Install UsbDk</button> <span id="preloader-drivers-msg" class="status"></span></p>
       <p><button id="boot-btn">Start watching</button> <span id="boot-msg" class="status"></span></p>
       <pre class="log hidden" id="boot-log"></pre>
     </div>

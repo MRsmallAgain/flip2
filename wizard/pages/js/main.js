@@ -566,7 +566,6 @@ function adbLog(line) {
 }
 
 function onAdbAuthPrompt() {
-  setStatus('phone-msg', 'On the phone: tap Allow USB debugging.', 'wait');
   setStatus('usb-msg', 'Waiting on phone — tap Allow USB debugging.', 'wait');
   setStatus('strip-phone', 'tap Allow on phone', 'wait');
   var hint = $('strip-hint');
@@ -579,10 +578,8 @@ var adbAuthUiShown = false;
 
 function onAdbHandshakeProgress(line) {
   if (line.indexOf('USB data from phone') >= 0) {
-    setStatus('phone-msg', 'Talking to adbd — check phone if prompted.', 'wait');
     setStatus('strip-phone', 'USB linked — check phone', 'wait');
   } else if (line.indexOf('AUTH loop') >= 0) {
-    setStatus('phone-msg', 'ADB key mismatch — see log (revoke or reset key).', 'bad');
     setStatus('strip-phone', 'AUTH loop — see log', 'bad');
     adbAuthUiShown = false;
   } else if (line.indexOf('Sent RSA') >= 0 || line.indexOf('>>> Unlock') >= 0) {
@@ -1229,7 +1226,6 @@ function onWebUsbAdbReady() {
       'Connected over WebUSB. Set up continues below; install needs root on the phone.';
   }
   setStripBox('caught');
-  setStatus('phone-msg', 'Phone on WebUSB adb.', 'ok');
   updateGetReadyCollapse();
   if (shownStep === 'download') updateCreditStatusRows();
   if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
@@ -1241,19 +1237,22 @@ var WEBUSB_CONNECT_MS = 90000;
 function connectWebUsbAdb(options) {
   options = options || {};
   var showChooser = options.showChooserOnEmpty !== false;
-  var statusEl = options.statusEl || 'usb-msg';
+  var getReady = !!options.getReady;
+  var statusEl = getReady ? null : (options.statusEl || 'usb-msg');
   var gen = ++webUsbConnectGen;
   adbAuthUiShown = false;
   if (!navigator.usb) {
     if (!options.silent) {
-      setStatus(statusEl, 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
+      if (getReady) setStatus('strip-phone', 'needs Chrome or Companion', 'bad');
+      else setStatus(statusEl, 'This browser has no WebUSB. Use Chrome on Linux.', 'bad');
     }
     if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
     return Promise.reject(new Error('no WebUSB'));
   }
   if (!options.silent) {
-    setStatus(statusEl, options.connectingMsg || 'connecting…', 'wait');
-    if (statusEl === 'phone-msg') setStatus('strip-phone', 'connecting…', 'wait');
+    var connecting = options.connectingMsg || 'connecting…';
+    if (getReady) setStatus('strip-phone', connecting, 'wait');
+    else setStatus(statusEl, connecting, 'wait');
   }
   var work = ADBKEY.load().then(function () {
     if (gen !== webUsbConnectGen) return Promise.reject(new Error('superseded'));
@@ -1263,7 +1262,7 @@ function connectWebUsbAdb(options) {
       var logEl = $('usb-log');
       if (logEl) logEl.classList.remove('hidden');
       var grLog = $('get-ready-adb-log');
-      if (statusEl === 'phone-msg' && grLog) {
+      if (getReady && grLog) {
         grLog.textContent = '';
         grLog.classList.remove('hidden');
       }
@@ -1273,8 +1272,7 @@ function connectWebUsbAdb(options) {
   }).then(function () {
     if (gen !== webUsbConnectGen) return false;
     if (!options.silent) {
-      if (statusEl === 'usb-msg') enableUsbContinue('Connected over ADB.', 'ok');
-      else if (statusEl === 'phone-msg') setStatus('phone-msg', 'Connected over ADB.', 'ok');
+      if (!getReady && statusEl === 'usb-msg') enableUsbContinue('Connected over ADB.', 'ok');
     }
     probeRooted();
     if (!window.FLIP2_NATIVE) onWebUsbAdbReady();
@@ -1283,8 +1281,10 @@ function connectWebUsbAdb(options) {
     if (gen !== webUsbConnectGen) return false;
     if (e && e.noGranted) {
       if (!options.silent) {
-        setStatus(statusEl, 'No phone selected — plug in, pick the device, allow USB debugging.', 'wait');
-        if (statusEl === 'phone-msg') setStatus('strip-phone', 'no device — Connect phone', 'wait');
+        if (getReady) setStatus('strip-phone', 'no device — Connect phone', 'wait');
+        else {
+          setStatus(statusEl, 'No phone selected — plug in, pick the device, allow USB debugging.', 'wait');
+        }
       }
       if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
       return false;
@@ -1295,8 +1295,8 @@ function connectWebUsbAdb(options) {
       if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.wizardHostAdbReady) {
         msg += ' Or press Check host adb — Companion install does not need WebUSB.';
       }
-      setStatus(statusEl, msg, 'bad');
-      if (statusEl === 'phone-msg') setStatus('strip-phone', 'no device — Connect phone', 'wait');
+      if (getReady) setStatus('strip-phone', 'no device — Connect phone', 'wait');
+      else setStatus(statusEl, msg, 'bad');
     }
     if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
     return Promise.reject(e);
@@ -1311,8 +1311,8 @@ function connectWebUsbAdb(options) {
     if (e && e.message === 'superseded') return false;
     if (!options.silent && e) {
       var msg = usbError(e);
-      setStatus(statusEl, msg, 'bad');
-      if (statusEl === 'phone-msg') setStatus('strip-phone', 'no device — Connect phone', 'wait');
+      if (getReady) setStatus('strip-phone', 'no device — Connect phone', 'wait');
+      else setStatus(statusEl, msg, 'bad');
     }
     if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
     throw e;
@@ -1324,7 +1324,7 @@ function autoConnectWebUsbOnLoad() {
   connectWebUsbAdb({
     silent: true,
     showChooserOnEmpty: false,
-    statusEl: 'phone-msg'
+    getReady: true
   }).catch(function () {});
 }
 
@@ -1392,7 +1392,7 @@ function initGetReady() {
     connectWebUsbAdb({
       connectingMsg: 'connecting…',
       showChooserOnEmpty: true,
-      statusEl: 'phone-msg'
+      getReady: true
     }).finally(function () { connectBtn.disabled = false; });
   });
   if (window.FLIP2_NATIVE) connectBtn.classList.add('hidden');
@@ -1405,11 +1405,10 @@ function initGetReady() {
       webUsbConnectGen++;
       ADBKEY.resetStoredKey()
         .then(function () {
-          setStatus('phone-msg', 'New browser ADB key — Revoke on phone, replug, Connect.', 'ok');
           setStatus('strip-phone', 'new adb key', 'ok');
         })
-        .catch(function (e) {
-          setStatus('phone-msg', e && e.message ? e.message : 'Could not reset key', 'bad');
+        .catch(function () {
+          setStatus('strip-phone', 'Could not reset key', 'bad');
         })
         .finally(function () { resetKeyBtn.disabled = false; });
     });
@@ -1719,7 +1718,14 @@ function showPhoneState(state) {
     showWake('silent');
     return;
   }
-  if (WAKE[mode]) showWake(mode); else hideWake();
+  // Stage 1 needs Web Serial (Start watching), not adb visibility. On Windows the
+  // companion often cannot list preloader; unknown/absent/android are expected during
+  // the battery pull — do not cover the catch panel with a wake card.
+  var catchStage = stageName === 'catch' || stageName === null;
+  var catchOkModes = { absent: 1, android: 1, unknown: 1 };
+  if (catchStage && catchOkModes[mode]) {
+    hideWake();
+  } else if (WAKE[mode]) showWake(mode); else hideWake();
   if (mode === 'fastboot') showFastbootSection();
 }
 
@@ -1946,7 +1952,48 @@ function stopWatchClock(caught) {
   }
 }
 
+function initPreloaderDriversWin() {
+  var note = $('preloader-drivers-win-note');
+  var openBtn = $('preloader-open-folder');
+  var usbdkBtn = $('preloader-install-usbdk');
+  var msg = $('preloader-drivers-msg');
+  if (!window.FLIP2_NATIVE || !note) return;
+  window.FLIP2_NATIVE.nativePlatform().then(function (info) {
+    if (!info || info.platform !== 'win32') return;
+    note.classList.remove('hidden');
+    return window.FLIP2_NATIVE.preloaderDriversStatus();
+  }).then(function (st) {
+    if (!st || st.na || !st.available) return;
+    if (openBtn) openBtn.classList.remove('hidden');
+    if (st.usbdkPresent && usbdkBtn) usbdkBtn.classList.remove('hidden');
+  }).catch(function () {});
+  function wire(btn, fn) {
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      if (msg) {
+        msg.textContent = '…';
+        msg.className = 'status wait';
+      }
+      fn().then(function (r) {
+        if (msg) {
+          msg.textContent = r.message;
+          msg.className = 'status ' + (r.ok ? 'ok' : 'bad');
+        }
+      }).catch(function (e) {
+        if (msg) {
+          msg.textContent = e.message;
+          msg.className = 'status bad';
+        }
+      }).then(function () { btn.disabled = false; });
+    });
+  }
+  wire(openBtn, function () { return window.FLIP2_NATIVE.openBundledPreloaderDrivers(); });
+  wire(usbdkBtn, function () { return window.FLIP2_NATIVE.installBundledUsbdk(); });
+}
+
 function initRoot() {
+  initPreloaderDriversWin();
   $('root-link').addEventListener('click', function (ev) {
     ev.preventDefault();
     showStep('root');
@@ -1991,7 +2038,10 @@ function initRoot() {
     }
     watching = true;
     this.disabled = true;
-    setStatus('boot-msg', 'listening…', 'wait');
+    $('boot-log').classList.remove('hidden');
+    setStatus('boot-msg', window.FLIP2_NATIVE
+      ? 'listening… Companion will auto-connect when the preloader (0e8d:2000) appears — remove battery, reinsert'
+      : 'listening… pick the preloader in the port chooser — do not Cancel', 'wait');
     startWatchClock();
     BOOTROM.log = makeLog('boot-log');
     BOOTROM.boot('FASTBOOT').then(function () {

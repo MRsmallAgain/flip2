@@ -872,16 +872,6 @@ table.safety-paths td:first-child {
   min-width: 0;
 }
 
-.get-ready-summary-msg {
-  flex: 0 1 auto;
-  max-width: 14rem;
-  font-size: 12px;
-  font-style: italic;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .get-ready-connect {
   font-weight: 600;
   flex-shrink: 0;

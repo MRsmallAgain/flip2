@@ -21,7 +21,7 @@ npm run pack:win
 # dist\flip2-companion-<version>-win-x64.exe (NSIS + portable)
 ```
 
-`prepack:win` fetches platform-tools into `companion\platform-tools-win\` automatically.
+`prepack:win` fetches platform-tools into `companion\platform-tools-win\` and **UsbDk** (+ README) into `companion\preloader-drivers-win\` automatically.
 
 ## Run from source (optional)
 
@@ -31,10 +31,21 @@ Only if you are hacking on Companion or no release `.exe` is published yet:
 cd companion
 npm install
 npm run fetch:platform-tools:win
+npm run fetch:preloader-drivers:win
 npm start
 ```
 
 Launchers set `FLIP2_ADB` to `companion\platform-tools-win\adb.exe` when present. **Node.js** required.
+
+## Bundled drivers (Windows package)
+
+| Resource | Location | In-app |
+|----------|----------|--------|
+| Google Platform Tools | `resources\platform-tools\` | Prepare (host adb) |
+| UsbDk 1.0.22 | `resources\preloader-drivers\` | Rooting → **Install UsbDk** (opens MSI; admin) |
+| Driver notes + VCOM steps | `resources\preloader-drivers\README.txt` | Rooting → **Open bundled drivers** |
+
+**MediaTek USB VCOM** (preloader `0e8d:2000` COM port) is **not** redistributed — install from MediaTek / vendor packages. Google USB Driver covers adb only, not VCOM.
 
 ## Prepare differences on Windows
 
@@ -59,7 +70,7 @@ You should see one serial and `device`. If you see `unauthorized`, unlock the ph
 ## Known limits
 
 - **Linux sysfs phone strip** — Companion’s USB mode panel is sysfs-based on Linux; on Windows use adb status on Connect instead.
-- **Rooting slice (Web Serial)** — preloader handshake is best tested on Linux; Windows may work in Companion with correct driver for `0e8d:2000`.
+- **Rooting slice (Web Serial)** — in **Companion** there is **no port chooser**: Electron auto-picks when exactly one MTK preloader (`0e8d:2000`) serial port appears after you remove/reinsert the battery. On Windows you often need the **MediaTek USB VCOM** driver so that port is visible; if nothing connects after two minutes, install the driver and retry. A plain browser still shows Chrome’s serial picker.
 - **Managed device owner** — still requires zero accounts on the phone; factory reset stays on-device.
 
 ## Conservative install without wizard

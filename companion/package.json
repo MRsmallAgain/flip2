@@ -1,7 +1,7 @@
 {
   "name": "flip2-companion",
   "productName": "TCL Flip2 Manager",
-  "version": "1.4.0-alpha.13",
+  "version": "1.4.0-alpha.14",
   "description": "Desktop companion for the Flip 2 setup wizard: host adb install/verify, catalog downloads, Linux udev one-click.",
   "license": "MIT",
   "main": "main.js",
@@ -10,7 +10,8 @@
     "start:safe": "ELECTRON_DISABLE_GPU=1 electron . --disable-gpu --disable-gpu-compositing",
     "sync:icons": "node scripts/rasterize-wizard-icon.mjs",
     "fetch:platform-tools:win": "node scripts/fetch-platform-tools-win.mjs",
-    "prepack:win": "npm run sync:icons && npm run fetch:platform-tools:win",
+    "fetch:preloader-drivers:win": "node scripts/fetch-preloader-drivers-win.mjs",
+    "prepack:win": "npm run sync:icons && npm run fetch:platform-tools:win && npm run fetch:preloader-drivers:win",
     "prepack:linux": "npm run sync:icons",
     "pack:win": "electron-builder --win --x64",
     "pack:linux": "electron-builder --linux",
@@ -46,6 +47,13 @@
       {
         "from": "platform-tools-win",
         "to": "platform-tools",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "preloader-drivers-win",
+        "to": "preloader-drivers",
         "filter": [
           "**/*"
         ]

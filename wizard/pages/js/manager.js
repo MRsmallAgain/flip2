@@ -247,17 +247,9 @@ function refreshPhone() {
         : 'Use Chrome on Linux for WebUSB, or Flip 2 Companion for host adb.',
       'wait'
     );
-    setStatus(
-      'phone-msg',
-      hasWebUsb
-        ? 'Not an error — use Companion for Refresh, or Set up → Connect for WebUSB.'
-        : 'Use Chrome or Flip 2 Companion.',
-      'wait'
-    );
     setMouseSpeedPanelEnabled(false);
     return;
   }
-  setStatus('phone-msg', 'reading the phone\u2026', 'wait');
   N.wizardHostAdbReady().then(function (ready) {
     if (!ready || !ready.ok) {
       var describe = (N.phoneState ? N.phoneState() : Promise.resolve(null)).then(function (state) {
@@ -270,7 +262,6 @@ function refreshPhone() {
         setTier1RootPrereqVisible(false);
         var copy = phoneNotReadyCopy(mode);
         factRow(box, 'USB', copy.fact, copy.cls);
-        setStatus('phone-msg', copy.status, copy.cls);
         setPhoneNext(copy.next, true);
         setMouseSpeedPanelEnabled(false);
       });
@@ -298,14 +289,12 @@ function refreshPhone() {
         factRow(box, 'Wipe', 'Factory reset stays on the phone. Backup ~/flip2-pre-wipe-backup.', 'wait');
       }
       if (!rooted) {
-        setStatus('phone-msg', 'Phone is on adb but does not report root.', 'wait');
         setPhoneNext(
           '<b>Tier 1 needs root.</b> Tier 3 <b>Erase and root</b> or the release zip, then <b>Refresh</b>. Push and install need <code>su</code>.',
           true);
         setMouseSpeedPanelEnabled(false);
         return;
       }
-      setStatus('phone-msg', 'Phone ready over host adb.', 'ok');
       setPhoneNext(
         '<b>Next:</b> pick Base or Managed above → <b>Prepare</b> or <b>Bundled Apps</b> Apply.',
         true);
@@ -314,7 +303,6 @@ function refreshPhone() {
   }).catch(function (e) {
     phoneHostRootState = null;
     setTier1RootPrereqVisible(false);
-    setStatus('phone-msg', cleanErr(e), 'bad');
     setMouseSpeedPanelEnabled(false);
   });
 }

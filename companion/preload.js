@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
   nativePlatform: function () { return ipcRenderer.invoke('native-platform'); },
   udevStatus: function () { return ipcRenderer.invoke('udev-status'); },
   installUdev: function () { return ipcRenderer.invoke('install-udev'); },
+  preloaderDriversStatus: function () { return ipcRenderer.invoke('preloader-drivers-status'); },
+  openBundledPreloaderDrivers: function () { return ipcRenderer.invoke('open-bundled-preloader-drivers'); },
+  installBundledUsbdk: function () { return ipcRenderer.invoke('install-bundled-usbdk'); },
   // Read-only USB mode of the phone, for the rooting step's status panel.
   phoneState: function () { return ipcRenderer.invoke('phone-state'); },
   // Files step: reuse copies already on this PC, or fetch them in-app.
