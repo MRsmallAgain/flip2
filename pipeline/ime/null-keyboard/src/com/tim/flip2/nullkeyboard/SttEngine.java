@@ -9,13 +9,23 @@ package com.tim.flip2.nullkeyboard;
 interface SttEngine {
 
     interface Listener {
+        /** Mic preroll / model load — not yet decoding. */
+        void onPreparing();
+
+        /** Capture and recognizer are active. */
         void onListening();
 
         void onPartial(String text);
 
+        /** Mic off or decode running before {@link #onFinal} (release * → commit). */
+        void onProcessing();
+
         void onFinal(String text);
 
         void onError(String message);
+
+        /** Session hit max listen time; about to stop and commit. */
+        void onListenEnding();
 
         void onIdle();
     }

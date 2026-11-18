@@ -19,7 +19,7 @@ both.
   release — enables mouse mode when passive, releases the cursor when active.
   Toggling on release means the grab never happens while a key is physically
   down (that would strand Android's synthetic-repeat timer). In mouse mode a
-  short soft-key tap still scrolls up one step. Star tap also exits (backup).
+  short soft-key tap still scrolls up one step.
   Volume keys are never used as a gesture, so they always work.
 - **While active:** keypads grabbed. D-pad moves (auto-repeat on hold),
   OK = left click, soft-key tap = scroll up / soft-key 1 s hold = exit,
@@ -31,7 +31,7 @@ both.
   gamepad or Shortcuts when passed through — see
   [../../docs/FLIPMOUSE-ARCADE.md](../../docs/FLIPMOUSE-ARCADE.md) and
   [../landscape-gamepad/README.md](../landscape-gamepad/README.md).
-- **Exit:** star tap (522) releases the grabs, back to passive.
+- **Exit:** hold upper-left soft key 1 s, then release. Star (*) passes through for IME dictation.
 - v1.3: held-key auto-repeat synthesized in-daemon (400 ms delay, 10 steps/s,
   wheel on slowed cadence) — the keypads have no kernel EV_REP and Android's
   repeater never sees grabbed keys; releases are swallowed, which also fixed

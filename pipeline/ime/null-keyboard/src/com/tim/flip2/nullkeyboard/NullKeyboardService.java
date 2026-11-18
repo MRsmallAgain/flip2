@@ -29,25 +29,25 @@ import java.util.List;
 /**
  * Flip2 Null IME: zero-UI keypad keyboard.
  *
- * Letters   : 2-9 T9 predictive (one press per letter, including a repeated digit)
- * Next word : * tap, while a word is in progress, cycles dictionary candidates
+     * Letters   : 2-9 ABC multi-tap by default (# → T9 predictive); one press per letter in T9
+     * Next word : * tap in T9, while a word is in progress, cycles dictionary candidates
  * Space     : 0 commits the word and adds a space; double-0 (quick) inserts ". "
  * Punct.    : 1 multi-tap (.,?!'";:-)() etc.); . ! ? add trailing space in smart mode
  * Smart     : sentence caps + pronoun I (T9 and dictation)
  * Case      : * tap, when no word is in progress, cycles smart -> lower -> UPPER
- * Modes     : # cycles T9 predictive -> ABC multi-tap -> 123 digits
+     * Modes     : # cycles ABC multi-tap -> 123 digits -> T9 predictive
  *             Multi-tap is the classic non-predictive mode: press 2 once for
  *             a, twice for b, and so on within 900 ms. Password fields start
  *             in multi-tap with lower case, so secrets are typed literally.
  * Symbols   : hold # — built-in emoji + special char picker
- * STT       : hold * — offline Sherpa-ONNX streaming ({@code flip2 ime sherpa});
- *             EN/UK; while listening: # cycles EN↔UK, * stops
+     * STT       : hold * to dictate (mic on press); release * to stop and commit.
+     *             Offline Sherpa-ONNX ({@code flip2 ime sherpa}); EN/UK; while listening: # cycles lang
  * Embeds:     hardware DEL / BACK / HELP; BACK = clear while text, else back-nav.
  */
 public class NullKeyboardService extends InputMethodService {
 
     private static final long TAP_TIMEOUT_MS = 900L;
-    /** Hold threshold for * / # — shorter than system key-repeat start (~400–500ms). */
+    /** Hold threshold for # (symbols) — shorter than system key-repeat start (~400–500ms). */
     private static final long HOLD_MS = 380L;
 
     /** Effective keypad text mode; # cycles T9 -> multi-tap -> numeric. */
@@ -93,9 +93,9 @@ public class NullKeyboardService extends InputMethodService {
     private int mCaseMode = CASE_SMART;
     private boolean mFieldNumeric = false;   // field says digits (inputType)
     private boolean mFieldPassword = false;  // password/PIN field: literal typing
-    private int mMode = MODE_T9;             // effective mode for this field
+    private int mMode = MODE_MULTITAP;       // effective mode for this field
     /** Manual choice for ordinary text fields; password/number fields override it. */
-    private int mUserMode = MODE_T9;
+    private int mUserMode = MODE_MULTITAP;
 
     // multi-tap state (letters 2-9 and punctuation on 1)
     private int mPendingKeyCode = -1;
@@ -113,11 +113,24 @@ public class NullKeyboardService extends InputMethodService {
     private TextView mNoticeText;
     private final Runnable mNoticeHide = this::hideNotice;
     private SttEngine mStt;
+    /** True while dictation has shown underline preview — final uses one finishComposingText. */
+    private boolean mSttHadComposingPartial;
+    /** Skip onIdle composing clear right after commit — avoids wiping smart-cap text some chats leave composing. */
+    private boolean mSttSkipIdleDiscard;
+    /** Timestamp after STT commit — some chats leave stale composing; extra clear helps DEL/BACK. */
+    private long mSttCommitAtMs;
 
-    // Hold state for * / # — defer tap until UP; fire hold once.
+    // Hold state for * / # — defer tap until UP; fire hold once (# symbols only).
     private int mHoldKeyCode = -1;
     private boolean mHoldFired = false;
     private final Runnable mHoldRunnable = this::onHoldTimeout;
+    /** Push-to-talk: mic on * down; past {@link #HOLD_MS} = dictate; release * commits if dictating. */
+    private boolean mStarKeyDown;
+    private boolean mStarDictateActive;
+    /** Mic was started on this * press — stop on UP even if engine already cleared isListening. */
+    private boolean mStarSttSession;
+    private long mStarDownAt;
+    private final Runnable mStarHoldRunnable = this::onStarHoldThreshold;
 
     // T9 predictive (keys 2–9): digit sequence + in-field preview; 0 commits word + space.
     private String mT9Seq = "";
@@ -166,29 +179,53 @@ public class NullKeyboardService extends InputMethodService {
         T9PredictiveHelper.loadWords(this);
         final SttEngine.Listener sttListener = new SttEngine.Listener() {
             @Override
+            public void onPreparing() {
+                mSttHadComposingPartial = false;
+                mSttSkipIdleDiscard = false;
+                String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
+                showNotice("Preparing mic (" + lang.toUpperCase() + ")… speak now", true);
+            }
+
+            @Override
             public void onListening() {
                 String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
-                toast("Listening (" + lang.toUpperCase() + ") — * stop, # lang");
+                showNotice("Listening (" + lang.toUpperCase() + ") — release * to stop", true);
             }
 
             @Override
             public void onPartial(String text) {
-                // Live feedback: show what the mic hears so the user can tell it's working.
-                showNotice("Listening: " + text, true);
+                showSttPartial(text);
+            }
+
+            @Override
+            public void onProcessing() {
+                String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
+                showNotice("Processing (" + lang.toUpperCase() + ")…", true);
             }
 
             @Override
             public void onFinal(String text) {
-                commitSttText(text);
+                commitSttFinal(text);
             }
 
             @Override
             public void onError(String message) {
                 toast(message);
+                hideNoticeIfListening();
+            }
+
+            @Override
+            public void onListenEnding() {
+                showNotice("Stopping soon — hold * longer to keep going", true);
             }
 
             @Override
             public void onIdle() {
+                if (!mSttSkipIdleDiscard) {
+                    discardSttComposing();
+                }
+                mSttSkipIdleDiscard = false;
+                mSttHadComposingPartial = false;
                 hideNoticeIfListening();
             }
         };
@@ -308,7 +345,7 @@ public class NullKeyboardService extends InputMethodService {
                 if (ic == null) {
                     return super.onKeyPreIme(keyCode, event);
                 }
-                if (handleHardwareBack(ic, event.getAction())) {
+                if (handleHardwareBack(ic, event)) {
                     return true;
                 }
                 return super.onKeyPreIme(keyCode, event);
@@ -396,8 +433,11 @@ public class NullKeyboardService extends InputMethodService {
     }
 
     /** true = event consumed (do not pass to activity). */
-    private boolean handleHardwareBack(InputConnection ic, int action) {
-        Log.i("Flip2IME", "hwBack action=" + action);
+    private boolean handleHardwareBack(InputConnection ic, KeyEvent event) {
+        final int action = event.getAction();
+        if (event.getRepeatCount() == 0) {
+            Log.i("Flip2IME", "hwBack action=" + action);
+        }
         if (action == KeyEvent.ACTION_UP) {
             if (mBackConsumedForEdit) {
                 mBackConsumedForEdit = false;
@@ -431,15 +471,32 @@ public class NullKeyboardService extends InputMethodService {
             return true;
         }
         clearT9();
-        CharSequence before = ic.getTextBeforeCursor(1, 0);
-        if (before != null && before.length() > 0) {
-            Log.i("Flip2IME", "hwBack delete char");
-            ic.deleteSurroundingText(1, 0);
-            mBackConsumedForEdit = true;
-            return true;
+        if (action == KeyEvent.ACTION_DOWN) {
+            if (tryDeleteOneBeforeCursor(ic)) {
+                mBackConsumedForEdit = true;
+                return true;
+            }
         }
         mBackConsumedForEdit = false;
         Log.i("Flip2IME", "hwBack pass-through");
+        return false;
+    }
+
+    /** Delete one char when possible; clears stale composing briefly after STT commit. */
+    private boolean tryDeleteOneBeforeCursor(InputConnection ic) {
+        if (ic == null) {
+            return false;
+        }
+        long now = SystemClock.uptimeMillis();
+        if (mSttCommitAtMs > 0 && now - mSttCommitAtMs < STT_COMPOSE_GRACE_MS) {
+            clearStaleComposingAfterStt(ic);
+        }
+        CharSequence before = ic.getTextBeforeCursor(1, 0);
+        if (before != null && before.length() > 0) {
+            Log.i("Flip2IME", "delete before=1");
+            ic.deleteSurroundingText(1, 0);
+            return true;
+        }
         return false;
     }
 
@@ -475,12 +532,12 @@ public class NullKeyboardService extends InputMethodService {
 
     private static int nextMode(int mode) {
         switch (mode) {
-            case MODE_T9:
-                return MODE_MULTITAP;
             case MODE_MULTITAP:
                 return MODE_NUMERIC;
-            default:
+            case MODE_NUMERIC:
                 return MODE_T9;
+            default:
+                return MODE_MULTITAP;
         }
     }
 
@@ -573,10 +630,14 @@ public class NullKeyboardService extends InputMethodService {
         }
     }
 
-    /** STT ended: drop the chip only if it is the sticky Listening one (errors stay visible). */
+    /** STT ended: drop sticky dictation chip (preparing / listening / timeout hint). */
     private void hideNoticeIfListening() {
-        if (mNoticeText != null && mNoticeText.getText() != null
-                && mNoticeText.getText().toString().startsWith("Listening")) {
+        if (mNoticeText == null || mNoticeText.getText() == null) return;
+        String t = mNoticeText.getText().toString();
+        if (t.startsWith("Preparing")
+                || t.startsWith("Listening")
+                || t.startsWith("Processing")
+                || t.startsWith("Stopping soon")) {
             hideNotice();
         }
     }
@@ -659,23 +720,79 @@ public class NullKeyboardService extends InputMethodService {
         }
     }
 
-    private void commitSttText(String text) {
-        Log.i("Flip2STT", "commitSttText: [" + text + "]");
+    /** Live dictation preview in the field (underline) + top chip when dialog works. */
+    private void showSttPartial(String text) {
+        if (text == null || text.length() == 0) return;
+        mSttHadComposingPartial = true;
+        showNotice("Listening: " + text, true);
+        InputConnection ic = getCurrentInputConnection();
+        if (ic != null) {
+            try {
+                String display = formatSttForSmartCommit(ic, text);
+                ic.setComposingText(display, 1);
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    /** One insert on release: replace underline with smart text, or commit if no partials shown. */
+    private void commitSttFinal(String text) {
+        Log.i("Flip2STT", "commitSttFinal: [" + text + "] composing=" + mSttHadComposingPartial);
         if (text == null || text.length() == 0) {
+            discardSttComposing();
+            mSttHadComposingPartial = false;
             return;
         }
         cancelPending();
         clearT9();
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) {
+            mSttHadComposingPartial = false;
             return;
         }
-        text = formatSttForSmartCommit(ic, text);
-        CharSequence before = ic.getTextBeforeCursor(1, 0);
-        boolean needSpace = before != null && before.length() > 0
-                && !Character.isWhitespace(before.charAt(0))
-                && text.charAt(0) != ' ';
-        ic.commitText(needSpace ? (" " + text) : text, 1);
+        String formatted = formatSttForSmartCommit(ic, text);
+        if (mSttHadComposingPartial) {
+            try {
+                ic.setComposingText(formatted, 1);
+                ic.finishComposingText();
+            } catch (Throwable t) {
+                CharSequence before = ic.getTextBeforeCursor(1, 0);
+                boolean needSpace = before != null && before.length() > 0
+                        && !Character.isWhitespace(before.charAt(0))
+                        && formatted.charAt(0) != ' ';
+                ic.commitText(needSpace ? (" " + formatted) : formatted, 1);
+            }
+        } else {
+            CharSequence before = ic.getTextBeforeCursor(1, 0);
+            boolean needSpace = before != null && before.length() > 0
+                    && !Character.isWhitespace(before.charAt(0))
+                    && formatted.charAt(0) != ' ';
+            ic.commitText(needSpace ? (" " + formatted) : formatted, 1);
+        }
+        mSttHadComposingPartial = false;
+        mSttSkipIdleDiscard = true;
+        mSttCommitAtMs = SystemClock.uptimeMillis();
+        clearStaleComposingAfterStt(ic);
+    }
+
+    private static final long STT_COMPOSE_GRACE_MS = 4000L;
+
+    /** Some chat apps keep an empty composing region after finishComposingText; blocks deleteSurroundingText. */
+    private void clearStaleComposingAfterStt(InputConnection ic) {
+        if (ic == null) {
+            return;
+        }
+        try {
+            ic.finishComposingText();
+        } catch (Throwable ignored) {}
+    }
+
+    private void discardSttComposing() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic != null) {
+            try {
+                ic.setComposingText("", 1);
+            } catch (Throwable ignored) {}
+        }
     }
 
     /** True when this TYPE_NULL SDL pointer client must receive the key. */
@@ -694,7 +811,6 @@ public class NullKeyboardService extends InputMethodService {
     /**
      * D-pad, confirm, BACK, and Star for {@link #SDL_POINTER_PACKAGES}.
      * Return false from onKeyDown/onKeyUp so the activity gets the event.
-     * Star is {@link KeyEvent#KEYCODE_STAR} at the framework; scan 522 is matrix-only.
      * BACK skips the ScummVM opening movie.
      */
     private boolean shouldPassthroughSdlPointerKey(int keyCode) {
@@ -732,7 +848,7 @@ public class NullKeyboardService extends InputMethodService {
         final int action = event.getAction();
 
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            return handleHardwareBack(ic, action);
+            return handleHardwareBack(ic, event);
         }
 
         // Hardware delete keypad and the stray HELP key.
@@ -758,11 +874,7 @@ public class NullKeyboardService extends InputMethodService {
             }
             clearT9();
             if (action == KeyEvent.ACTION_DOWN) {
-                CharSequence before = ic.getTextBeforeCursor(1, 0);
-                Log.i("Flip2IME", "del before=" + (before == null ? "null" : before.length()));
-                if (before != null && before.length() > 0) {
-                    ic.deleteSurroundingText(1, 0);
-                }
+                tryDeleteOneBeforeCursor(ic);
             }
             return true;
         }
@@ -793,31 +905,13 @@ public class NullKeyboardService extends InputMethodService {
             }
         }
 
-        // While STT is listening: * stops; # cycles EN↔UK and restarts.
-        if (mStt != null && mStt.isListening()) {
-            clearHold();
-            if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                if (keyCode == KeyEvent.KEYCODE_STAR) {
-                    mStt.stopListening(true);
-                    toast("STT stopped");
-                    return true;
-                }
-                if (keyCode == KeyEvent.KEYCODE_POUND) {
-                    String next = SherpaSttHelper.cycleLang(this);
-                    toast("STT lang: " + next.toUpperCase());
-                    mStt.switchLangAndListen();
-                    return true;
-                }
-            }
-            // Swallow other keypad while listening so multi-tap doesn't fight mic.
-            if (isKeyPadKey(keyCode)) {
-                return true;
-            }
-        }
-
-        // * / #: defer tap until UP; fire hold once via timer (no double-fire).
         if (keyCode == KeyEvent.KEYCODE_STAR || keyCode == KeyEvent.KEYCODE_POUND) {
             return handleStarPound(keyCode, event, ic);
+        }
+
+        // While dictating: swallow other keypad (* / # handled above).
+        if (mStt != null && mStt.isListening() && isKeyPadKey(keyCode)) {
+            return true;
         }
 
         if (action != KeyEvent.ACTION_DOWN) {
@@ -1227,9 +1321,85 @@ public class NullKeyboardService extends InputMethodService {
         mT9PreviewLen = 0;
     }
 
-    /** Defer * / # tap until key-up; one hold action at {@link #HOLD_MS}. Swallow repeats (no DTMF spam). */
+    /**
+     * * — mic on down; hold past {@link #HOLD_MS} then release to commit. Quick tap → T9 / case.
+     * # — tap cycles mode; hold → symbols. While dictating, # switches STT language.
+     */
     private boolean handleStarPound(int keyCode, KeyEvent event, InputConnection ic) {
         final int action = event.getAction();
+        if (keyCode == KeyEvent.KEYCODE_STAR) {
+            if (action == KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() > 0) {
+                    return true;
+                }
+                if (mStarKeyDown) {
+                    return true;
+                }
+                cancelPending();
+                clearHold();
+                MAIN.removeCallbacks(mStarHoldRunnable);
+                mStarKeyDown = true;
+                mStarDictateActive = false;
+                mStarSttSession = false;
+                mStarDownAt = SystemClock.uptimeMillis();
+                if (numericMode()) {
+                    return true;
+                }
+                if (mT9Seq.length() > 0) {
+                    commitT9Word(ic, false);
+                }
+                if (mStt != null && !mStt.isListening()) {
+                    if (mStt.startListening()) {
+                        mStarSttSession = true;
+                    }
+                } else if (mStt != null && mStt.isListening()) {
+                    mStarSttSession = true;
+                }
+                MAIN.postDelayed(mStarHoldRunnable, HOLD_MS);
+                return true;
+            }
+            if (action == KeyEvent.ACTION_UP) {
+                MAIN.removeCallbacks(mStarHoldRunnable);
+                boolean wasDictate = mStarDictateActive;
+                boolean sttSession = mStarSttSession;
+                long heldMs = SystemClock.uptimeMillis() - mStarDownAt;
+                /* Hold runnable can lose to UP on same frame — treat long press as dictate commit. */
+                if (!wasDictate && heldMs >= HOLD_MS) {
+                    wasDictate = true;
+                }
+                mStarKeyDown = false;
+                mStarDictateActive = false;
+                mStarSttSession = false;
+                if (numericMode()) {
+                    ic.commitText("*", 1);
+                    return true;
+                }
+                if (mStt != null && (mStt.isListening() || sttSession)) {
+                    /* Mic reached Listening: release always commits (HOLD_MS only gates T9/case before Listening). */
+                    boolean deliverFinal = wasDictate || heldMs >= HOLD_MS
+                            || mStt.isListening();
+                    hideNoticeIfListening();
+                    mStt.stopListening(deliverFinal);
+                    if (!deliverFinal) {
+                        applyStarPoundTap(KeyEvent.KEYCODE_STAR, ic);
+                    }
+                    return true;
+                }
+                applyStarPoundTap(KeyEvent.KEYCODE_STAR, ic);
+                return true;
+            }
+            return true;
+        }
+
+        // #
+        if (mStt != null && mStt.isListening()) {
+            if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                String next = SherpaSttHelper.cycleLang(this);
+                toast("STT lang: " + next.toUpperCase());
+                mStt.switchLangAndListen();
+            }
+            return true;
+        }
         if (action == KeyEvent.ACTION_DOWN) {
             if (event.getRepeatCount() > 0) {
                 return true;
@@ -1256,32 +1426,27 @@ public class NullKeyboardService extends InputMethodService {
         return true;
     }
 
+    /** After HOLD_MS with * still down, treat release as dictation commit (not T9/case tap). */
+    private void onStarHoldThreshold() {
+        if (!mStarKeyDown || numericMode()) {
+            return;
+        }
+        mStarDictateActive = true;
+    }
+
     private void onHoldTimeout() {
-        if (mHoldKeyCode != KeyEvent.KEYCODE_STAR && mHoldKeyCode != KeyEvent.KEYCODE_POUND) {
+        if (mHoldKeyCode != KeyEvent.KEYCODE_POUND) {
             return;
         }
         mHoldFired = true;
-        fireHoldAction(mHoldKeyCode);
+        showSymbolsDialog();
     }
 
     private void clearHold() {
         MAIN.removeCallbacks(mHoldRunnable);
+        MAIN.removeCallbacks(mStarHoldRunnable);
         mHoldKeyCode = -1;
         mHoldFired = false;
-    }
-
-    private void fireHoldAction(int keyCode) {
-        if (keyCode == KeyEvent.KEYCODE_STAR) {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic != null && mT9Seq.length() > 0) {
-                commitT9Word(ic, false);
-            }
-            if (mStt != null) {
-                mStt.startListening();
-            }
-        } else if (keyCode == KeyEvent.KEYCODE_POUND) {
-            showSymbolsDialog();
-        }
     }
 
     private void applyStarPoundTap(int keyCode, InputConnection ic) {
