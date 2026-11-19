@@ -136,13 +136,19 @@ for n in "${ASSET_NAMES[@]}"; do
 done
 ASSETS+=("$DIST/SHA256SUMS")
 
-# Optional mirror assets (not part of Magisk SHA256SUMS): Linux Companion AppImage.
+# Optional mirror assets (not part of Magisk SHA256SUMS): Companion AppImage / Windows exe.
 COMPANION_VER="$(jq -r '.version // empty' "$ROOT/companion/package.json" 2>/dev/null || true)"
 COMPANION_LINUX_NAME=""
+COMPANION_WIN_NAME=""
+COMPANION_DIST="$ROOT/companion/dist"
 if [[ -n "$COMPANION_VER" ]]; then
   COMPANION_LINUX_NAME="flip2-companion-${COMPANION_VER}-linux-x86_64.AppImage"
   if [[ ! -f "$DIST/$COMPANION_LINUX_NAME" ]]; then
     COMPANION_LINUX_NAME=""
+  fi
+  COMPANION_WIN_NAME="flip2-companion-${COMPANION_VER}-win-x64.exe"
+  if [[ ! -f "$DIST/$COMPANION_WIN_NAME" && ! -f "$COMPANION_DIST/$COMPANION_WIN_NAME" ]]; then
+    COMPANION_WIN_NAME=""
   fi
 fi
 
@@ -150,9 +156,16 @@ fi
 # be checked with `sha256sum -c` without going back to the repo.
 RELEASE_NAMES=("${ASSET_NAMES[@]}" "SHA256SUMS")
 [[ -n "$COMPANION_LINUX_NAME" ]] && RELEASE_NAMES+=("$COMPANION_LINUX_NAME")
+[[ -n "$COMPANION_WIN_NAME" ]] && RELEASE_NAMES+=("$COMPANION_WIN_NAME")
 
-file_size() { stat -c%s "$DIST/$1"; }
-file_sha() { sha256sum "$DIST/$1" | awk '{print $1}'; }
+asset_path() {
+  local n="$1"
+  if [[ -f "$DIST/$n" ]]; then echo "$DIST/$n"; return; fi
+  if [[ -f "$COMPANION_DIST/$n" ]]; then echo "$COMPANION_DIST/$n"; return; fi
+  echo "$DIST/$n"
+}
+file_size() { stat -c%s "$(asset_path "$1")"; }
+file_sha() { sha256sum "$(asset_path "$1")" | awk '{print $1}'; }
 
 mirror_code() {  # mirror_code <name> -> HTTP status of a 1-byte range GET
   local code
@@ -225,7 +238,7 @@ mirror_upload() {  # mirror_upload <name>...
     echo "==> mirror: packages/$n ($want bytes, sha256 ${sha:0:16})"
     # The sha256 stamp is what mirror_ok() compares on the next run: byte count
     # alone let a rebuilt asset that matched its predecessor's size be skipped.
-    aws s3 cp "$DIST/$n" "s3://$bucket/packages/$n" \
+    aws s3 cp "$(asset_path "$n")" "s3://$bucket/packages/$n" \
       --content-type application/octet-stream \
       --cache-control "public,max-age=86400" \
       --metadata "sha256=$sha" >/dev/null

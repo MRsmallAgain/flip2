@@ -14,4 +14,4 @@ sha256sum -c SHA256SUMS
 
 ## Release assets
 
-Magisk installers repacked at `1.4.0-alpha.25-flip2`; component bundle `flip2-packages-1.4.0-alpha.25-flip2.zip` and system tree zip. Windows Companion `flip2-companion-1.4.0-alpha.25-win-x64.exe` when packed locally (not in default mirror SHA256SUMS). Linux Companion AppImage pinned in catalog when present in `dist/`.
+Magisk installers repacked at `1.4.0-alpha.25-flip2`; component bundle `flip2-packages-1.4.0-alpha.25-flip2.zip` and system tree zip. Windows and Linux Companion builds pinned in `wizard/catalog.json` (mirror via `sync-site-packages.sh` or `flip2 release`; not in Magisk `SHA256SUMS`).
