@@ -41,7 +41,7 @@ import java.util.List;
  *             in multi-tap with lower case, so secrets are typed literally.
  * Symbols   : hold # — built-in emoji + special char picker
      * STT       : hold * to dictate (mic on press); release * to stop and commit.
-     *             Offline Sherpa-ONNX ({@code flip2 ime sherpa}); EN/UK; while listening: # cycles lang
+     *             Offline Sherpa-ONNX ({@code flip2 ime sherpa}); while listening: # may cycle STT pref
  * Embeds:     hardware DEL / BACK / HELP; BACK = clear while text, else back-nav.
  */
 public class NullKeyboardService extends InputMethodService {
@@ -49,6 +49,8 @@ public class NullKeyboardService extends InputMethodService {
     private static final long TAP_TIMEOUT_MS = 900L;
     /** Hold threshold for # (symbols) — shorter than system key-repeat start (~400–500ms). */
     private static final long HOLD_MS = 380L;
+    /** Longer than accidental bump; shorter than HOLD_MS — blocks T9/case when user meant PTT. */
+    private static final long STAR_PTT_GUARD_MS = 220L;
 
     /** Effective keypad text mode; # cycles T9 -> multi-tap -> numeric. */
     private static final int MODE_T9 = 0;
@@ -182,14 +184,12 @@ public class NullKeyboardService extends InputMethodService {
             public void onPreparing() {
                 mSttHadComposingPartial = false;
                 mSttSkipIdleDiscard = false;
-                String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
-                showNotice("Preparing mic (" + lang.toUpperCase() + ")… speak now", true);
+                showNotice("Preparing mic… speak now", true);
             }
 
             @Override
             public void onListening() {
-                String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
-                showNotice("Listening (" + lang.toUpperCase() + ") — release * to stop", true);
+                showNotice("Listening — release * to stop", true);
             }
 
             @Override
@@ -199,8 +199,7 @@ public class NullKeyboardService extends InputMethodService {
 
             @Override
             public void onProcessing() {
-                String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
-                showNotice("Processing (" + lang.toUpperCase() + ")…", true);
+                showNotice("Processing…", true);
             }
 
             @Override
@@ -298,7 +297,11 @@ public class NullKeyboardService extends InputMethodService {
             mMode = mUserMode;
         }
         Log.i("Flip2IME", "mode=" + modeName(mMode) + " password=" + mFieldPassword);
+        clearStarPressState();
         clearT9();
+        if (textField && mStt != null) {
+            mStt.warmOfflineInBackground(SherpaSttHelper.getLang(this));
+        }
         mAwaitingDoubleZeroPeriod = false;
         mLastZeroDownMs = 0;
         mBackConsumedForEdit = false;
@@ -373,6 +376,7 @@ public class NullKeyboardService extends InputMethodService {
     @Override
     public void onWindowShown() {
         super.onWindowShown();
+        clearStarPressState();
         Log.i("Flip2IME", "onWindowShown");
         try {
             android.app.Dialog d = getWindow();
@@ -397,6 +401,7 @@ public class NullKeyboardService extends InputMethodService {
         super.onWindowHidden();
         Log.i("Flip2IME", "onWindowHidden");
         // A hold can be interrupted by focus loss, which never delivers KEY_UP.
+        clearStarPressState();
         restoreSoundEffects();
     }
 
@@ -1323,7 +1328,7 @@ public class NullKeyboardService extends InputMethodService {
 
     /**
      * * — mic on down; hold past {@link #HOLD_MS} then release to commit. Quick tap → T9 / case.
-     * # — tap cycles mode; hold → symbols. While dictating, # switches STT language.
+     * # — tap cycles mode; hold → symbols. While dictating, # cycles STT pref (same NeMo pack).
      */
     private boolean handleStarPound(int keyCode, KeyEvent event, InputConnection ic) {
         final int action = event.getAction();
@@ -1348,11 +1353,17 @@ public class NullKeyboardService extends InputMethodService {
                 if (mT9Seq.length() > 0) {
                     commitT9Word(ic, false);
                 }
-                if (mStt != null && !mStt.isListening()) {
+                if (mStt == null) {
+                    Log.e("Flip2IME", "star down mStt=null — Sherpa JNI failed at IME startup");
+                    toast("STT unavailable — flip2 ime sherpa / reinstall APK");
+                } else if (!mStt.isListening()) {
                     if (mStt.startListening()) {
                         mStarSttSession = true;
+                        Log.i("Flip2IME", "star down ptt armed session");
+                    } else {
+                        Log.w("Flip2IME", "star down startListening=false");
                     }
-                } else if (mStt != null && mStt.isListening()) {
+                } else {
                     mStarSttSession = true;
                 }
                 MAIN.postDelayed(mStarHoldRunnable, HOLD_MS);
@@ -1385,6 +1396,17 @@ public class NullKeyboardService extends InputMethodService {
                     }
                     return true;
                 }
+                if (heldMs >= STAR_PTT_GUARD_MS && mStt != null
+                        && SherpaSttHelper.anyModelAvailable(this)) {
+                    Log.i("Flip2IME", "star up heldMs=" + heldMs
+                            + " no session — swallow T9/case (PTT guard)");
+                    return true;
+                }
+                if (heldMs >= STAR_PTT_GUARD_MS) {
+                    Log.w("Flip2IME", "star up heldMs=" + heldMs
+                            + " sttSession=false listening="
+                            + (mStt != null && mStt.isListening()));
+                }
                 applyStarPoundTap(KeyEvent.KEYCODE_STAR, ic);
                 return true;
             }
@@ -1394,8 +1416,7 @@ public class NullKeyboardService extends InputMethodService {
         // #
         if (mStt != null && mStt.isListening()) {
             if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                String next = SherpaSttHelper.cycleLang(this);
-                toast("STT lang: " + next.toUpperCase());
+                SherpaSttHelper.cycleLang(this);
                 mStt.switchLangAndListen();
             }
             return true;
@@ -1447,6 +1468,18 @@ public class NullKeyboardService extends InputMethodService {
         MAIN.removeCallbacks(mStarHoldRunnable);
         mHoldKeyCode = -1;
         mHoldFired = false;
+    }
+
+    /** Focus loss may skip KEY_UP — reset * state so the next press is not a duplicate DOWN. */
+    private void clearStarPressState() {
+        if (!mStarKeyDown && !mStarDictateActive && !mStarSttSession) {
+            return;
+        }
+        MAIN.removeCallbacks(mStarHoldRunnable);
+        mStarKeyDown = false;
+        mStarDictateActive = false;
+        mStarSttSession = false;
+        Log.i("Flip2IME", "clearStarPressState");
     }
 
     private void applyStarPoundTap(int keyCode, InputConnection ic) {

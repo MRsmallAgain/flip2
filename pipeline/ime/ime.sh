@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Flip2 chat IME: Kika shows Abc + candidate bar and breaks backspace on hardware keypad.
-# hide-bar: Flip2 Null Keyboard — zero UI, T9 + symbols + offline STT (Sherpa-ONNX; EN/UK).
+# hide-bar: Flip2 Null Keyboard — zero UI, T9 + symbols + offline STT (Sherpa-ONNX NeMo).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=/dev/null
@@ -30,7 +30,7 @@ Usage: flip2 ime <subcommand>
   fetch-models  Download EN+UK model tarballs to pipeline/ime/null-keyboard/models/
   lang [en|uk]  Show or set STT language
 
-STT: hold * to dictate (release * to commit). Sherpa-ONNX offline NeMo (EN+UK). While listening: # = EN↔UK.
+STT: hold * to dictate (release * to commit). Sherpa-ONNX offline NeMo. While listening: # may cycle STT pref (flip2 ime lang).
 Models stay on-device under files/sherpa/{en,uk}, not inside the APK.
 EOF
 }
@@ -163,7 +163,7 @@ case "$cmd" in
       push_sherpa
     fi
     echo "Default IME: Flip2 Null Keyboard. Kika disabled."
-    echo "STT: hold * to dictate, release * to commit (Sherpa-ONNX EN/UK). While listening: # = switch lang."
+    echo "STT: hold * to dictate, release * to commit (Sherpa NeMo). # while listening still cycles STT pref if needed."
     echo "Force-stop chat app and reopen a thread."
     echo "Restore stock: flip2 ime restore"
     ;;

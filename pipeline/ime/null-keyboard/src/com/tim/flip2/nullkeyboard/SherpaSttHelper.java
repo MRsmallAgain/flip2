@@ -966,11 +966,22 @@ final class SherpaSttHelper implements SttEngine {
     private void onListenTimeout() { stopListening(true); }
 
     private void preloadAsync(String lang) {
-        if (!modelAvailable(mApp, lang)) return;
+        warmOfflineInBackground(lang);
+    }
+
+    @Override
+    /** Warm NeMo in background so first * in chat is not a 10–15s cold start. */
+    public void warmOfflineInBackground(String lang) {
+        if (!sLibOk || !modelAvailable(mApp, lang)) return;
+        synchronized (this) {
+            if (mOffline != null && lang.equals(mLoadedOfflineLang)) return;
+        }
         mBg.execute(() -> {
             try {
                 ensureOfflineLocked(lang);
-            } catch (Throwable ignored) {}
+            } catch (Throwable t) {
+                Log.w(TAG, "offline preload " + lang, t);
+            }
         });
     }
 

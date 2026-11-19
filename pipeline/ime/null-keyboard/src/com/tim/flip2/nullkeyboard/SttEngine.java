@@ -38,5 +38,8 @@ interface SttEngine {
 
     void switchLangAndListen();
 
+    /** Background NeMo load so first * in chat is not a multi-second cold start. */
+    void warmOfflineInBackground(String lang);
+
     void release();
 }
