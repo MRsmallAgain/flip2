@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Flip2 chat IME: Kika shows Abc + candidate bar and breaks backspace on hardware keypad.
-# hide-bar: Flip2 Null Keyboard — zero UI, T9 + symbols + offline STT (Sherpa-ONNX; EN/UK).
+# hide-bar: Flip2 Null Keyboard — zero UI, T9 + symbols + offline STT (Sherpa-ONNX NeMo).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=/dev/null
@@ -30,13 +30,19 @@ Usage: flip2 ime <subcommand>
   fetch-models  Download EN+UK model tarballs to pipeline/ime/null-keyboard/models/
   lang [en|uk]  Show or set STT language
 
-STT: hold * to listen (Sherpa-ONNX streaming). While listening: # = EN↔UK, * = stop.
+STT: hold * to dictate (release * to commit). Sherpa-ONNX offline NeMo. While listening: # may cycle STT pref (flip2 ime lang).
 Models stay on-device under files/sherpa/{en,uk}, not inside the APK.
 EOF
 }
 
 ensure_built() {
+  local need_build=0
   if [[ ! -f "$NULL_APK" ]]; then
+    need_build=1
+  elif find "$NULL_DIR/src" "$NULL_DIR/res" "$NULL_DIR/AndroidManifest.xml" -type f -newer "$NULL_APK" 2>/dev/null | grep -q .; then
+    need_build=1
+  fi
+  if [[ "$need_build" -eq 1 ]]; then
     echo "Building null keyboard…" >&2
     export JAVA_HOME="${JAVA_HOME:-$HOME/.local/opt/jdk17}"
     export PATH="$JAVA_HOME/bin:$PATH"
@@ -157,7 +163,7 @@ case "$cmd" in
       push_sherpa
     fi
     echo "Default IME: Flip2 Null Keyboard. Kika disabled."
-    echo "STT: hold * to dictate (Sherpa-ONNX EN/UK). While listening: # = switch lang, * = stop."
+    echo "STT: hold * to dictate, release * to commit (Sherpa NeMo). # while listening still cycles STT pref if needed."
     echo "Force-stop chat app and reopen a thread."
     echo "Restore stock: flip2 ime restore"
     ;;

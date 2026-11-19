@@ -15,7 +15,8 @@
  *   - while active: keypads grabbed; D-pad moves, OK clicks, pound scrolls
  *     down, soft-left scrolls up, del toggles drag, volume = speed. The
  *     right soft key passes through so the Shortcuts bar still fires.
- *   - a Star tap exits back to passive (grabs released, IME unaffected)
+ *   - Star (*) passes through in cursor mode (IME dictation / T9); only
+ *     hold soft-left toggles cursor off when active.
  *
  * flip2 landscape gamepad (same daemon — pipeline/landscape-gamepad):
  *   - when landscape (dumpsys) and gamepad.conf landscape_auto=1: auto gamepad
@@ -226,7 +227,9 @@ typedef struct
   device_t *devices;
   mouse_t mouse;
   FILE *log_fp;
-  volatile sig_atomic_t running;
+	  volatile sig_atomic_t running;
+	  int star_ime_handoff; /* * held: keypads ungrabbed so IME gets native delivery */
+	  device_t *star_handoff_dev; /* matrix keypad that started * PTT (EVIOCGKEY poll) */
 } app_state_t;
 
 /* Device list */
@@ -244,6 +247,9 @@ static int mouse_init(void);
 static void mouse_cleanup(void);
 static void mouse_activate(void);
 static void mouse_deactivate(void);
+static void mouse_keypads_ungrab(void);
+static void mouse_keypads_regrab_if_active(void);
+static void inject_star_to_ime(device_t *dev, int value);
 static void repeat_stop(void);
 static void fire_repeat(void);
 static int mouse_handle_event(device_t *dev, struct input_event *ev);
@@ -466,7 +472,41 @@ static void mouse_deactivate(void)
   app_state.mouse.enabled = 0;
   for (d = app_state.devices; d; d = d->next)
     ioctl(d->fd, EVIOCGRAB, 0);
+  app_state.star_ime_handoff = 0;
+  app_state.star_handoff_dev = NULL;
   log_message("Mouse mode disabled (passive observer)");
+}
+
+/* Release grab only — cursor stays active; native keypad delivery for IME. */
+static void mouse_keypads_ungrab(void)
+{
+  device_t *d;
+  repeat_stop();
+  for (d = app_state.devices; d; d = d->next)
+    ioctl(d->fd, EVIOCGRAB, 0);
+  log_message("Keypads ungrabbed for IME *");
+}
+
+static void mouse_keypads_regrab_if_active(void)
+{
+  device_t *d;
+  if (!app_state.mouse.enabled)
+    return;
+  for (d = app_state.devices; d; d = d->next)
+  {
+    if (ioctl(d->fd, EVIOCGRAB, 1) < 0)
+      log_message("WARNING: regrab failed for %s", d->name);
+  }
+  log_message("Keypads regrabbed (cursor still on)");
+}
+
+/* Grabbed read ate the physical * — inject on the keypad clone for the IME. */
+static void inject_star_to_ime(device_t *dev, int value)
+{
+  if (!dev || !dev->uidev)
+    return;
+  libevdev_uinput_write_event(dev->uidev, EV_KEY, STAR_CODE, value);
+  libevdev_uinput_write_event(dev->uidev, EV_SYN, SYN_REPORT, 0);
 }
 
 /* --- Held-key auto-repeat (local patch) --- */
@@ -800,12 +840,36 @@ static int handle_input_event(device_t *dev, struct input_event *ev)
     return MUTE_EVENT;
   }
 
-  /* Star tap also exits mouse mode (on release, so a stray press never sticks) */
+  /* While dictating: # reaches IME (lang switch); other keys muted. */
+  if (app_state.star_ime_handoff && ev->code == POUND_CODE)
+    return PASS_THRU_EVENT;
+  if (app_state.star_ime_handoff && ev->code != STAR_CODE)
+    return MUTE_EVENT;
+
+  /* Star: ungrab on down; * up on matrix fd ends PTT and regrabs (cursor on). */
   if (ev->code == STAR_CODE)
   {
-    log_message("star key value=%d", ev->value);
-    if (ev->value == 0)
-      mouse_deactivate();
+    if (ev->value == 1)
+    {
+      if (!app_state.star_ime_handoff)
+      {
+        app_state.star_ime_handoff = 1;
+        app_state.star_handoff_dev = dev;
+        mouse_keypads_ungrab();
+        inject_star_to_ime(dev, 1);
+      }
+      /* Handoff already active: do not inject again (duplicate DOWN confused IME PTT). */
+      return MUTE_EVENT;
+    }
+    /* ev->value == 0 */
+    if (app_state.star_ime_handoff)
+    {
+      inject_star_to_ime(dev, 0);
+      app_state.star_ime_handoff = 0;
+      app_state.star_handoff_dev = NULL;
+      mouse_keypads_regrab_if_active();
+      log_message("Star IME handoff ended (cursor still on)");
+    }
     return MUTE_EVENT;
   }
 
