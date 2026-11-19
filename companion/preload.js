@@ -4,12 +4,14 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
+  appVersion: function () { return ipcRenderer.invoke('app-version'); },
   nativePlatform: function () { return ipcRenderer.invoke('native-platform'); },
   udevStatus: function () { return ipcRenderer.invoke('udev-status'); },
   installUdev: function () { return ipcRenderer.invoke('install-udev'); },
-  preloaderDriversStatus: function () { return ipcRenderer.invoke('preloader-drivers-status'); },
-  openBundledPreloaderDrivers: function () { return ipcRenderer.invoke('open-bundled-preloader-drivers'); },
-  installBundledUsbdk: function () { return ipcRenderer.invoke('install-bundled-usbdk'); },
+  openVcomGuide: function () { return ipcRenderer.invoke('open-vcom-guide'); },
+  openWindowsDeviceManager: function () { return ipcRenderer.invoke('open-windows-device-manager'); },
+  fetchVcomDriver: function () { return ipcRenderer.invoke('fetch-vcom-driver'); },
+  vcomDriverStatus: function () { return ipcRenderer.invoke('vcom-driver-status'); },
   // Read-only USB mode of the phone, for the rooting step's status panel.
   phoneState: function () { return ipcRenderer.invoke('phone-state'); },
   // Files step: reuse copies already on this PC, or fetch them in-app.

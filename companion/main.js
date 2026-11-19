@@ -4,13 +4,20 @@
 // is one click instead of a sudo recipe.
 
 const { app, BrowserWindow, ipcMain, protocol, session, shell, net } = require('electron');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const fsp = require('fs').promises;
 const os = require('os');
 const path = require('path');
 const pick = require('./device-pick');
+const {
+  ensureVcomDriverAt,
+  vcomReady,
+  INF_MARKER,
+  resolveInstallInf,
+  stageVcomFromBundled,
+} = require('./lib/vcom-driver-fetch');
 
 function wizardRoot() {
   if (app.isPackaged) {
@@ -46,15 +53,31 @@ function bundledPlatformToolsDir() {
   return null;
 }
 
-const USBDK_MSI = 'UsbDk_1.0.22_x64.msi';
+/** Fallback web guide when bundled VCOM folder is missing (dev / failed prepack). */
+const VCOM_DRIVER_STEPS =
+  'https://spflashtool.com/download/MediaTek_USB_VCOM_drivers.zip';
 
-function bundledPreloaderDriversDir() {
+function bundledVcomDriverDir() {
   if (process.platform !== 'win32') return null;
-  const dir = app.isPackaged
-    ? path.join(process.resourcesPath, 'preloader-drivers')
-    : path.join(__dirname, 'preloader-drivers-win');
-  if (!fs.existsSync(dir)) return null;
-  return dir;
+  const dirs = [];
+  if (app.isPackaged) {
+    dirs.push(path.join(process.resourcesPath, 'vcom-driver'));
+  } else {
+    dirs.push(path.join(__dirname, 'vcom-driver-win'));
+    const fromEnv = process.env.FLIP2_VCOM_DRIVER_DIR;
+    if (fromEnv) dirs.push(fromEnv);
+  }
+  for (const dir of dirs) {
+    if (fs.existsSync(path.join(dir, 'usbser.sys'))) {
+      if (
+        fs.existsSync(path.join(dir, INF_MARKER)) ||
+        fs.existsSync(path.join(dir, 'usb2ser_Win764.inf'))
+      ) {
+        return dir;
+      }
+    }
+  }
+  return null;
 }
 
 function adbExecutable() {
@@ -105,6 +128,55 @@ function fastbootRun(args, timeoutMs) {
 // Catalog files land here when the wizard downloads them in-app, so a retry
 // does not re-fetch 290 MB. Computed lazily: app.getPath needs a live app.
 function downloadDir() { return path.join(app.getPath('downloads'), 'flip2-wizard'); }
+
+/** Staged copy for Device Manager (not asar/temp under LocalAppData\\Temp). */
+function vcomUserDir() {
+  return path.join(downloadDir(), 'vcom-driver');
+}
+
+/** Copy bundled or ensure user dir so Browse / Have Disk always use a normal folder path. */
+async function ensureVcomForDeviceManager() {
+  const user = vcomUserDir();
+  if (await vcomReady(user)) {
+    return {
+      ok: true,
+      dir: user,
+      inf: resolveInstallInf(user),
+      cached: true,
+      message: 'VCOM driver folder is ready under Downloads.',
+    };
+  }
+  const bundled = bundledVcomDriverDir();
+  if (bundled) {
+    const staged = await stageVcomFromBundled(bundled, user);
+    if (staged) {
+      return {
+        ok: true,
+        dir: user,
+        inf: resolveInstallInf(user),
+        cached: false,
+        message: 'Copied bundled VCOM driver to Downloads for Device Manager.',
+      };
+    }
+  }
+  const r = await ensureVcomDriverAt(user, {
+    fetchFn: function (url, init) {
+      return net.fetch(url, init);
+    },
+  });
+  return r;
+}
+
+async function resolveVcomDriverDir() {
+  const user = vcomUserDir();
+  if (await vcomReady(user)) return user;
+  const bundled = bundledVcomDriverDir();
+  if (bundled) {
+    const staged = await stageVcomFromBundled(bundled, user);
+    if (staged) return user;
+  }
+  return null;
+}
 
 // Folders searched by "use files already on this PC". Ordered by preference.
 function localRoots() {
@@ -580,59 +652,109 @@ async function installUdev() {
   }
 }
 
-function preloaderDriversStatus() {
-  const dir = bundledPreloaderDriversDir();
+async function fetchVcomDriver() {
   if (process.platform !== 'win32') {
-    return { available: false, platform: process.platform, na: true };
+    return { ok: false, message: 'VCOM driver is only needed on Windows.' };
   }
-  if (!dir) {
-    return {
-      available: false,
-      platform: 'win32',
-      message: 'Bundled preloader helpers not found. Re-run npm run fetch:preloader-drivers:win or use a packaged build.',
-    };
+  return ensureVcomForDeviceManager();
+}
+
+async function vcomDriverStatus() {
+  if (process.platform !== 'win32') {
+    return { ready: true, platform: process.platform, windows: false };
   }
-  const msi = path.join(dir, USBDK_MSI);
-  const readme = path.join(dir, 'README.txt');
+  const userDir = vcomUserDir();
+  let dir = null;
+  if (await vcomReady(userDir)) {
+    dir = userDir;
+  } else if (bundledVcomDriverDir()) {
+    const staged = await stageVcomFromBundled(bundledVcomDriverDir(), userDir);
+    if (staged) dir = userDir;
+  }
   return {
-    available: true,
-    platform: 'win32',
-    dir,
-    usbdkPresent: fs.existsSync(msi),
-    readmePresent: fs.existsSync(readme),
-    vcomBundled: false,
-    message:
-      'UsbDk is bundled for optional install. MediaTek USB VCOM is not included — see README in the driver folder.',
+    ready: !!dir,
+    windows: true,
+    dir: dir,
+    inf: dir ? resolveInstallInf(dir) : null,
+    userDir: userDir,
   };
 }
 
-async function openBundledPreloaderDrivers() {
-  const st = preloaderDriversStatus();
-  if (!st.available || !st.dir) {
-    return { ok: false, message: st.message || 'Preloader driver folder is not available on this OS.' };
-  }
-  const err = await shell.openPath(st.dir);
-  if (err) return { ok: false, message: err };
-  return { ok: true, message: 'Opened the bundled preloader drivers folder.' };
-}
-
-async function installBundledUsbdk() {
-  const st = preloaderDriversStatus();
-  if (!st.available || !st.usbdkPresent) {
+async function openVcomDriverFolder() {
+  const ensured = await ensureVcomForDeviceManager();
+  if (!ensured.ok) {
+    await shell.openExternal(VCOM_DRIVER_STEPS);
     return {
       ok: false,
       message:
-        st.message ||
-        'UsbDk installer is missing. Run npm run fetch:preloader-drivers:win before packing, or open the driver folder.',
+        (ensured.message || 'Could not prepare VCOM driver') +
+        ' — opened mirror ZIP in browser. After install: unplug, reinsert battery, replug.',
     };
   }
-  const msi = path.join(st.dir, USBDK_MSI);
-  const err = await shell.openPath(msi);
-  if (err) return { ok: false, message: err };
+  const dir = ensured.dir;
+  await shell.openPath(dir);
+  const infName = path.basename(resolveInstallInf(dir));
   return {
     ok: true,
-    message: 'UsbDk installer opened — approve the admin prompt if Windows asks. VCOM is still a separate manual install.',
+    dir: dir,
+    inf: resolveInstallInf(dir),
+    message:
+      'Opened VCOM driver folder — Device Manager: Update driver → Browse my computer → Let me pick from a list → Have Disk → Browse → ' +
+      infName +
+      ' in this folder (preloader 0e8d:2000). Then unplug, reinsert battery, replug, Start watching.',
   };
+}
+
+async function openVcomGuide() {
+  return openVcomDriverFolder();
+}
+
+function spawnDetachedWin(file, args) {
+  return new Promise(function (resolve, reject) {
+    const child = spawn(file, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.once('error', reject);
+    child.once('spawn', function () {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
+async function openWindowsDeviceManager() {
+  if (process.platform !== 'win32') {
+    return { ok: false, message: 'Device Manager is only available on Windows.' };
+  }
+  const windir = process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows';
+  const sys32 = path.join(windir, 'System32');
+  const mmc = path.join(sys32, 'mmc.exe');
+  const cmd = path.join(sys32, 'cmd.exe');
+  const okMessage =
+    'Opened Device Manager — find 0e8d:2000 under Ports (COM & LPT) or with a yellow warning, then use VCOM driver steps. After VCOM: unplug, reinsert battery, replug, Start watching.';
+  try {
+    if (fs.existsSync(mmc)) {
+      await spawnDetachedWin(mmc, ['devmgmt.msc']);
+    } else {
+      await spawnDetachedWin(cmd, ['/c', 'start', '', 'devmgmt.msc']);
+    }
+    return { ok: true, message: okMessage };
+  } catch (err) {
+    try {
+      await spawnDetachedWin(cmd, ['/c', 'start', '', 'devmgmt.msc']);
+      return { ok: true, message: okMessage };
+    } catch (err2) {
+      const why = String((err2 && err2.message) || (err && err.message) || err2 || err).trim();
+      return {
+        ok: false,
+        message:
+          why +
+          ' — open Device Manager manually: Win+X → Device Manager, or run devmgmt.msc from Start.',
+      };
+    }
+  }
 }
 
 // --- catalog files ----------------------------------------------------------
@@ -2434,11 +2556,15 @@ app.whenReady().then(function () {
   ipcMain.handle('native-platform', function () {
     return { platform: process.platform, udevSupported: udevSupported() };
   });
+  ipcMain.handle('app-version', function () {
+    return app.getVersion();
+  });
   ipcMain.handle('udev-status', udevStatus);
   ipcMain.handle('install-udev', installUdev);
-  ipcMain.handle('preloader-drivers-status', function () { return preloaderDriversStatus(); });
-  ipcMain.handle('open-bundled-preloader-drivers', function () { return openBundledPreloaderDrivers(); });
-  ipcMain.handle('install-bundled-usbdk', function () { return installBundledUsbdk(); });
+  ipcMain.handle('open-vcom-guide', function () { return openVcomGuide(); });
+  ipcMain.handle('open-windows-device-manager', function () { return openWindowsDeviceManager(); });
+  ipcMain.handle('fetch-vcom-driver', function () { return fetchVcomDriver(); });
+  ipcMain.handle('vcom-driver-status', function () { return vcomDriverStatus(); });
   ipcMain.handle('phone-state', function () { return readPhoneStateAsync(); });
   ipcMain.handle('local-files', function () { return localFiles(); });
   ipcMain.handle('read-local', function (_e, id, index) { return readLocal(id, index); });

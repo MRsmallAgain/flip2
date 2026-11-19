@@ -45,7 +45,7 @@ npm run pack:win    # Windows: NSIS + portable under dist/
 npm run pack:linux  # Linux: AppImage + unpacked dir
 ```
 
-Packaged builds embed `wizard/` via `extraResources`. On **Windows**, `prepack:win` also bundles Google **platform-tools** and **UsbDk** (+ README under `preloader-drivers/`); rooting slice exposes **Open bundled drivers** and **Install UsbDk**. MTK **VCOM** is documented but not shipped — see bundled `README.txt`. Linux/Windows: put **adb** on `PATH` only when not using the packaged copy (or set `FLIP2_ADB` on Windows).
+Packaged builds embed `wizard/` via `extraResources`. On **Windows**, `prepack:win` bundles Google **platform-tools** (adb/fastboot) and **MediaTek USB VCOM** (`vcom-driver-win/` → `resources/vcom-driver/`). Rooting uses Web Serial in-app — no Python or mtkclient; Rooting → **VCOM driver steps** opens the bundled INF folder for Device Manager install. Linux/Windows: put **adb** on `PATH` only when not using the packaged copy (or set `FLIP2_ADB` / `FLIP2_VCOM_DRIVER_DIR` on Windows).
 
 **Windows checklist:** [docs/SETUP-WIZARD-WINDOWS.md](../docs/SETUP-WIZARD-WINDOWS.md)  
 **Full Prepare walkthrough:** [docs/SETUP-WIZARD-DETAILED.md](../docs/SETUP-WIZARD-DETAILED.md)

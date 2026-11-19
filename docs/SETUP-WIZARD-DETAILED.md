@@ -45,7 +45,7 @@ flip2 companion
 
 1. Build the installer with `npm run pack:win` (below). No prebuilt Windows `.exe` is published at the moment.
 2. Run the installer or portable `.exe`. Launch **TCL Flip2 Manager** — **adb is bundled**; no separate Platform Tools install unless you override with `FLIP2_ADB`.
-3. Install [Google USB Driver](https://developer.android.com/studio/run/oem-usb#Drivers) if Device Manager shows a warning on the phone.
+3. If Device Manager shows a warning on adb/fastboot USB: download [usb_driver_r13-windows.zip](https://dl.google.com/android/repository/usb_driver_r13-windows.zip) (no Google account) and install from the unpacked `usb_driver` folder. For **preloader VCOM** (`0e8d:2000`), use **VCOM driver steps** in the app — bundled, no web download.
 
 **Build Windows package (developers, on Windows):**
 
@@ -106,7 +106,7 @@ Every row in the table must show verified **size + SHA-256** matching `catalog.j
 | Platform | What to do |
 |----------|------------|
 | **Linux** | Copy `wizard/51-android-flip2-adb.rules` to `/etc/udev/rules.d/`, reload udev, replug phone — or in Companion press **Install the rules for me** (polkit password). |
-| **Windows** | Skip udev. Install [Google USB Driver](https://developer.android.com/studio/run/oem-usb#Drivers) or vendor driver; in Device Manager the phone should not show a yellow warning. `adb devices` → serial and `device`. |
+| **Windows** | Skip udev. For adb/fastboot: [usb_driver_r13-windows.zip](https://dl.google.com/android/repository/usb_driver_r13-windows.zip) (no account). For **VCOM** (`0e8d:2000`): bundled in app — **VCOM driver steps**. Device Manager should not show a yellow warning after the right driver per mode. `adb devices` → serial and `device`. |
 | **macOS** | No udev; trust the device when prompted. adb from Platform Tools on `PATH`. |
 
 Then press **Continue**.

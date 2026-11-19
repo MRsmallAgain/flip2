@@ -246,6 +246,12 @@
 	    <p id="dl-hub-banner" class="one-liner ok hidden">All verified</p>
 	    <div id="dl-file-list" class="dl-file-list" role="list"></div>
 	  </details>
+  <p class="note hidden" id="dl-vcom-win-note">After catalog files finish on Windows, this app also fetches the <b>MediaTek USB VCOM</b> driver (preloader <code>0e8d:2000</code>) — required before <b>Start watching</b> in fastboot. Not counted in the 12 files above.</p>
+  <div id="dl-vcom-status" class="status-row hidden" aria-live="polite">
+    <span>VCOM driver</span>
+    <strong id="dl-vcom-val">—</strong>
+    <button type="button" id="dl-vcom-guide" class="ghost hidden">Install walkthrough</button>
+  </div>
   <input type="file" id="dl-pick" multiple class="hidden">
   <div class="action-row">
     <button id="dl-local-btn" class="hidden">Use files already on this PC</button>
@@ -264,7 +270,7 @@
 	<section class="step" id="step-udev">
 	  <h2>USB rules</h2>
 	  <p class="step-lead" id="udev-lead">One-time on Linux — then replug the phone.</p>
-	  <p class="note hidden" id="udev-windows-note">On Windows, install <a href="https://developer.android.com/studio/run/oem-usb#Drivers" target="_blank" rel="noopener">Google USB Driver</a> or the TCL/MTP driver so <code>adb devices</code> shows <b>device</b> (not <b>unauthorized</b> alone). No udev file — press <b>Continue</b>.</p>
+	  <p class="note hidden" id="udev-windows-note">On Windows, for adb (and fastboot after rooting) download <a href="https://dl.google.com/android/repository/usb_driver_r13-windows.zip" target="_blank" rel="noopener">Google USB driver ZIP</a> (no account), unpack, Device Manager → Browse → <code>usb_driver</code> folder. Rooting <b>VCOM</b> is bundled in the app — <b>VCOM driver steps</b> — not on Google’s site. No udev file — press <b>Continue</b>.</p>
 	  <pre class="rules" id="udev-file"></pre>
   <ol>
     <li><code>sudo cp 51-android-flip2-adb.rules /etc/udev/rules.d/</code></li>
@@ -388,7 +394,7 @@
         <div id="boot-count" class="count hidden"></div>
       </div>
       <p><b>Do this:</b> leave the USB cable plugged in. Press <b>Start watching</b>, then take the battery out and put it back in.</p>
-      <p class="note hidden" id="preloader-drivers-win-note">On Windows, install the <b>MediaTek USB VCOM</b> driver so the preloader shows as a COM port — Google adb drivers do not. Companion bundles <b>UsbDk</b> (optional). <button type="button" id="preloader-open-folder" class="ghost hidden">Open bundled drivers</button> <button type="button" id="preloader-install-usbdk" class="ghost hidden">Install UsbDk</button> <span id="preloader-drivers-msg" class="status"></span></p>
+      <p class="note hidden" id="preloader-drivers-win-note">On Windows, rooting uses this app only — no Python or mtkclient. Install the <b>MediaTek USB VCOM</b> driver from the folder this app opens (<b>VCOM driver steps</b> — bundled, no Google or MediaTek website login) so the preloader (<code>0e8d:2000</code>) shows under <b>Ports (COM &amp; LPT)</b>; Google adb drivers do not provide that port. Device Manager <b>Android</b> under Other devices with a yellow warning is usually this VCOM missing — use that folder, not developer.android.com. <button type="button" id="preloader-vcom-guide" class="ghost hidden">VCOM driver steps</button> <button type="button" id="preloader-device-manager" class="ghost hidden">Open Device Manager</button> <span id="preloader-drivers-msg" class="status"></span></p>
       <p><button id="boot-btn">Start watching</button> <span id="boot-msg" class="status"></span></p>
       <pre class="log hidden" id="boot-log"></pre>
     </div>
@@ -396,7 +402,16 @@
     <div id="stage-flash" class="hidden">
       <h3 class="stage-h"><span class="stage-n">2</span> Install the new boot image</h3>
       <p>The phone is in flashing mode, so the hard part is done. Press <b>Connect to the phone</b>. If it reports the phone is still locked, <b>Unlock</b> comes next and asks you to confirm on the keypad — that erases the phone. After the image is installed, press <b>Restart the phone</b>.</p>
-      <p id="fb-need" class="warn hidden">The boot image has not been checked yet, so there is nothing to install. Go back to the file step and let it verify <code>neutron.img</code>, then come back here.</p>
+      <p id="fb-need" class="warn hidden">Verify the pinned <code>neutron.img</code> below before <b>Install boot image</b>. Fastboot only — <b>adb is not required</b> until Android boots with root.</p>
+      <h4 class="stage-sub">Boot image</h4>
+      <div id="fb-boot-bar" class="status-row">
+        <span id="fb-boot-label">Neutron boot image</span>
+        <strong id="fb-boot-status" aria-live="polite">not verified</strong>
+        <button type="button" id="fb-boot-get" class="ghost small">Download &amp; verify</button>
+        <button type="button" id="fb-boot-pick" class="ghost small">Choose file…</button>
+        <input type="file" id="fb-boot-file" accept=".img,image/*" class="hidden">
+        <span id="fb-boot-msg" class="status"></span>
+      </div>
       <p id="fb-controls">
         <button id="fb-pick">Connect to the phone</button>
         <button id="fb-unlock" class="ghost" disabled>Unlock (erases the phone)</button>
@@ -569,6 +584,27 @@
 </section>
 
 </main>
+<div id="vcom-modal" class="modal hidden" role="dialog" aria-labelledby="vcom-modal-title">
+  <div class="modal-panel">
+    <h3 id="vcom-modal-title">Install MediaTek USB VCOM (Windows)</h3>
+    <p>For rooting and <b>Start watching</b>, the preloader (<code>0e8d:2000</code>) must show under <b>Ports (COM &amp; LPT)</b> — Google adb drivers alone are not enough. The driver is <b>already in this app</b> (<b>Open driver folder</b> below). No Google or MediaTek website login.</p>
+    <p class="note">Alternative: <b>Settings → Windows Update → Advanced options → Optional updates → Driver updates</b> — install <b>MediaTek Inc. - Ports</b> if offered, then replug the phone. You can still use the folder below if Windows does not list that driver.</p>
+    <ol>
+      <li>Plug the phone off, or use a powered-off unit with USB connected if you already see an unknown device.</li>
+      <li><b>Open Device Manager</b> — find the MediaTek device or yellow warning under Ports or Other devices.</li>
+      <li>Right-click → <b>Update driver</b> → <b>Browse my computer</b> → <b>Let me pick from a list</b> → <b>Have Disk</b> → <b>Browse</b> → pick <code>flip2_preloader_vcom.inf</code> in the folder below.</li>
+      <li>Unplug USB, reinsert the battery, replug, then continue setup — use <b>Start watching</b> when prompted.</li>
+    </ol>
+    <p class="vcom-modal-folder-label">Have Disk → Browse to this folder, then select <code>flip2_preloader_vcom.inf</code>:</p>
+    <p class="note vcom-modal-folder-path" id="vcom-modal-folder">—</p>
+    <div class="action-row">
+      <button type="button" id="vcom-modal-devmgr">Open Device Manager</button>
+      <button type="button" id="vcom-modal-folder-btn" class="ghost">Open driver folder</button>
+      <button type="button" id="vcom-modal-close" class="ghost">Close</button>
+    </div>
+    <span id="vcom-modal-msg" class="status"></span>
+  </div>
+</div>
 <div id="inst-modal" class="modal hidden" role="dialog" aria-labelledby="inst-modal-title">
   <div class="modal-panel">
     <h3 id="inst-modal-title">Before push and install</h3>

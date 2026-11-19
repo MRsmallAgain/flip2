@@ -1,7 +1,7 @@
 {
   "name": "flip2-companion",
   "productName": "TCL Flip2 Manager",
-  "version": "1.4.0-alpha.14",
+  "version": "1.4.0-alpha.25",
   "description": "Desktop companion for the Flip 2 setup wizard: host adb install/verify, catalog downloads, Linux udev one-click.",
   "license": "MIT",
   "main": "main.js",
@@ -10,18 +10,20 @@
     "start:safe": "ELECTRON_DISABLE_GPU=1 electron . --disable-gpu --disable-gpu-compositing",
     "sync:icons": "node scripts/rasterize-wizard-icon.mjs",
     "fetch:platform-tools:win": "node scripts/fetch-platform-tools-win.mjs",
-    "fetch:preloader-drivers:win": "node scripts/fetch-preloader-drivers-win.mjs",
-    "prepack:win": "npm run sync:icons && npm run fetch:platform-tools:win && npm run fetch:preloader-drivers:win",
+    "fetch:vcom-driver:win": "node scripts/fetch-vcom-driver-win.mjs",
+    "prepack:win": "npm run sync:icons && npm run fetch:platform-tools:win && npm run fetch:vcom-driver:win",
     "prepack:linux": "npm run sync:icons",
     "pack:win": "electron-builder --win --x64",
     "pack:linux": "electron-builder --linux",
     "dist": "electron-builder"
   },
+  "dependencies": {
+    "unzipper": "^0.12.3"
+  },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
-    "unzipper": "^0.12.3"
+    "electron-builder": "^25.1.8"
   },
   "build": {
     "appId": "com.tim.flip2.companion",
@@ -52,8 +54,8 @@
         ]
       },
       {
-        "from": "preloader-drivers-win",
-        "to": "preloader-drivers",
+        "from": "vcom-driver-win",
+        "to": "vcom-driver",
         "filter": [
           "**/*"
         ]

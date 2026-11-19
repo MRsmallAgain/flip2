@@ -38,7 +38,19 @@ function loadCatalog() {
     var stamp = document.getElementById('wizard-build');
     if (stamp) {
       var ver = (pins.version || cat.version || '').trim();
-      stamp.textContent = ver ? 'Catalog ' + ver + ' · pins merge' : 'Catalog · pins merge';
+      var base = ver ? 'Catalog ' + ver + ' · pins merge' : 'Catalog · pins merge';
+      var N = window.FLIP2_NATIVE;
+      if (N && typeof N.appVersion === 'function') {
+        N.appVersion().then(function (appVer) {
+          if (appVer && String(appVer).trim()) {
+            stamp.textContent = base + ' · Companion ' + String(appVer).trim();
+          } else {
+            stamp.textContent = base;
+          }
+        }).catch(function () { stamp.textContent = base; });
+      } else {
+        stamp.textContent = base;
+      }
       stamp.hidden = false;
       stamp.removeAttribute('aria-hidden');
     }

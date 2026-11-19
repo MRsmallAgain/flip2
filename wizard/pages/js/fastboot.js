@@ -14,9 +14,17 @@
 // partition name 'boot' never appears as a parameter. super, vbmeta,
 // system, product and the preloader are unreachable from this module.
 
-// The fastboot gadget advertises class ff / subclass 42. The protocol byte is
-// not stable across builds: this phone reports 03, while other gadgets use 01.
-// Match the class and subclass only — the PID already tells us it is fastboot.
+// The fastboot gadget advertises class ff / subclass 42 (66 decimal). The protocol
+// byte is not stable across builds: this phone reports 03, while other gadgets use 01.
+// Windows often will not match class-only filters until the MTK driver has bound;
+// include 0e8d:201c explicitly like adb.js does for TCL ids.
+var FASTBOOT_WEBUSB_FILTERS = [
+  { vendorId: 0x0e8d, productId: 0x201c },
+  { vendorId: 0x0e8d, classCode: 255, subclassCode: 66 },
+  { classCode: 255, subclassCode: 66, protocolCode: 1 },
+  { classCode: 255, subclassCode: 66 }
+];
+
 var FASTBOOT = {
   device: null, out: null, inp: null,
   log: function () {},          // main.js replaces this
@@ -36,9 +44,8 @@ var FASTBOOT = {
         granted = granted.filter(function (d) { return d.productId !== 0x2000; });
       }
       if (granted.length === 1) { self.device = granted[0]; return granted[0]; }
-      return navigator.usb.requestDevice({ filters: [
-        { classCode: 255, subclassCode: 66 }
-      ]}).then(function (d) { self.device = d; return d; });
+      return navigator.usb.requestDevice({ filters: FASTBOOT_WEBUSB_FILTERS })
+        .then(function (d) { self.device = d; return d; });
     });
   },
 

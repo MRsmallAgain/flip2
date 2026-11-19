@@ -1139,6 +1139,45 @@ table.safety-paths td:first-child {
   box-shadow: var(--shadow-lg);
 }
 
+/* When VCOM install modal is open, keep sticky connect strip from stacking oddly */
+body.vcom-modal-open #get-ready-details[open] {
+  display: none;
+}
+
+body.vcom-modal-open #vcom-modal:not(.hidden) {
+  align-items: flex-start;
+  padding-top: max(72px, 8vh);
+  overflow-y: auto;
+}
+
+body.vcom-modal-open #vcom-modal:not(.hidden) .modal-panel {
+  max-height: calc(100vh - max(72px, 8vh) - 48px);
+  overflow-y: auto;
+}
+
+.vcom-modal-folder-label {
+  margin: 16px 0 6px;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.vcom-modal-folder-path {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.vcom-modal-folder-path.wait {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
 .modal-panel h3 {
   margin: 0 0 12px;
   font-size: 18px;

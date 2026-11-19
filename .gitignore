@@ -47,6 +47,7 @@ pipeline/ime/null-keyboard/jni/*.so
 # Electron companion
 companion/node_modules/
 companion/platform-tools-win/
+companion/vcom-driver-win/
 
 # External APKs fetched by flip2 source fetch
 pipeline/deploy/sources/
@@ -58,3 +59,6 @@ vendor/
 
 # Wizard site package mirror cache (sync-site-packages.sh downloads)
 .flip2-site-packages/
+
+# Local scratch (smoke tests, module extracts)
+**/_tmp/

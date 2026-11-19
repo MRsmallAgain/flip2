@@ -7,6 +7,7 @@ var APPS_STATE = null;
 var appsBusy = false;
 // Set on Phone → Refresh when host adb succeeds: true/false from su 0 sh -c id; null = not checked yet.
 var phoneHostRootState = null;
+var phoneRefreshInFlight = false;
 
 function setTier1RootPrereqVisible(show) {
   var el = $('tier1-root-prereq');
@@ -228,9 +229,12 @@ function phoneNotReadyCopy(mode) {
   };
 }
 
-function refreshPhone() {
+function refreshPhone(fromStrip) {
   var box = $('phone-facts');
   if (!box) return;
+  if (phoneRefreshInFlight) return;
+  phoneRefreshInFlight = true;
+  var finish = function () { phoneRefreshInFlight = false; };
   box.textContent = '';
   box.className = 'now';
   setPhoneNext('', false);
@@ -248,6 +252,7 @@ function refreshPhone() {
       'wait'
     );
     setMouseSpeedPanelEnabled(false);
+    finish();
     return;
   }
   N.wizardHostAdbReady().then(function (ready) {
@@ -264,6 +269,7 @@ function refreshPhone() {
         factRow(box, 'USB', copy.fact, copy.cls);
         setPhoneNext(copy.next, true);
         setMouseSpeedPanelEnabled(false);
+        finish();
       });
     }
     factRow(box, 'Serial', ready.serial || '(unknown)', 'ok');
@@ -293,18 +299,27 @@ function refreshPhone() {
           '<b>Tier 1 needs root.</b> Tier 3 <b>Erase and root</b> or the release zip, then <b>Refresh</b>. Push and install need <code>su</code>.',
           true);
         setMouseSpeedPanelEnabled(false);
+        syncUsbRootedBanner(false);
         return;
       }
       setPhoneNext(
         '<b>Next:</b> pick Base or Managed above → <b>Prepare</b> or <b>Bundled Apps</b> Apply.',
         true);
       if (typeof loadMouseSpeedsFromPhone === 'function') loadMouseSpeedsFromPhone();
-    });
+      syncUsbRootedBanner(rooted);
+    }).finally(finish);
   }).catch(function (e) {
     phoneHostRootState = null;
     setTier1RootPrereqVisible(false);
     setMouseSpeedPanelEnabled(false);
+    finish();
   });
+}
+
+function syncUsbRootedBanner(rooted) {
+  var banner = typeof $ === 'function' ? $('usb-rooted-banner') : null;
+  if (!banner) return;
+  if (rooted) banner.classList.remove('hidden');
 }
 
 var mouseSpeedBusy = false;
@@ -405,7 +420,7 @@ function initPhone() {
   var usbBtn = $('phone-usb');
   if (usbBtn) usbBtn.addEventListener('click', function () { showStep('usb'); });
   initMouseSpeed();
-  refreshPhone();
+  // Phone facts refresh once on strip adb-ready (maybeRefreshPhoneOnStripReady), not on load.
 }
 
 function profileLabel(p) {

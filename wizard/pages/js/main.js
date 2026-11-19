@@ -737,13 +737,21 @@ function appendDlGetAction(actions, f) {
   actions.appendChild(b);
 }
 
+function downloadListIds() {
+  var ids = (typeof requiredCatalog === 'function')
+    ? requiredCatalog().slice()
+    : CATALOG.list.map(function (f) { return f.id; });
+  // Tier 3 erase-and-root needs pinned neutron.img verified in-session, but it
+  // must not block Prepare Continue — show it in Files with Get / pick anyway.
+  if (CATALOG.byId['neutron'] && ids.indexOf('neutron') < 0) ids.push('neutron');
+  return ids;
+}
+
 function buildDownloadList() {
   var root = $('dl-file-list');
   if (!root) return;
   root.textContent = '';
-  var ids = (typeof requiredCatalog === 'function')
-    ? requiredCatalog()
-    : CATALOG.list.map(function (f) { return f.id; });
+  var ids = downloadListIds();
   ids.forEach(function (id) {
     var f = CATALOG.byId[id];
     if (!f) return;
@@ -860,7 +868,91 @@ function refreshDownloadGate() {
   }
   updateDlHubSummary(ids, missing);
   if (shownStep === 'download') updateCreditStatusRows();
+  if (typeof renderStage === 'function') renderStage();
+  if (typeof updateFbBootBar === 'function') updateFbBootBar();
   return missing;
+}
+
+function updateFbBootBar() {
+  var st = $('fb-boot-status');
+  var getBtn = $('fb-boot-get');
+  var pickBtn = $('fb-boot-pick');
+  if (!st) return;
+  var ok = !!VERIFIED['neutron'];
+  st.textContent = ok ? 'verified' : 'not verified';
+  st.className = ok ? 'ok' : 'wait';
+  if (getBtn) getBtn.disabled = !!ok;
+  if (pickBtn) pickBtn.disabled = false;
+}
+
+var fbNeutronProbeDone = false;
+
+function probeNeutronForFlash() {
+  if (VERIFIED['neutron']) {
+    updateFbBootBar();
+    return Promise.resolve();
+  }
+  if (fbNeutronProbeDone) {
+    updateFbBootBar();
+    return Promise.resolve();
+  }
+  fbNeutronProbeDone = true;
+  var msg = $('fb-boot-msg');
+  function clearQuiet() {
+    if (msg && msg.textContent.indexOf('checking') >= 0) setStatus('fb-boot-msg', '', '');
+  }
+  if (window.FLIP2_NATIVE && window.FLIP2_NATIVE.localFiles) {
+    setStatus('fb-boot-msg', 'checking for a pinned copy on this PC…', 'wait');
+    return window.FLIP2_NATIVE.localFiles().then(function (found) {
+      var list = found.neutron;
+      if (!list || !list.length) {
+        clearQuiet();
+        updateFbBootBar();
+        return tryNeutronDownloadCache();
+      }
+      return tryCandidates('neutron', list).then(function (res) {
+        if (res.ok) {
+          setStatus('fb-boot-msg', 'verified (local copy).', 'ok');
+          setRow('neutron', 'verified', 'ok');
+          refreshDownloadGate();
+          updateFbBootBar();
+          return;
+        }
+        clearQuiet();
+        updateFbBootBar();
+        return tryNeutronDownloadCache();
+      });
+    }).catch(function () {
+      clearQuiet();
+      updateFbBootBar();
+      return tryNeutronDownloadCache();
+    });
+  }
+  return tryNeutronDownloadCache();
+}
+
+function tryNeutronDownloadCache() {
+  if (VERIFIED['neutron']) return Promise.resolve();
+  if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.downloadFile) {
+    updateFbBootBar();
+    return Promise.resolve();
+  }
+  setStatus('fb-boot-msg', 'checking Downloads\flip2-wizard…', 'wait');
+  return window.FLIP2_NATIVE.downloadFile('neutron').then(function (r) {
+    return acceptBytes('neutron', r.bytes);
+  }).then(function (res) {
+    if (res.ok) {
+      setStatus('fb-boot-msg', res.cached ? 'verified (cached download).' : 'verified.', 'ok');
+      setRow('neutron', 'verified', 'ok');
+      refreshDownloadGate();
+    } else {
+      setStatus('fb-boot-msg', '', '');
+    }
+    updateFbBootBar();
+  }).catch(function () {
+    setStatus('fb-boot-msg', '', '');
+    updateFbBootBar();
+  });
 }
 
 // A candidate the companion handed over — already on disk, or fetched here.
@@ -905,8 +997,9 @@ function catalogFetchUrl(entry) {
   return '/packages/' + encodeURIComponent(entry.file);
 }
 
-function fetchOne(id, btn) {
-  if (!downloadsAllowed()) {
+function fetchOne(id, btn, opts) {
+  opts = opts || {};
+  if (!opts.skipGate && !downloadsAllowed()) {
     return Promise.resolve({ ok: false, msg: 'type yes under Prepare before downloading' });
   }
   var entry = CATALOG.byId[id];
@@ -945,7 +1038,8 @@ function fetchOne(id, btn) {
     refreshDownloadGate();
     return { ok: false, msg: cleanErr(e) };
   }).then(function (res) {
-    if (btn) btn.disabled = !downloadsAllowed();
+    if (btn) btn.disabled = opts.skipGate ? !!(VERIFIED[id]) : !downloadsAllowed();
+    if (opts.skipGate && typeof updateFbBootBar === 'function') updateFbBootBar();
     return res;
   });
 }
@@ -1001,7 +1095,7 @@ function useLocalFiles() {
         });
       });
     });
-    return seq.then(refreshDownloadGate);
+    return seq.then(refreshDownloadGate).then(maybeFetchVcomAfterCatalog);
   }).catch(function (e) {
     setStatus('dl-msg', 'could not read the local copies: ' + cleanErr(e), 'bad');
   }).then(function () { applyDownloadLock(); });
@@ -1023,7 +1117,7 @@ function downloadAll() {
   });
   if (!todo.length) {
     refreshDownloadGate();
-    applyDownloadLock();
+    maybeFetchVcomAfterCatalog().then(function () { applyDownloadLock(); });
     return;
   }
   setStatus('dl-msg', 'Starting download — first run often takes 10+ minutes. Files verify one at a time…', 'wait');
@@ -1041,7 +1135,164 @@ function downloadAll() {
     if (failed.length) {
       setStatus('dl-msg', failed.length + ' could not be downloaded. A server may be down — try again, or choose files you got another way.', 'bad');
     }
+    return maybeFetchVcomAfterCatalog();
   }).then(function () { applyDownloadLock(); });
+}
+
+var VCOM_DIR_HINT = null;
+
+function setVcomDlUi(state) {
+  var row = $('dl-vcom-status');
+  var val = $('dl-vcom-val');
+  var guide = $('dl-vcom-guide');
+  var note = $('dl-vcom-win-note');
+  if (!row || !val) return;
+  if (!state || !state.windows) {
+    if (note) note.classList.add('hidden');
+    row.classList.add('hidden');
+    return;
+  }
+  if (note) note.classList.remove('hidden');
+  row.classList.remove('hidden');
+  if (state.ready) {
+    val.textContent = 'Ready';
+    val.className = 'ok';
+    VCOM_DIR_HINT = state.dir || state.userDir;
+    if (guide) guide.classList.remove('hidden');
+  } else {
+    val.textContent = 'Not downloaded';
+    val.className = 'wait';
+    if (guide) guide.classList.add('hidden');
+  }
+}
+
+function refreshVcomDlStatus() {
+  if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.vcomDriverStatus) return Promise.resolve();
+  return window.FLIP2_NATIVE.vcomDriverStatus().then(setVcomDlUi).catch(function () {});
+}
+
+function maybeFetchVcomAfterCatalog() {
+  if (!window.FLIP2_NATIVE || !window.FLIP2_NATIVE.fetchVcomDriver) {
+    return refreshVcomDlStatus();
+  }
+  return window.FLIP2_NATIVE.nativePlatform().then(function (info) {
+    if (!info || info.platform !== 'win32') return refreshVcomDlStatus();
+    return window.FLIP2_NATIVE.vcomDriverStatus().then(function (st) {
+      if (st && st.ready) {
+        setVcomDlUi(st);
+        VCOM_DIR_HINT = st.dir;
+        return Promise.resolve();
+      }
+      setStatus('dl-msg', 'Catalog done — fetching MediaTek VCOM driver…', 'wait');
+      setVcomDlUi({ windows: true, ready: false });
+      return window.FLIP2_NATIVE.fetchVcomDriver().then(function (r) {
+      if (r && r.ok) {
+        VCOM_DIR_HINT = r.dir;
+        setVcomDlUi({ windows: true, ready: true, dir: r.dir });
+        if (!r.cached) {
+          openVcomInstallModal(r.dir);
+        }
+        setStatus('dl-msg', r.message || 'VCOM driver ready.', 'ok');
+      } else {
+        setVcomDlUi({ windows: true, ready: false });
+        var why = (r && r.message) ? r.message : 'VCOM fetch failed';
+        setStatus('dl-msg', why + ' — use Install walkthrough or Rooting step later.', 'bad');
+      }
+      return refreshVcomDlStatus();
+      });
+    });
+  }).catch(function () { return refreshVcomDlStatus(); });
+}
+
+var vcomModalStripWasOpen = false;
+
+function setVcomModalFolderDisplay() {
+  var folder = $('vcom-modal-folder');
+  if (!folder) return;
+  if (VCOM_DIR_HINT) {
+    folder.textContent = VCOM_DIR_HINT;
+    folder.classList.remove('wait');
+  } else {
+    folder.textContent = '—';
+    folder.classList.add('wait');
+  }
+}
+
+function openVcomInstallModal(dir) {
+  var modal = $('vcom-modal');
+  if (!modal) return;
+  VCOM_DIR_HINT = dir || VCOM_DIR_HINT;
+  var details = $('get-ready-details');
+  if (details) {
+    vcomModalStripWasOpen = details.hasAttribute('open');
+    details.removeAttribute('open');
+  }
+  document.body.classList.add('vcom-modal-open');
+  setVcomModalFolderDisplay();
+  modal.classList.remove('hidden');
+  if (!VCOM_DIR_HINT && window.FLIP2_NATIVE && window.FLIP2_NATIVE.vcomDriverStatus) {
+    window.FLIP2_NATIVE.vcomDriverStatus().then(function (st) {
+      if (st && st.dir) {
+        VCOM_DIR_HINT = st.dir;
+        setVcomModalFolderDisplay();
+      }
+    }).catch(function () {});
+  }
+  requestAnimationFrame(function () {
+    var folder = $('vcom-modal-folder');
+    if (folder && folder.scrollIntoView) folder.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+}
+
+function closeVcomInstallModal() {
+  var modal = $('vcom-modal');
+  if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('vcom-modal-open');
+  var details = $('get-ready-details');
+  if (details && vcomModalStripWasOpen) details.setAttribute('open', '');
+  vcomModalStripWasOpen = false;
+}
+
+function wireVcomModalAction(btn, fn) {
+  if (!btn) return;
+  var msg = $('vcom-modal-msg');
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    if (msg) {
+      msg.textContent = '…';
+      msg.className = 'status wait';
+    }
+    fn().then(function (r) {
+      if (msg) {
+        msg.textContent = r.message;
+        msg.className = 'status ' + (r.ok ? 'ok' : 'bad');
+      }
+      if (r && r.dir) VCOM_DIR_HINT = r.dir;
+      setVcomModalFolderDisplay();
+    }).catch(function (e) {
+      if (msg) {
+        msg.textContent = e.message;
+        msg.className = 'status bad';
+      }
+    }).then(function () { btn.disabled = false; });
+  });
+}
+
+function initVcomDownloads() {
+  var guide = $('dl-vcom-guide');
+  var closeBtn = $('vcom-modal-close');
+  if (!window.FLIP2_NATIVE) return;
+  refreshVcomDlStatus();
+  if (guide) {
+    guide.addEventListener('click', function () { openVcomInstallModal(VCOM_DIR_HINT); });
+  }
+  if (closeBtn) closeBtn.addEventListener('click', closeVcomInstallModal);
+  wireVcomModalAction($('vcom-modal-devmgr'), function () {
+    return window.FLIP2_NATIVE.openWindowsDeviceManager();
+  });
+  wireVcomModalAction($('vcom-modal-folder-btn'), function () {
+    return window.FLIP2_NATIVE.openVcomGuide();
+  });
 }
 
 function checkDownloads(picked) {
@@ -1118,6 +1369,7 @@ function initDownloads() {
     checkDownloads(files);
   });
   $('dl-next').addEventListener('click', function () { showStep('udev'); });
+  initVcomDownloads();
   applyDownloadLock();
 }
 
@@ -1200,10 +1452,27 @@ function initUdev() {
 // The phone's USB interface is exclusive: when another adb server already holds
 // it, claiming fails with a bare DOMException that names a browser API and says
 // nothing a person can act on. Say which process to stop instead.
-function usbError(e) {
+function usbError(e, opts) {
   var m = (e && e.message) || String(e);
+  var fastboot = opts && opts.fastboot;
+  var companion = !!(window.FLIP2_NATIVE);
   if (e && e.name === 'NotFoundError') {
+    if (companion) {
+      return fastboot
+        ? 'No fastboot USB device appeared. The Companion waits automatically (no picker). ' +
+          'Confirm the phone is in fastboot after Start watching, VCOM/MTK drivers are installed, ' +
+          'and Device Manager shows MediaTek 0E8D:201C — then press Connect to the phone again.'
+        : 'No phone USB device appeared yet. The Companion selects automatically when exactly one ' +
+          'allowed phone is plugged in (no browser picker). Replug the phone and try Connect again.';
+    }
     return 'Device picker closed — plug in the phone and press Connect phone again.';
+  }
+  if (/No device selected/i.test(m)) {
+    if (companion && fastboot) {
+      return 'Fastboot was not selected in time. Leave the phone in fastboot, replug USB if needed, ' +
+        'and press Connect to the phone again.';
+    }
+    return 'No USB device chosen. Press Connect to the phone again and pick the fastboot entry (not the preloader). Leave the picker open until you select one.';
   }
   if (/claimInterface/i.test(m) || /Unable to claim/i.test(m)) {
     return 'Another program is using the phone: the adb server on this computer. ' +
@@ -1337,7 +1606,7 @@ function checkHostAdb() {
   return N.wizardHostAdbReady().then(function (r) {
     if (r.ok) {
       enableUsbContinue(r.message || 'Phone ready over host adb.', 'ok');
-      probeRootedHost();
+      probeRootedHost(true);
       return;
     }
     setStatus('usb-msg', r.message || 'Phone not ready over adb.', 'bad');
@@ -1345,9 +1614,11 @@ function checkHostAdb() {
   });
 }
 
-function probeRootedHost() {
+function probeRootedHost(force) {
   var banner = $('usb-rooted-banner');
   if (!banner || !window.FLIP2_NATIVE || !window.FLIP2_NATIVE.wizardHostShell) return;
+  if (hostRootProbeDone && !force) return;
+  hostRootProbeDone = true;
   window.FLIP2_NATIVE.wizardHostShell({ cmd: "su 0 sh -c 'id'", timeoutMs: 15000 })
     .then(function (r) {
       if (r.ok && /uid=0/.test(r.stdout || '')) banner.classList.remove('hidden');
@@ -1367,7 +1638,7 @@ function initUsb() {
         checkHostAdb().finally(function () { hostBtn.disabled = false; });
       });
     }
-    checkHostAdb();
+    // Do not call checkHostAdb() on load — it probes su and stacks with Device Refresh / strip.
   }
   $('usb-btn').addEventListener('click', function () {
     var btn = $('usb-btn');
@@ -1649,6 +1920,10 @@ function renderStage() {
   // stage with nothing checked and only find out when the button refuses. Say
   // it up front instead, pointing back at the file step that sets it.
   $('fb-need').classList.toggle('hidden', name !== 'flash' || !!VERIFIED['neutron']);
+  if (name === 'flash') {
+    updateFbBootBar();
+    if (typeof probeNeutronForFlash === 'function') probeNeutronForFlash();
+  }
 }
 
 function setStage(name) {
@@ -1768,6 +2043,8 @@ var stripPendingMode = null;
 var stripPendingSince = 0;
 var stripReadyInFlight = false;
 var stripLastReady = null;
+// One shot per adb-ready session — repeated su 0 polls spam Magisk superuser prompts.
+var hostRootProbeDone = false;
 var STRIP_SETTLE_MS = 900;
 var STRIP_IPC_MS = 8000;
 
@@ -1885,6 +2162,8 @@ function pollStripPhone() {
     stripPendingMode = mode;
     if (mode !== 'android') {
       stripLastReady = null;
+      hostRootProbeDone = false;
+      stripAutoRefreshDone = false;
       paintStripPhone(mode, null);
       return;
     }
@@ -1900,13 +2179,18 @@ function pollStripPhone() {
     ipcWithTimeout(N.wizardHostAdbReady(), STRIP_IPC_MS, 'adb check').then(function (ready) {
       stripReadyInFlight = false;
       if (stripShownMode !== 'android') return;
+      var prevReady = stripLastReady;
       stripLastReady = (ready && ready.ok) ? { ok: true } : { ok: false };
       paintStripPhone('android', stripLastReady);
+      maybeRefreshPhoneOnStripReady(prevReady, stripLastReady);
+      // Root is checked inside refreshPhone(); no separate su probe here.
     }).catch(function () {
       stripReadyInFlight = false;
       if (stripShownMode !== 'android') return;
+      var prevReady = stripLastReady;
       stripLastReady = { ok: false };
       paintStripPhone('android', stripLastReady);
+      maybeRefreshPhoneOnStripReady(prevReady, stripLastReady);
     });
   }).catch(function () {
     if (gen !== stripGen) return;
@@ -1915,6 +2199,22 @@ function pollStripPhone() {
     if (hintEl) hintEl.textContent = 'Companion could not list USB devices.';
     setStripBox('bad');
   });
+}
+
+var stripAutoRefreshBusy = false;
+var stripAutoRefreshDone = false;
+
+function maybeRefreshPhoneOnStripReady(prevReady, nextReady) {
+  if (!nextReady || !nextReady.ok) return;
+  var gainedReady = !prevReady || !prevReady.ok;
+  if (!gainedReady) return;
+  if (typeof refreshPhone !== 'function') return;
+  if (stripAutoRefreshBusy) return;
+  if (stripAutoRefreshDone) return;
+  stripAutoRefreshBusy = true;
+  stripAutoRefreshDone = true;
+  refreshPhone(true);
+  setTimeout(function () { stripAutoRefreshBusy = false; }, 2500);
 }
 
 function startStripPoller() {
@@ -1954,18 +2254,15 @@ function stopWatchClock(caught) {
 
 function initPreloaderDriversWin() {
   var note = $('preloader-drivers-win-note');
-  var openBtn = $('preloader-open-folder');
-  var usbdkBtn = $('preloader-install-usbdk');
+  var vcomBtn = $('preloader-vcom-guide');
+  var devmgrBtn = $('preloader-device-manager');
   var msg = $('preloader-drivers-msg');
   if (!window.FLIP2_NATIVE || !note) return;
   window.FLIP2_NATIVE.nativePlatform().then(function (info) {
     if (!info || info.platform !== 'win32') return;
     note.classList.remove('hidden');
-    return window.FLIP2_NATIVE.preloaderDriversStatus();
-  }).then(function (st) {
-    if (!st || st.na || !st.available) return;
-    if (openBtn) openBtn.classList.remove('hidden');
-    if (st.usbdkPresent && usbdkBtn) usbdkBtn.classList.remove('hidden');
+    if (vcomBtn) vcomBtn.classList.remove('hidden');
+    if (devmgrBtn) devmgrBtn.classList.remove('hidden');
   }).catch(function () {});
   function wire(btn, fn) {
     if (!btn) return;
@@ -1988,8 +2285,12 @@ function initPreloaderDriversWin() {
       }).then(function () { btn.disabled = false; });
     });
   }
-  wire(openBtn, function () { return window.FLIP2_NATIVE.openBundledPreloaderDrivers(); });
-  wire(usbdkBtn, function () { return window.FLIP2_NATIVE.installBundledUsbdk(); });
+  if (vcomBtn) {
+    vcomBtn.addEventListener('click', function () {
+      openVcomInstallModal(VCOM_DIR_HINT);
+    });
+  }
+  wire(devmgrBtn, function () { return window.FLIP2_NATIVE.openWindowsDeviceManager(); });
 }
 
 function initRoot() {
@@ -2107,7 +2408,7 @@ function initFastboot() {
         });
       });
     }).catch(function (e) {
-      setStatus('fb-msg', e.message, 'bad');
+      setStatus('fb-msg', usbError(e, { fastboot: true }), 'bad');
       stage('fb-pick');
       // A timed-out command means the bootloader is still there but no longer
       // reading. Only a power cycle clears that, so show the card that says so
@@ -2127,7 +2428,7 @@ function initFastboot() {
       log('Released WebUSB after unlock. Connect again if flash buttons stay disabled.');
       stage('fb-pick');
     }).catch(function (e) {
-      setStatus('fb-msg', e.message, 'bad');
+      setStatus('fb-msg', usbError(e, { fastboot: true }), 'bad');
       if (e && e.stopped) {
         silentWake = true;
         showWake('silent');
@@ -2137,7 +2438,7 @@ function initFastboot() {
   $('fb-flash').addEventListener('click', function () {
     var neutron = VERIFIED['neutron'];
     if (!neutron) {
-      setStatus('fb-msg', 'The boot image was not checked in the files step — go back and pick it first.', 'bad');
+      setStatus('fb-msg', 'Boot image is not verified — use Download & verify or Choose file… above.', 'bad');
       return;
     }
     setStatus('fb-msg', 'installing the boot image…', 'wait');
@@ -2147,7 +2448,7 @@ function initFastboot() {
         setStatus('fb-msg', 'Boot image installed.', 'ok');
         stage('fb-reboot');
       }).catch(function (e) {
-        setStatus('fb-msg', e.message, 'bad');
+        setStatus('fb-msg', usbError(e, { fastboot: true }), 'bad');
       });
   });
   $('fb-reboot').addEventListener('click', function () {
@@ -2158,9 +2459,43 @@ function initFastboot() {
       // remaining work happens on the phone itself. Show it instead of prose.
       setStage('done');
     }).catch(function (e) {
-      setStatus('fb-msg', e.message, 'bad');
+      setStatus('fb-msg', usbError(e, { fastboot: true }), 'bad');
     });
   });
+  var getBtn = $('fb-boot-get');
+  var pickBtn = $('fb-boot-pick');
+  var fileInput = $('fb-boot-file');
+  if (getBtn) {
+    getBtn.addEventListener('click', function () {
+      setStatus('fb-boot-msg', 'downloading…', 'wait');
+      fetchOne('neutron', getBtn, { skipGate: true }).then(function (res) {
+        if (res.ok) {
+          setStatus('fb-boot-msg', 'verified.', 'ok');
+        } else {
+          setStatus('fb-boot-msg', res.msg || 'download failed', 'bad');
+        }
+        updateFbBootBar();
+      });
+    });
+  }
+  if (pickBtn && fileInput) {
+    pickBtn.addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      var files = Array.prototype.slice.call(this.files);
+      this.value = '';
+      if (!files.length) return;
+      setStatus('fb-boot-msg', 'checking…', 'wait');
+      checkDownloads(files).then(function () {
+        if (VERIFIED['neutron']) {
+          setStatus('fb-boot-msg', 'verified.', 'ok');
+        } else {
+          setStatus('fb-boot-msg', 'No matching pinned neutron.img in selection.', 'bad');
+        }
+        updateFbBootBar();
+      });
+    });
+  }
+  updateFbBootBar();
   stage('fb-pick');
 }
 
@@ -2622,7 +2957,6 @@ function init() {
     if (typeof initPersonalBackup === 'function') initPersonalBackup();
     if (typeof initDevice !== 'function') throw new Error('device.js did not load');
     initDevice();
-    startStripPoller();
     if (window.FLIP2_NATIVE) {
       unlockAdvancedFooter();
       var fw = $('footer-wipe-always');
