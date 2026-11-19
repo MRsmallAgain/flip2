@@ -1,3 +1,4 @@
 # Device shell scripts must use LF — CRLF breaks Android /system/bin/sh in the wizard.
 wizard/device/*.sh text eol=lf
 pipeline/**/ondevice-install.sh text eol=lf
+companion/dist/flip2-companion-*-win-x64.exe filter=lfs diff=lfs merge=lfs -text
