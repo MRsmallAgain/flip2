@@ -221,8 +221,8 @@
       "file": "flip2-companion-1.4.0-alpha.36-linux-x86_64.AppImage",
       "purpose": "TCL Flip2 Manager desktop app (Linux x86_64 AppImage). Same wizard UI as flip2burn.online — Start · Bundled Apps · Device · Set up.",
       "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.36-linux-x86_64.AppImage",
-      "size": 109233096,
-      "sha256": "9ba856be0231fc2e0bf0087fcb4756f1253d713e8dce43654a4acbbf66de1ef0",
+      "size": 109233053,
+      "sha256": "7aa4bcee7573a1548e2ddc7daab9ee988ebf45faa4d8a0c9020692831f1d59bd",
       "license": "MIT (companion); wizard assets see flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.36-flip2"
@@ -232,8 +232,8 @@
       "file": "flip2-companion-1.4.0-alpha.36-win-x64.exe",
       "purpose": "TCL Flip2 Manager desktop app (Windows x64). Bundled adb and MediaTek VCOM driver pack — Start · Bundled Apps · Device · Set up.",
       "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.36-win-x64.exe",
-      "size": 75358408,
-      "sha256": "0e94daf1608a3ac578cfc4755fe82604f0d7f79c688397bd514a0800ab0d1ddf",
+      "size": 75358283,
+      "sha256": "035ecd830362cae23d655b23ae300d999023aaf20bf9f94b6df1c7aa3472884b",
       "license": "MIT (companion); wizard assets see flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.36-flip2"
