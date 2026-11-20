@@ -41,7 +41,9 @@ const RULES_DST = path.join('/etc/udev/rules.d', RULES_NAME);
 function bundledPlatformToolsDir() {
   if (process.platform === 'win32') {
     if (app.isPackaged) {
-      return path.join(process.resourcesPath, 'platform-tools');
+      const bundled = path.join(process.resourcesPath, 'platform-tools');
+      if (fs.existsSync(path.join(bundled, 'adb.exe'))) return bundled;
+      return null;
     }
     const dev = path.join(__dirname, 'platform-tools-win');
     if (fs.existsSync(path.join(dev, 'adb.exe'))) return dev;
@@ -383,9 +385,28 @@ async function readPhoneStateFromAdb() {
     const pnp = await winPnpProbePromise();
     const layered = phoneStateFromHostLayers(usb, pnp);
     if (layered) return layered;
+    if (process.platform === 'win32' && app.isPackaged && !bundledPlatformToolsDir()) {
+      return {
+        mode: 'absent',
+        detail:
+          'no bundled adb.exe in resources/platform-tools — rebuild with prepack:win or set FLIP2_ADB',
+      };
+    }
     return { mode: 'absent', detail: 'no phone ready over adb' };
   } catch (e) {
-    return { mode: 'unknown', detail: String((e && e.message) || e) };
+    const msg = String((e && e.message) || e);
+    if (
+      process.platform === 'win32' &&
+      app.isPackaged &&
+      !bundledPlatformToolsDir() &&
+      /spawn.*ENOENT|not found|cannot find/i.test(msg)
+    ) {
+      return {
+        mode: 'unknown',
+        detail: 'bundled adb missing — set FLIP2_ADB or rebuild Manager with prepack:win',
+      };
+    }
+    return { mode: 'unknown', detail: msg };
   }
 }
 

@@ -52,11 +52,18 @@ case "$cmd" in
     ;;
   win)
     ensure_companion_deps
+    log "prepack:win (platform-tools + VCOM for extraResources)"
+    (cd "$COMPANION" && npm run prepack:win)
     if [[ -n "${CI:-}" ]]; then
       log "CI: portable-only (NSIS under Wine fails on uninstaller stub)"
       (cd "$COMPANION" && npm run pack:win:ci)
     else
       (cd "$COMPANION" && npm run pack:win)
+    fi
+    adb_src="$COMPANION/platform-tools-win/adb.exe"
+    if [[ ! -f "$adb_src" ]]; then
+      echo "FATAL: prepack:win did not produce platform-tools-win/adb.exe" >&2
+      exit 1
     fi
     ;;
   -h|--help) usage; exit 0 ;;
