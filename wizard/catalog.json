@@ -218,25 +218,25 @@
     },
     {
       "id": "companion-linux",
-      "file": "flip2-companion-1.4.0-alpha.25-linux-x86_64.AppImage",
+      "file": "flip2-companion-1.4.0-alpha.26-linux-x86_64.AppImage",
       "purpose": "TCL Flip2 Manager desktop app (Linux x86_64 AppImage). Same wizard UI as flip2burn.online — Start · Bundled Apps · Device · Set up.",
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.25-linux-x86_64.AppImage",
-      "size": 114390647,
-      "sha256": "40fd78b8f4d37454b30dba4d6705fc7bc0b6db39b6a1b05c3602d4c270e5f1de",
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.26-linux-x86_64.AppImage",
+      "size": 109233096,
+      "sha256": "9ba856be0231fc2e0bf0087fcb4756f1253d713e8dce43654a4acbbf66de1ef0",
       "license": "MIT (companion); wizard assets see flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.25-flip2"
+      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.26-flip2"
     },
     {
       "id": "companion-win",
-      "file": "flip2-companion-1.4.0-alpha.25-win-x64.exe",
+      "file": "flip2-companion-1.4.0-alpha.26-win-x64.exe",
       "purpose": "TCL Flip2 Manager desktop app (Windows x64). Bundled adb and MediaTek VCOM driver pack — Start · Bundled Apps · Device · Set up.",
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.25-win-x64.exe",
-      "size": 75358952,
-      "sha256": "35ecb16d8b78091cb6fda2ecbc761960ee075d5017de18d5753773e89188bb8c",
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.26-win-x64.exe",
+      "size": 75358408,
+      "sha256": "0e94daf1608a3ac578cfc4755fe82604f0d7f79c688397bd514a0800ab0d1ddf",
       "license": "MIT (companion); wizard assets see flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.25-flip2"
+      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.26-flip2"
     }
   ],
   "not_downloaded": [
