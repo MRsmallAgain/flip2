@@ -60,7 +60,7 @@ grant_mic() {
 }
 
 ensure_host_models() {
-  [[ -f "$MODEL_HOST_EN/tokens.txt" && -f "$MODEL_HOST_UK/tokens.txt" ]] && return 0
+  [[ -f "$MODEL_HOST_EN/tokens.txt" && -f "$MODEL_HOST_UK/tokens.txt" && -f "$MODEL_HOST_UK/encoder_model.ort" ]] && return 0
   [[ -x "$FETCH_MODELS" ]] || { echo "Missing $FETCH_MODELS" >&2; exit 1; }
   bash "$FETCH_MODELS"
 }
@@ -71,7 +71,7 @@ push_sherpa() {
   en_src="$(readlink -f "$MODEL_HOST_EN" 2>/dev/null || echo "$MODEL_HOST_EN")"
   uk_src="$(readlink -f "$MODEL_HOST_UK" 2>/dev/null || echo "$MODEL_HOST_UK")"
   [[ -f "$en_src/tokens.txt" ]] || { echo "Missing EN Sherpa model at $MODEL_HOST_EN" >&2; exit 1; }
-  [[ -f "$uk_src/tokens.txt" ]] || { echo "Missing UK Sherpa model at $MODEL_HOST_UK" >&2; exit 1; }
+  [[ -f "$uk_src/tokens.txt" && -f "$uk_src/encoder_model.ort" ]] || { echo "Missing UK Moonshine model at $MODEL_HOST_UK" >&2; exit 1; }
 
   echo "Pushing Sherpa models -> $MODEL_DEVICE_ROOT/{en,uk}"
   owner="$(adb shell "su -c 'stat -c %u:%g /data/data/$NULL_PKG'" 2>/dev/null | tr -d '\r')"

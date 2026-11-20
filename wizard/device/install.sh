@@ -482,12 +482,12 @@ place_sherpa() {
 }
 
 if want sherpa-en; then
-  place_sherpa en sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2
+  place_sherpa en sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2
 else
   echo "NOTE: skip sherpa-en"
 fi
 if want sherpa-uk; then
-  place_sherpa uk sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2
+  place_sherpa uk sherpa-onnx-moonshine-base-uk-quantized-2026-02-27.tar.bz2
 else
   echo "NOTE: skip sherpa-uk"
 fi

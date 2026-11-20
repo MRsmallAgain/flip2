@@ -351,7 +351,7 @@ else
   echo "NOTE: skip sherpa-en"
 fi
 if want sherpa-uk; then
-  check "sherpa uk model" test -s "/data/data/$NULL_PKG/files/sherpa/uk/tokens.txt"
+  check "sherpa uk model (Moonshine)" test -s "/data/data/$NULL_PKG/files/sherpa/uk/encoder_model.ort"
 else
   echo "NOTE: skip sherpa-uk"
 fi

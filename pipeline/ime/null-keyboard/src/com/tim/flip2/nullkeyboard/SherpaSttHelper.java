@@ -14,6 +14,7 @@ import com.k2fsa.sherpa.onnx.EndpointConfig;
 import com.k2fsa.sherpa.onnx.EndpointRule;
 import com.k2fsa.sherpa.onnx.FeatureConfig;
 import com.k2fsa.sherpa.onnx.OfflineModelConfig;
+import com.k2fsa.sherpa.onnx.OfflineMoonshineModelConfig;
 import com.k2fsa.sherpa.onnx.OfflineRecognizer;
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig;
 import com.k2fsa.sherpa.onnx.OfflineRecognizerResult;
@@ -252,7 +253,7 @@ final class SherpaSttHelper implements SttEngine {
     }
 
     static String getLang(Context ctx) {
-        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LANG, LANG_EN);
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LANG, LANG_UK);
     }
     static void setLang(Context ctx, String lang) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
@@ -1004,9 +1005,9 @@ final class SherpaSttHelper implements SttEngine {
         if (mOffline != null) { mOffline.release(); mOffline = null; mLoadedOfflineLang = null; }
         File dir = findModelDir(mApp, lang);
         if (dir == null) throw new Exception("No " + lang + " model — flip2 ime sherpa");
-        mOffline = new OfflineRecognizer(null, buildOfflineConfig(dir));
+        mOffline = new OfflineRecognizer(null, buildOfflineConfig(dir, lang));
         mLoadedOfflineLang = lang;
-        Log.i(TAG, "offline recognizer loaded: " + dir.getAbsolutePath());
+        Log.i(TAG, "offline recognizer loaded lang=" + lang + " " + dir.getAbsolutePath());
     }
 
     /* Sherpa 2.0.1's Kotlin config constructors take non-null arguments, so build
@@ -1042,20 +1043,28 @@ final class SherpaSttHelper implements SttEngine {
         return config;
     }
 
-    private static OfflineRecognizerConfig buildOfflineConfig(File modelDir) {
+    private static OfflineRecognizerConfig buildOfflineConfig(File modelDir, String lang) {
         String base = modelDir.getAbsolutePath();
-        OfflineTransducerModelConfig transducer = new OfflineTransducerModelConfig();
-        transducer.setEncoder(base + "/encoder.int8.onnx");
-        transducer.setDecoder(base + "/decoder.int8.onnx");
-        transducer.setJoiner(base + "/joiner.int8.onnx");
-
         OfflineModelConfig modelConfig = new OfflineModelConfig();
-        modelConfig.setTransducer(transducer);
         modelConfig.setTokens(base + "/tokens.txt");
         modelConfig.setNumThreads(2);
         modelConfig.setDebug(false);
         modelConfig.setProvider("cpu");
-        modelConfig.setModelType("nemo_transducer");
+
+        if (LANG_UK.equals(lang) && new File(modelDir, "encoder_model.ort").isFile()) {
+            OfflineMoonshineModelConfig moon = new OfflineMoonshineModelConfig();
+            moon.setEncoder(base + "/encoder_model.ort");
+            moon.setMergedDecoder(base + "/decoder_model_merged.ort");
+            modelConfig.setMoonshine(moon);
+            modelConfig.setModelType("moonshine");
+        } else {
+            OfflineTransducerModelConfig transducer = new OfflineTransducerModelConfig();
+            transducer.setEncoder(base + "/encoder.int8.onnx");
+            transducer.setDecoder(base + "/decoder.int8.onnx");
+            transducer.setJoiner(base + "/joiner.int8.onnx");
+            modelConfig.setTransducer(transducer);
+            modelConfig.setModelType("nemo_transducer");
+        }
 
         OfflineRecognizerConfig config = new OfflineRecognizerConfig();
         config.setFeatConfig(new FeatureConfig(SAMPLE_RATE, 80, 0.0f));
@@ -1085,6 +1094,7 @@ final class SherpaSttHelper implements SttEngine {
 
     private static boolean isSherpaModelDir(File dir, String lang) {
         if (dir == null || !dir.isDirectory() || !new File(dir, "tokens.txt").isFile()) return false;
+        if (LANG_UK.equals(lang) && new File(dir, "encoder_model.ort").isFile()) return true;
         return new File(dir, "encoder.int8.onnx").isFile();
     }
 }

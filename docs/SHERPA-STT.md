@@ -2,21 +2,21 @@
 
 The Flip2 Null Keyboard uses **Sherpa-ONNX** ASR only (Whisper.cpp and Vosk were removed). Models live under `files/sherpa/{en,uk}/` on the app uid; the APK ships ONNX Runtime + sherpa JNI for **armeabi-v7a** (4058G).
 
-Two engine paths, picked by `stt_lang`:
+Both languages use **offline** batch decode on `*` release (no zipformer streaming). Engine type is chosen from the model files in each lang directory:
 
-| Lang | Engine | Behaviour |
-|------|--------|-----------|
-| `en` | `OnlineRecognizer` (streaming zipformer) | Live partials, endpoint commit |
-| `uk` | `OfflineRecognizer` (`model_type=nemo_transducer`) | Buffers the utterance, decodes once on stop |
+| Lang | Model pack | Sherpa `model_type` | Notes |
+|------|------------|---------------------|--------|
+| `en` | NeMo multilingual int8 | `nemo_transducer` | English-oriented use of the multilingual pack; still Cyrillic-capable |
+| `uk` | Moonshine base UK quantized | `moonshine` | Ukrainian-only tokenizer — avoids NeMo ru/uk confusion |
 
-There is **no streaming Ukrainian model upstream** — Ukrainian ships only inside offline multilingual packs, so `uk` must go through the batch recognizer. Feeding the NeMo pack to `OnlineRecognizer` kills the process (`'window_size' does not exist in the metadata`).
+Default `stt_lang` is **`uk`** (wizard install also seeds `uk` in prefs).
 
 ## Models (pinned)
 
 | Catalog id | File | Role |
 |------------|------|------|
-| **sherpa-en** | `sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2` | English zipformer transducer (mobile) |
-| **sherpa-uk** | `sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2` | Offline multilingual NeMo int8 pack; `stt_lang=uk` selects the offline path |
+| **sherpa-en** | `sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2` | Offline NeMo int8 → `files/sherpa/en/` |
+| **sherpa-uk** | `sherpa-onnx-moonshine-base-uk-quantized-2026-02-27.tar.bz2` | Moonshine UK → `files/sherpa/uk/` (`encoder_model.ort`, `decoder_model_merged.ort`) |
 
 Upstream: [k2-fsa/sherpa-onnx asr-models releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models).
 
@@ -24,35 +24,29 @@ Upstream: [k2-fsa/sherpa-onnx asr-models releases](https://github.com/k2-fsa/she
 
 ```bash
 pipeline/ime/null-keyboard/vendor/fetch-sherpa.sh      # AAR 2.0.1 for build
-pipeline/ime/null-keyboard/models/fetch-sherpa-models.sh  # EN + UK tarballs → models/{en,uk}
+pipeline/ime/null-keyboard/models/fetch-sherpa-models.sh  # separate en (NeMo) + uk (Moonshine)
 ```
+
+Do **not** copy `uk` → `en` anymore; each lang directory is a different pack.
 
 ## Device provisioning
 
 ```bash
 flip2 ime build
-flip2 ime hide-bar    # installs APK; pushes Sherpa if tokens.txt missing
+flip2 ime hide-bar    # installs APK; pushes Sherpa if models missing
 flip2 ime sherpa      # explicit push
-flip2 ime lang uk     # default daily language on wizard install
+flip2 ime lang uk     # pin STT to Ukrainian
 ```
 
-Magisk installer (never bundled):
+Magisk installer (never bundled): use catalog `sherpa-en` / `sherpa-uk` tarballs or URLs from `pipeline/deploy/sherpa-models.json`.
 
-```bash
-flip2 installer pack --flavor full \
-  --sherpa-url en=https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2 \
-  --sherpa-url uk=https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2
-```
-
-Wizard / manager: base profile includes components `sherpa-en` and `sherpa-uk`; `install.sh` extracts tarballs to `files/sherpa/{en,uk}` and checks `tokens.txt`.
+Wizard / manager: base profile includes `sherpa-en` and `sherpa-uk`; `install.sh` extracts to `files/sherpa/{en,uk}`. Verify checks Moonshine via `uk/encoder_model.ort` and `stt_lang=uk` when IME is in the profile.
 
 ## UX
 
-Hold `*` to listen. While listening: `#` switches EN↔UK, `*` stops. Preference key: `stt_lang` in `flip2_null_ime.xml`.
+Hold `*` to listen; release `*` to commit. While listening: `#` cycles EN↔UK. Preference: `stt_lang` in `flip2_null_ime.xml`.
 
-EN shows streaming partials in the status chip. UK has no partials — the text appears when you stop (or after the 12 s listen timeout).
-
-Cold-start cost: the EN zipformer loads in well under a second, but the 131 MB UK encoder takes roughly 10 s to load on first use. It is preloaded on the IME background executor, so holding `*` immediately after a language switch may start capturing before the key release — the decode then runs on stop as usual.
+Neither path shows streaming partials today — text appears on release (or 30 s timeout). Models are preloaded on a background executor; first hold after a cold start or language switch may show “Preparing mic…” while the recognizer loads.
 
 ## The click storm while holding `*`
 
@@ -63,36 +57,14 @@ Holding `*` to dictate played a click on every auto-repeat, machine-gunning into
 | `dtmf_tone` (= `DTMF_TONE_WHEN_DIALING`) | `ToneGenerator` in the IME | `muteDtmfTone()` (pre-existing) |
 | `sound_effects_enabled` (= `SOUND_EFFECTS_ENABLED`, `FX_KEYCLICK`) | `AudioService` inside `system_server` | **`muteSoundEffects()`** |
 
-Muting DTMF never covered the second: `AudioTrack(<system_server pid>)` started a fresh 160 ms click track (stream 1, gain `0.501187`) for each repeat. Proof was an A/B synthetic hold — with `sound_effects_enabled=0` the identical hold produced zero `AudioTrack(system_server)` starts, with it at `1` one per repeat.
-
-The mute is scoped to the `*`/`#` press: `muteSoundEffects()` on `ACTION_DOWN`+`repeatCount==0` in `forwardKey`, `restoreSoundEffects()` on `ACTION_UP`, and on `onCreate`, `onDestroy`, `onFinishInput` and `onWindowHidden` so a dead IME process or a focus loss that swallows the KEY_UP can never leave the device silent. The original value is persisted in `SharedPreferences("flip2_ime")` under `se_orig`, the same pattern as `dtmf_orig`.
-
-Verified on device with synthetic holds:
-
-- 18 repeats → **one** `AudioTrack(system_server)` start, and it fires ~7 ms *before* the settings write lands (it is the initial press click, played by `PhoneWindowManager`, not reachable from the IME). The repeat clicks are what the mute removes.
-- Ordinary digits still click, and `sound_effects_enabled` stays `1` throughout.
-- Hold interrupted by focus loss (HOME, no release event) → restored to `1` by the lifecycle restore, before any KEY_UP arrives.
-
-## Why Sherpa over Whisper on Flip2
-
-Streaming transducers update text while you speak; batch Whisper (`whisper_full` on stop) felt slower on v7a CPU. `faster-whisper` is not an Android v7a drop-in. Sherpa ships official **armeabi-v7a** libs in the AAR.
+The mute is scoped to the `*`/`#` press and restored on lifecycle events so the device is not left silent.
 
 ## Microphone on Android 11 (foreground service)
 
-An IME process stays `IMPORTANT_BACKGROUND` even while its window has focus, so AudioPolicyService refuses the input stream:
+`SttForegroundService` (`android:foregroundServiceType="microphone"`) must run during capture while the IME process is `IMPORTANT_BACKGROUND`.
 
-```
-getInputForAttr permission denied: recording not allowed for uid 10111 pid ...
-createRecord_l: status -1  →  Mic init failed
-```
+## Why Sherpa over Whisper on Flip2
 
-This is **not** a missing grant — `dumpsys package` shows `RECORD_AUDIO: granted=true` and appops reads `allow`; the denial is the while-in-use rule applied to a background uid. The stock `com.android.soundrecorder` records fine at the same moment, which isolates it to process state rather than the HAL.
-
-The fix is `SttForegroundService` (`android:foregroundServiceType="microphone""), started before the `AudioRecord` is constructed and stopped when capture ends. Successful capture logs:
-
-```
-getInputForAttr() returns input 78 ... session 745
-Flip2STT: fg service up
-```
+Sherpa ships official **armeabi-v7a** libs in the AAR. Batch offline decode on release is the stable path on this CPU for both langs.
 
 Legacy doc `WHISPER-STT.md` is obsolete for current builds.

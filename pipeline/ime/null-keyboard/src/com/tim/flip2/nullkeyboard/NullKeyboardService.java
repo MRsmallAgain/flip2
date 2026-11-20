@@ -184,12 +184,14 @@ public class NullKeyboardService extends InputMethodService {
             public void onPreparing() {
                 mSttHadComposingPartial = false;
                 mSttSkipIdleDiscard = false;
-                showNotice("Preparing mic… speak now", true);
+                String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
+                showNotice("Preparing mic (" + lang.toUpperCase() + ")… speak now", true);
             }
 
             @Override
             public void onListening() {
-                showNotice("Listening — release * to stop", true);
+                String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
+                showNotice("Listening (" + lang.toUpperCase() + ") — release * to stop", true);
             }
 
             @Override
@@ -199,7 +201,8 @@ public class NullKeyboardService extends InputMethodService {
 
             @Override
             public void onProcessing() {
-                showNotice("Processing…", true);
+                String lang = SherpaSttHelper.getLang(NullKeyboardService.this);
+                showNotice("Processing (" + lang.toUpperCase() + ")…", true);
             }
 
             @Override
@@ -1416,7 +1419,8 @@ public class NullKeyboardService extends InputMethodService {
         // #
         if (mStt != null && mStt.isListening()) {
             if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                SherpaSttHelper.cycleLang(this);
+                String next = SherpaSttHelper.cycleLang(this);
+                toast("STT lang: " + next.toUpperCase());
                 mStt.switchLangAndListen();
             }
             return true;
