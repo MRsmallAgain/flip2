@@ -52,7 +52,12 @@ case "$cmd" in
     ;;
   win)
     ensure_companion_deps
-    (cd "$COMPANION" && npm run pack:win)
+    if [[ -n "${CI:-}" ]]; then
+      log "CI: portable-only (NSIS under Wine fails on uninstaller stub)"
+      (cd "$COMPANION" && npm run pack:win:ci)
+    else
+      (cd "$COMPANION" && npm run pack:win)
+    fi
     ;;
   -h|--help) usage; exit 0 ;;
   *) echo "Unknown command: ${cmd:-}" >&2; usage; exit 1 ;;
