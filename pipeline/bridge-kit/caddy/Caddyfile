@@ -1,0 +1,15 @@
+# ALB terminates TLS; Caddy listens HTTP on 8080 and proxies to Synapse.
+# Set SYNAPSE_SERVER_NAME in compose env to match public hostname.
+
+:8080 {
+	encode gzip zstd
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-X-Powered-By
+	}
+	reverse_proxy synapse:8008 {
+		header_up X-Forwarded-Proto {header.X-Forwarded-Proto}
+		header_up X-Forwarded-For {header.X-Forwarded-For}
+		header_up Host {host}
+	}
+}

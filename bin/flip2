@@ -32,6 +32,8 @@ Commands:
   flipmouse-arcade   (deprecated) use flip2 flip2burn-mouse — old FlipMouseArcade module frozen
   gamepad <sub>      Landscape virtual gamepad (Magisk): build | install | status | rollback
   forkgram <sub>     Patched Forkgram APK: patch | release (BACK deletes in text fields)
+  fluffychat <sub>   Matrix client (bridged WA/Signal/GV): release | patch
+  bridges <sub>      Unified messaging runbooks (doc)
   astro-loop <sub>   Astro Loop game: patch (display) | install (F-Droid stock)
   setup <tier>       Deployment: full (rooted set in verified order) | clean
   installer <sub>    Single-shot Magisk installer: pack [--flavor clean|base|full|slim|image-post]
@@ -247,6 +249,59 @@ case "$cmd" in
         echo "  See pipeline/forkgram/README.md."
         ;;
       *) echo "Unknown forkgram subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  fluffychat)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      patch) exec "$FLIP2_ROOT/pipeline/fluffychat/patch-fluffychat.sh" "$@" ;;
+      release) exec "$FLIP2_ROOT/pipeline/fluffychat/install-release.sh" "$@" ;;
+      help|-h|--help)
+        echo "Usage: flip2 fluffychat {patch|release}"
+        echo "  release [--fdroid] [--no-install] [--uninstall]"
+        echo "      Download and install FluffyChat (catalog pin or stock F-Droid v7a)."
+        echo "  patch [--apk PATH]  Stub until BACK/D-pad patches land (Phase 0 spike)."
+        echo "  Bridged networks: WhatsApp, Signal, Google Voice — see docs/BRIDGES-FLIP2.md."
+        echo "  See pipeline/fluffychat/README.md."
+        ;;
+      *) echo "Unknown fluffychat subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
+  bridges)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      doc)
+        echo "Flip2 unified messaging runbooks:"
+        echo "  User flow:  $FLIP2_ROOT/docs/BRIDGES-FLIP2.md"
+        echo "  On-device:  $FLIP2_ROOT/docs/BRIDGE-ON-DEVICE-FLIP2.md"
+        echo "  Hosting:    $FLIP2_ROOT/docs/BRIDGE-HOSTING.md"
+        echo "  VPS kit:    $FLIP2_ROOT/pipeline/bridge-kit/README.md"
+        echo "  Public HS:  $FLIP2_ROOT/docs/BRIDGE-FLIP2BURN-ONLINE.md"
+        echo "  CF deploy:  $FLIP2_ROOT/infra/cloudformation/BRIDGE-README.md"
+        ;;
+      pack)
+        exec "$FLIP2_ROOT/pipeline/bridge-kit/pack.sh" "$@"
+        ;;
+      on-device)
+        osub="${1:-help}"
+        shift || true
+        case "$osub" in
+          status) exec "$FLIP2_ROOT/pipeline/bridges/on-device.sh" status ;;
+          open-signin) exec "$FLIP2_ROOT/pipeline/bridges/on-device.sh" open-signin ;;
+          help|-h|--help|*)
+            echo "Usage: flip2 bridges on-device {status|open-signin}"
+            echo "  Tier 1 helpers. See docs/BRIDGE-ON-DEVICE-FLIP2.md."
+            ;;
+        esac
+        ;;
+      help|-h|--help|*)
+        echo "Usage: flip2 bridges {doc|pack|on-device}"
+        echo "  doc — runbook paths"
+        echo "  pack [OUT_DIR] — tarball Synapse + mautrix kit for VPS"
+        echo "  on-device {status|open-signin} — phone tier-1 helpers"
+        ;;
     esac
     ;;
   newpipe)

@@ -160,6 +160,28 @@
     <span id="apps-msg" class="status"></span>
   </div>
   <pre class="log hidden" id="apps-log"></pre>
+  <details class="apps-panel hidden" id="bridges-panel">
+    <summary>Unified messaging (Matrix bridges)</summary>
+    <p class="note">Forkgram stays Telegram. FluffyChat + bridged WhatsApp, Signal, Google Voice. <a href="../../docs/BRIDGES-FLIP2.md" target="_blank" rel="noopener">Docs</a></p>
+    <label class="stacked">Homeserver URL
+      <input type="url" id="bridges-homeserver" class="wide" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="action-row action-row--compact">
+      <button type="button" id="bridges-copy-hs" class="ghost small">Copy URL</button>
+      <button type="button" id="bridges-open-signin" class="small">Open sign-in on phone</button>
+    </div>
+    <label class="inline">Bridge tier:
+      <select id="bridges-tier">
+        <option value="1">1 — on-device (try first)</option>
+        <option value="2" selected>2 — VPS (flip2burn)</option>
+        <option value="3">3 — homelab</option>
+      </select>
+    </label>
+    <p class="note" id="bridges-tier-note"></p>
+    <p class="note">Sign into Matrix on the phone, then DM each bridge bot and send the pairing command shown.</p>
+    <div id="bridges-bot-list" class="bridges-bot-list"></div>
+    <span id="bridges-msg" class="status"></span>
+  </details>
   <details class="apps-panel">
     <summary>Device owner (Managed)</summary>
     <div id="apps-owner" class="hidden">
@@ -643,6 +665,7 @@
 <script src="js/fastboot.js"></script>
 <script src="js/profiles.js"></script>
 <script src="js/manager.js"></script>
+<script src="js/bridges.js"></script>
 <script src="js/device.js"></script>
 <script src="js/main.js"></script>
 </body>

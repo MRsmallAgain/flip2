@@ -193,6 +193,26 @@
       }
     },
     {
+      "name": "fluffychat",
+      "artifact": "user-apk",
+      "build": "flip2 fluffychat release",
+      "package": "chat.fluffy.fluffychat",
+      "root_install": false,
+      "root_runtime": false,
+      "rootless_survives_deroot": true,
+      "reboot": false,
+      "tiers": [
+        "messaging"
+      ],
+      "install_order": 81,
+      "incoming": "fluffychat.apk",
+      "label": "FluffyChat",
+      "notes": "Opt-in messaging profile only until patched mirror + catalog pin. Use flip2 fluffychat release --fdroid for Phase 0.",
+      "external": {
+        "note": "AGPL; catalog pin TBD — F-Droid or flip2burn packages mirror"
+      }
+    },
+    {
       "name": "materialfiles",
       "artifact": "user-apk",
       "package": "me.zhanghai.android.files",

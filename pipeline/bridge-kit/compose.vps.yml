@@ -1,0 +1,55 @@
+# mautrix bridges for Flip2 v1 (WhatsApp, Signal, Google Voice).
+# Requires Synapse appservice registration. Combine with compose.synapse.yml.
+# See README.md and docs/BRIDGE-HOSTING.md — no secrets in repo.
+
+services:
+  mautrix-whatsapp:
+    profiles: ["bridges"]
+    image: dock.mau.dev/mautrix/whatsapp:latest
+    restart: unless-stopped
+    networks:
+      - flip2-bridge
+    volumes:
+      - mautrix-whatsapp-data:/data
+    environment:
+      - UID=991
+      - GID=991
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  mautrix-signal:
+    profiles: ["bridges"]
+    image: dock.mau.dev/mautrix/signal:latest
+    restart: unless-stopped
+    networks:
+      - flip2-bridge
+    volumes:
+      - mautrix-signal-data:/data
+    environment:
+      - UID=991
+      - GID=991
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  mautrix-gvoice:
+    profiles: ["bridges"]
+    image: dock.mau.dev/mautrix/gvoice:latest
+    restart: unless-stopped
+    networks:
+      - flip2-bridge
+    volumes:
+      - mautrix-gvoice-data:/data
+    environment:
+      - UID=991
+      - GID=991
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  flip2-bridge:
+    name: flip2-bridge
+
+volumes:
+  mautrix-whatsapp-data:
+  mautrix-signal-data:
+  mautrix-gvoice-data:
