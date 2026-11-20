@@ -26,7 +26,7 @@ settings, writes /data/local/flip2/deroot.sh, then removes itself.
 
   --flavor clean|base|full|slim|image-post
                         clean = root-independent user APKs + settings (de-root friendly)
-                        base = wizard Base profile (FlipMouse, no Arcade/Astro Loop) + Sherpa
+                        base = wizard Base profile (flip2burnMouse, no Astro Loop) + Sherpa
                         full = modules + everything + bundled Sherpa STT (default)
                         slim = same as full without bundled voice models (~200 MiB smaller)
                         image-post = after Tier A flash: GPL sideloads + IME settings only

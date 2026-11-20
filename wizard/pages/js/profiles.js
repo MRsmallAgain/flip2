@@ -9,8 +9,8 @@
 var COMPONENT_META = {
   navoverlay: { label: 'Nav overlay', kind: 'module', moduleId: 'flip2_nav_overlay' },
   keypad: { label: 'Keypad backspace', kind: 'module', moduleId: 'flip2_keypad_backspace' },
-  flipmouse: { label: 'FlipMouse', kind: 'module', moduleId: 'FlipMouse' },
-  flipmouse_arcade: { label: 'FlipMouse Arcade', kind: 'module', moduleId: 'FlipMouseArcade' },
+  flipmouse: { label: 'FlipMouse (deprecated)', kind: 'module', moduleId: 'FlipMouse' },
+  flip2burn_mouse: { label: 'flip2burnMouse', kind: 'module', moduleId: 'flip2burnMouse' },
   tagdrawer: { label: 'Tag Drawer', kind: 'module', moduleId: 'flip2_pixel_tag_drawer' },
   launcher_overlay: { label: 'Launcher overlay', kind: 'module', moduleId: 'flip2_launcher_overlay' },
   launcher4: {
@@ -48,7 +48,7 @@ var CATALOG_FOR = {
   navoverlay: ['installer-full'],
   keypad: ['installer-full'],
   flipmouse: ['installer-full'],
-  flipmouse_arcade: ['installer-full'],
+  flip2burn_mouse: ['installer-full'],
   launcher_overlay: ['installer-full'],
   launcher4: ['installer-full'],
   ime: ['installer-full'],

@@ -5,7 +5,7 @@
 # The boot-image restore is manual: Magisk app -> Uninstall -> Restore Images
 # (or Complete Uninstall), then reboot. Magisk's CLI cannot safely do that step.
 
-MODS="flip2_nav_overlay flip2_keypad_backspace FlipMouse flip2_pixel_tag_drawer flip2_launcher_overlay flip2_launcher3_null_icon_fix"
+MODS="flip2_nav_overlay flip2_keypad_backspace flip2burnMouse FlipMouse FlipMouseArcade flip2_pixel_tag_drawer flip2_launcher_overlay flip2_launcher3_null_icon_fix"
 KIME="com.iqqijni.dvt912key/.keyboard_service.view.HDKeyboardService"
 NULL_IME="com.tim.flip2.nullkeyboard/.NullKeyboardService"
 APKS="com.tim.flip2.launcher4 com.tim.flip2.nullkeyboard org.forkgram.classic me.zhanghai.android.files io.github.xtratter.appshelf org.fdroid.basic org.schabi.newpipe org.videolan.vlc dev.skye.intertune com.dozingcatsoftware.bouncy"
@@ -32,9 +32,12 @@ if su -c true 2>/dev/null; then
       echo "   $m -> removed at next boot"
     fi
   done
+  pkill -f 'flip2burnMouse/service.sh' 2>/dev/null
   pkill -f 'FlipMouse/service.sh' 2>/dev/null
+  pkill -f 'FlipMouseArcade/service.sh' 2>/dev/null
+  pkill -f 'flip2burnMouse/mouse' 2>/dev/null
   pkill -f 'FlipMouse/mouse' 2>/dev/null
-  echo "   FlipMouse stopped"
+  echo "   flip2burnMouse stopped"
   echo "-- next: Magisk app -> Uninstall -> Restore Images, then reboot"
 else
   echo "-- no root: module removal skipped (needs root; do it from the Magisk app)"

@@ -54,43 +54,44 @@ want() {
   return 1
 }
 
-# --- FlipMouse / FlipMouse Arcade daemon -------------------------------------
-# Base and Arcade are mutually exclusive: one module enabled, one daemon. Both
-# supervisors restart `mouse` whenever it exits, so two enabled modules fight
-# over the same process. install.sh disables the module that is not wanted.
-# No profile.list means today's base install, so Base wins the default above.
+# --- mouse daemon (FlipMouse base vs flip2burnMouse arcade) -------------------
+check_mouse_legacy() {
+  leg=$1
+  if [ ! -d "/data/adb/modules/$leg" ]; then
+    echo "PASS: $leg not installed (expected)"
+    PASS=$((PASS + 1))
+  elif [ -f "/data/adb/modules/$leg/disable" ]; then
+    echo "PASS: $leg disabled"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: $leg still enabled — install.sh should clear the other stack"
+    FAILS=$((FAILS + 1))
+  fi
+}
 if want flipmouse; then
   FM_WANT=/data/adb/modules/FlipMouse
-  FM_OTHER=/data/adb/modules/FlipMouseArcade
-  FM_LABEL=FlipMouse
-elif want flipmouse_arcade; then
-  FM_WANT=/data/adb/modules/FlipMouseArcade
-  FM_OTHER=/data/adb/modules/FlipMouse
-  FM_LABEL="FlipMouse Arcade"
-else
-  FM_WANT=
-  FM_OTHER=
-fi
-if [ -z "$FM_WANT" ]; then
-  echo "NOTE: skip flipmouse"
-else
   if pgrep -f "$FM_WANT/mouse" >/dev/null 2>&1; then
-    echo "PASS: $FM_LABEL daemon running"
+    echo "PASS: FlipMouse daemon running"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: $FM_LABEL daemon running (reboot, or run install.sh again)"
+    echo "FAIL: FlipMouse daemon running (reboot, or run install.sh again)"
     FAILS=$((FAILS + 1))
   fi
-  if [ ! -d "$FM_OTHER" ]; then
-    echo "PASS: $(basename "$FM_OTHER") not installed"
-    PASS=$((PASS + 1))
-  elif [ -f "$FM_OTHER/disable" ]; then
-    echo "PASS: $(basename "$FM_OTHER") disabled"
+  check_mouse_legacy flip2burnMouse
+  check_mouse_legacy FlipMouseArcade
+elif want flip2burn_mouse; then
+  FM_WANT=/data/adb/modules/flip2burnMouse
+  if pgrep -f "$FM_WANT/mouse" >/dev/null 2>&1; then
+    echo "PASS: flip2burnMouse daemon running"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: $(basename "$FM_OTHER") is enabled too — one mouse daemon per phone (run install.sh again)"
+    echo "FAIL: flip2burnMouse daemon running (reboot, or run install.sh again)"
     FAILS=$((FAILS + 1))
   fi
+  check_mouse_legacy FlipMouse
+  check_mouse_legacy FlipMouseArcade
+else
+  echo "NOTE: skip mouse module"
 fi
 
 # --- Null Keyboard is the default IME ---------------------------------------

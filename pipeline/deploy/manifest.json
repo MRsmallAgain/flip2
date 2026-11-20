@@ -52,24 +52,24 @@
         "image"
       ],
       "install_order": 30,
-      "notes": "Tier A: system/bin + init.rc + sepolicy in build-tree (rootless after boot restore). full tier: Magisk module only."
+      "notes": "Deprecated — portrait soft-key mouse only. No new features; Base/Slim/Managed wizard profiles and Tier B base flash. Arcade uses flip2burn_mouse."
     },
     {
-      "name": "flipmouse_arcade",
+      "name": "flip2burn_mouse",
       "artifact": "magisk-module",
-      "zip": "pipeline/flipmouse-arcade/build/FlipMouseArcade.zip",
-      "build": "flip2 flipmouse-arcade build",
-      "module_id": "FlipMouseArcade",
+      "zip": "pipeline/flip2burn-mouse/build/flip2burnMouse.zip",
+      "build": "flip2 flip2burn-mouse build",
+      "module_id": "flip2burnMouse",
       "root_install": true,
       "root_runtime": true,
       "rootless_survives_deroot": false,
       "reboot": false,
       "tiers": [
         "full",
-        "image"
+        "wizard"
       ],
       "install_order": 31,
-      "notes": "Arcade profile: gamepad + landscape cursor + portrait mouse. Mutually exclusive with flipmouse at runtime."
+      "notes": "Active stack: gamepad, landscape cursor, portrait mouse, star IME handoff. Wizard Arcade profile; bundled in full installer for Apply only."
     },
     {
       "name": "tagdrawer",
@@ -597,6 +597,6 @@
     "bundle": "Tier D — per-component zips + APKs + SHA256SUMS",
     "base": "Tier B base — wizard Base profile: FlipMouse (not Arcade), no Astro Loop; modules + Sherpa like full"
   },
-  "version": "1.4.0-alpha.25-flip2",
-  "versionCode": 20261125
+  "version": "1.4.0-alpha.26-flip2",
+  "versionCode": 20261126
 }

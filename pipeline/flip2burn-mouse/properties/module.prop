@@ -1,0 +1,6 @@
+id=flip2burnMouse
+name=flip2burnMouse
+version=1.0.0-flip2
+versionCode=10
+author=tim
+description=Gamepad, landscape cursor, portrait mouse, star IME handoff. Left-soft 1s toggles mode. Config /data/local/flip2/gamepad.conf

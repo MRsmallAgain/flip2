@@ -94,7 +94,10 @@ while IFS='|' read -r _order name artifact zip apk pkg mid _erepo _etag _easset 
       fi
       ;;
     magisk-module)
-      if [[ -n "$zip" && -n "$mid" ]]; then
+      # flip2burn_mouse is wizard Arcade only — payload zip for Apply, not auto-flash.
+      if [[ "$name" == "flip2burn_mouse" ]]; then
+        :
+      elif [[ -n "$zip" && -n "$mid" ]]; then
         base="$(basename "$zip")"
         printf '%s %s\n' "$mid" "$base" >> "$DATA/modules.txt"
       fi

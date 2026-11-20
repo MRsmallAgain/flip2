@@ -9,7 +9,7 @@
 #
 # staged file names (fixed by the page):
 #   flip2_nav_overlay-magisk.zip flip2_keypad_backspace-magisk.zip
-#   FlipMouse.zip flip2_pixel_tag_drawer-magisk.zip flip2_launcher_overlay-magisk.zip
+#   flip2burnMouse.zip flip2_pixel_tag_drawer-magisk.zip flip2_launcher_overlay-magisk.zip
 #     — extracted from the published full installer zip payload/modules/;
 #       the page rebuilds the Tag Drawer zip so it embeds the fresh F-Droid APK
 #   launcher4.apk nullkeyboard.apk — payload/apks/ from the same zip when built in
@@ -106,10 +106,10 @@ done
 # Base and Arcade each ship a `mouse` process, and both supervisors restart it
 # whenever `pidof mouse` is empty — so the old one must be dead, not just
 # disabled, or it wins the race and the newly wanted daemon never starts.
-pkill -f 'FlipMouse/service.sh' 2>/dev/null
+pkill -f 'flip2burnMouse/service.sh' 2>/dev/null
 pkill -f 'FlipMouseArcade/service.sh' 2>/dev/null
-pkill -f 'FlipMouse/mouse' 2>/dev/null
-pkill -f 'FlipMouseArcade/mouse' 2>/dev/null
+pkill -f 'FlipMouse/service.sh' 2>/dev/null
+killall mouse 2>/dev/null
 sleep 1
 
 # Missing profile.list means the full base install. Headwind is not part of
@@ -159,10 +159,10 @@ if want flipmouse; then
 else
   echo "NOTE: skip flipmouse"
 fi
-if want flipmouse_arcade; then
-  place_module FlipMouseArcade                FlipMouseArcade.zip
+if want flip2burn_mouse; then
+  place_module flip2burnMouse                 flip2burnMouse.zip
 else
-  echo "NOTE: skip flipmouse_arcade"
+  echo "NOTE: skip flip2burn_mouse"
 fi
 if want tagdrawer; then
   place_module flip2_pixel_tag_drawer         flip2_pixel_tag_drawer-magisk.zip
