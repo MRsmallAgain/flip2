@@ -41,6 +41,9 @@ pipeline/ime/null-keyboard/models/
 pipeline/flipmouse/upstream/
 pipeline/flipmouse/build/
 
+# flip2burnMouse native build (build.sh uses build/; legacy local dir)
+pipeline/flip2burn-mouse/build-libevdev/
+
 # Staged whisper JNI binary (source tracked in jni/, binary restored from cache)
 pipeline/ime/null-keyboard/jni/*.so
 
