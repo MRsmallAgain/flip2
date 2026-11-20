@@ -1,0 +1,26 @@
+# Production overlay: Caddy :8080 for ALB → Synapse (reverse proxy).
+# Use: docker compose -f compose.synapse.yml -f compose.vps.yml -f compose.prod.yml ...
+
+services:
+  synapse:
+    profiles: ["synapse"]
+    ports: []
+
+  caddy:
+    profiles: ["synapse"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    networks:
+      - flip2-bridge
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - synapse
+
+volumes:
+  caddy-data:
+  caddy-config:

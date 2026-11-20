@@ -15,6 +15,9 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div class="site-experimental-banner" role="note">
+  <strong>Experimental.</strong> This toolkit and site are under active development. You use them at your own risk — we are not responsible for bricked, damaged, or misconfigured devices. Read the warnings before erasing, rooting, or flashing.
+</div>
 <header class="site-header">
   <img src="../assets/logo.svg" alt="" width="40" height="40" class="header-logo">
   <div>
@@ -160,6 +163,28 @@
     <span id="apps-msg" class="status"></span>
   </div>
   <pre class="log hidden" id="apps-log"></pre>
+  <details class="apps-panel hidden" id="bridges-panel">
+    <summary>Unified messaging (Matrix bridges)</summary>
+    <p class="note">Forkgram stays Telegram. FluffyChat + bridged WhatsApp, Signal, Google Voice. <a href="../../docs/BRIDGES-FLIP2.md" target="_blank" rel="noopener">Docs</a></p>
+    <label class="stacked">Homeserver URL
+      <input type="url" id="bridges-homeserver" class="wide" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="action-row action-row--compact">
+      <button type="button" id="bridges-copy-hs" class="ghost small">Copy URL</button>
+      <button type="button" id="bridges-open-signin" class="small">Open sign-in on phone</button>
+    </div>
+    <label class="inline">Bridge tier:
+      <select id="bridges-tier">
+        <option value="1">1 — on-device (try first)</option>
+        <option value="2" selected>2 — VPS (flip2burn)</option>
+        <option value="3">3 — homelab</option>
+      </select>
+    </label>
+    <p class="note" id="bridges-tier-note"></p>
+    <p class="note">Sign into Matrix on the phone, then DM each bridge bot and send the pairing command shown.</p>
+    <div id="bridges-bot-list" class="bridges-bot-list"></div>
+    <span id="bridges-msg" class="status"></span>
+  </details>
   <details class="apps-panel">
     <summary>Device owner (Managed)</summary>
     <div id="apps-owner" class="hidden">
@@ -629,7 +654,13 @@
   </p>
   <p id="footer-advanced-hint" class="note">Advanced links appear after you run <b>Check phone</b> once.</p>
   <p id="footer-wipe-always" class="note hidden">To wipe userdata only: use the phone’s factory reset (Settings or recovery). The wizard never wipes over the cable.</p>
-  <p class="note">Arrived from an old GitHub link? <a href="moved.html">We moved on 2026-11-13</a>.</p>
+  <p class="note footer-links">
+    <b>Downloads:</b> <a href="/packages/flip2-installer-full-magisk.zip">full installer</a> ·
+    <a href="../catalog.json">catalog.json</a> (all files + SHA-256) ·
+    <code>/packages/&lt;filename&gt;</code> on this domain<br>
+    <b>Source:</b> <a href="https://gitlab.com/mrsmallagain-group/flip2" rel="noopener">GitLab</a> ·
+    <a href="https://github.com/MRsmallAgain/flip2" rel="noopener">GitHub mirror</a>
+  </p>
 </footer>
 <script src="../fflate.js"></script>
 <script src="js/catalog.js"></script>
@@ -643,6 +674,7 @@
 <script src="js/fastboot.js"></script>
 <script src="js/profiles.js"></script>
 <script src="js/manager.js"></script>
+<script src="js/bridges.js"></script>
 <script src="js/device.js"></script>
 <script src="js/main.js"></script>
 </body>

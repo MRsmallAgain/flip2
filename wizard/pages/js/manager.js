@@ -36,7 +36,8 @@ var APK_INCOMING = {
   intertune: { name: 'intertune.apk', catalogId: 'intertune' },
   bouncy: { name: 'bouncy.apk', catalogId: 'bouncy' },
   headwind: { name: 'headwind.apk', catalogId: 'headwind-launcher' },
-  where: { name: 'where.apk', catalogId: 'where-app' }
+  where: { name: 'where.apk', catalogId: 'where-app' },
+  fluffychat: { name: 'fluffychat.apk', catalogId: 'fluffychat' }
 };
 
 function requiredCatalog() {
@@ -930,6 +931,7 @@ function initApps() {
     unrootBtn.disabled = unrootInput.value.trim() !== 'unroot';
   });
   unrootBtn.addEventListener('click', dropRootAdb);
+  if (typeof initBridges === 'function') initBridges();
   refreshAppsStatus();
 }
 

@@ -86,6 +86,18 @@
       ]
     },
     {
+      "id": "messaging",
+      "label": "Messaging",
+      "enabled": true,
+      "experimental": true,
+      "extends": "base",
+      "adds": [
+        "fluffychat"
+      ],
+      "summary": "Base plus FluffyChat (Matrix) for bridged WhatsApp, Signal, and Google Voice. Forkgram stays for Telegram. See docs/BRIDGES-FLIP2.md.",
+      "warning": "Requires Matrix homeserver and bridges (tier 1–2). Patched FluffyChat mirror not in catalog yet — use flip2 fluffychat release --fdroid."
+    },
+    {
       "id": "managed",
       "label": "Managed",
       "enabled": true,

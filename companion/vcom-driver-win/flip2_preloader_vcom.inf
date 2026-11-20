@@ -1,0 +1,53 @@
+; Flip2 toolkit — self-contained MediaTek preloader VCOM (0e8d:2000).
+; Pick via Device Manager → Have Disk (no mdmcpq.inf dependency).
+;
+[Version]
+Signature="$Windows NT$"
+Class=Ports
+ClassGuid={4D36E978-E325-11CE-BFC1-08002BE10318}
+Provider=%Provider%
+DriverVer=11/20/2026,1.0.0.0
+
+[Manufacturer]
+%Provider%=Flip2,NTamd64
+
+[Flip2.NTamd64]
+%Flip2Preloader%=Flip2Install, USB\VID_0E8D&PID_2000
+
+[Flip2Install.NTamd64]
+CopyFiles=Flip2CopyFiles.NTamd64
+AddReg=Flip2Install.NTamd64.AddReg
+
+[Flip2CopyFiles.NTamd64]
+usbser.sys,,,0x20
+
+[Flip2Install.NTamd64.AddReg]
+HKR,,DevLoader,,*ntkern
+HKR,,NTMPDriver,,usbser.sys
+HKR,,EnumPropPages32,,"MsPorts.dll,SerialPortPropPageProvider"
+
+[Flip2Install.NTamd64.Services]
+AddService=usbser, 0x00000002, Flip2Serice.NTamd64
+
+[Flip2Serice.NTamd64]
+DisplayName=%ServiceDesc%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%12%\usbser.sys
+
+[DestinationDirs]
+DefaultDestDir=12
+Flip2CopyFiles.NTamd64=12
+
+[SourceDisksNames]
+1=%DiskName%,,,
+
+[SourceDisksFiles]
+usbser.sys=1
+
+[Strings]
+Provider="Flip2 toolkit"
+Flip2Preloader="MediaTek PreLoader USB VCOM Port (Flip2)"
+DiskName="Flip2 VCOM driver"
+ServiceDesc="USB Serial emulation modem driver"

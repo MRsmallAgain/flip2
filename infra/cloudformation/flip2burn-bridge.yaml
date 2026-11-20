@@ -1,0 +1,282 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Matrix Synapse + mautrix bridges at bridge.flip2burn.online (ALB, EC2/Spot ASG, ACM, Route53).
+  Uses an existing VPC (no new VPC/IGW -- account limits).
+
+Parameters:
+  BridgeHostname:
+    Type: String
+    Default: bridge.flip2burn.online
+
+  ExistingHostedZoneId:
+    Type: String
+    Description: Route 53 hosted zone ID for flip2burn.online.
+
+  ExistingVpcId:
+    Type: String
+    Default: vpc-0e1c328973e4c3ef5
+    Description: VPC with Internet gateway and public subnets (ALB + instances).
+
+  PublicSubnetIdA:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0f547f77210e486dd
+    Description: Public subnet AZ-a for ALB + ASG.
+
+  PublicSubnetIdB:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-002bee6ff6f9f11d5
+    Description: Public subnet AZ-b for ALB (second AZ required for ALB).
+
+  CapacityType:
+    Type: String
+    Default: spot
+    AllowedValues:
+      - on-demand
+      - spot
+
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3a.medium
+      - t3a.large
+      - m7i-flex.large
+
+  KeyName:
+    Type: String
+    Default: ''
+
+  VolumeSizeGb:
+    Type: Number
+    Default: 80
+    MinValue: 40
+    MaxValue: 500
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, '']]
+  UseSpot: !Equals [!Ref CapacityType, spot]
+
+Resources:
+  BridgeCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref BridgeHostname
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref BridgeHostname
+          HostedZoneId: !Ref ExistingHostedZoneId
+      Tags:
+        - Key: Project
+          Value: flip2-bridge
+
+  BridgeSecurityGroupAlb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB HTTPS for bridge.flip2burn.online
+      VpcId: !Ref ExistingVpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: ::/0
+      Tags:
+        - Key: Name
+          Value: flip2-bridge-alb
+
+  BridgeSecurityGroupEc2:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Synapse host -- 8080 from ALB only
+      VpcId: !Ref ExistingVpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref BridgeSecurityGroupAlb
+      Tags:
+        - Key: Name
+          Value: flip2-bridge-ec2
+
+  BridgeTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: f2b-matrix-tg
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !Ref ExistingVpcId
+      TargetType: instance
+      HealthCheckPath: /_matrix/client/versions
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 5
+      Matcher:
+        HttpCode: '200,404'
+
+  BridgeAlb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: f2b-matrix-alb
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups:
+        - !Ref BridgeSecurityGroupAlb
+      Subnets:
+        - !Ref PublicSubnetIdA
+        - !Ref PublicSubnetIdB
+
+  BridgeListenerHttps:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref BridgeAlb
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref BridgeCertificate
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BridgeTargetGroup
+
+  BridgeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: f2b-matrix-ec2-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: SsmBridgeSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/flip2/bridge/*'
+
+  BridgeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BridgeInstanceRole
+
+  BridgeLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: f2b-matrix-lt
+      LaunchTemplateData:
+        ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Arn: !GetAtt BridgeInstanceProfile.Arn
+        KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            Groups:
+              - !Ref BridgeSecurityGroupEc2
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: !Ref VolumeSizeGb
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: false
+        InstanceMarketOptions: !If
+          - UseSpot
+          - MarketType: spot
+            SpotOptions:
+              InstanceInterruptionBehavior: terminate
+              SpotInstanceType: one-time
+          - !Ref AWS::NoValue
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -eux
+            dnf install -y docker
+            systemctl enable --now docker
+            mkdir -p /usr/local/lib/docker/cli-plugins
+            curl -fsSL https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 \
+              -o /usr/local/lib/docker/cli-plugins/docker-compose
+            chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            usermod -aG docker ec2-user
+            mkdir -p /opt/flip2-bridge
+            fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+            chmod 600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+            grep -q swapfile /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: flip2-bridge-synapse
+              - Key: Project
+                Value: flip2-bridge
+
+  BridgeAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: f2b-matrix-asg
+      VPCZoneIdentifier:
+        - !Ref PublicSubnetIdA
+        - !Ref PublicSubnetIdB
+      LaunchTemplate:
+        LaunchTemplateId: !Ref BridgeLaunchTemplate
+        Version: !GetAtt BridgeLaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 600
+      TargetGroupARNs:
+        - !Ref BridgeTargetGroup
+      Tags:
+        - Key: Name
+          Value: flip2-bridge-synapse
+          PropagateAtLaunch: true
+        - Key: Project
+          Value: flip2-bridge
+          PropagateAtLaunch: true
+
+  BridgeDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref ExistingHostedZoneId
+      Name: !Ref BridgeHostname
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt BridgeAlb.DNSName
+        HostedZoneId: !GetAtt BridgeAlb.CanonicalHostedZoneID
+        EvaluateTargetHealth: true
+
+Outputs:
+  BridgeURL:
+    Value: !Sub 'https://${BridgeHostname}'
+  VpcId:
+    Value: !Ref ExistingVpcId
+  CapacityType:
+    Value: !Ref CapacityType
+  InstanceType:
+    Value: !Ref InstanceType
+  AutoScalingGroupName:
+    Value: !Ref BridgeAutoScalingGroup
+  AlbDnsName:
+    Value: !GetAtt BridgeAlb.DNSName
+  CertificateArn:
+    Value: !Ref BridgeCertificate

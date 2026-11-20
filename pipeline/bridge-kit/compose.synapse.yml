@@ -1,0 +1,48 @@
+# Minimal Synapse + Postgres for Flip2 self-hosted bridges.
+# Use with compose.vps.yml: docker compose -f compose.synapse.yml -f compose.vps.yml ...
+# No secrets in repo — configure via .env on the host.
+
+services:
+  postgres:
+    profiles: ["synapse"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks:
+      - flip2-bridge
+    environment:
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapse-change-me}
+      POSTGRES_DB: synapse
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - synapse-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  synapse:
+    profiles: ["synapse"]
+    image: matrixdotorg/synapse:latest
+    restart: unless-stopped
+    networks:
+      - flip2-bridge
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SYNAPSE_SERVER_NAME: ${SYNAPSE_SERVER_NAME:-matrix.example.com}
+      SYNAPSE_REPORT_STATS: "no"
+    volumes:
+      - synapse-data:/data
+    ports:
+      - "${SYNAPSE_HTTP_PORT:-8008}:8008"
+
+networks:
+  flip2-bridge:
+    name: flip2-bridge
+
+volumes:
+  synapse-postgres-data:
+  synapse-data:

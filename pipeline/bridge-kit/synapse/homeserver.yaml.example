@@ -1,0 +1,47 @@
+# Hardened Synapse defaults for bridge.flip2burn.online
+# Copy to data/homeserver.yaml after `synapse generate` and merge these keys.
+
+server_name: "bridge.flip2burn.online"
+public_baseurl: "https://bridge.flip2burn.online/"
+pid_file: /data/homeserver.pid
+
+enable_registration: false
+enable_registration_without_verification: false
+registration_shared_secret: "REPLACE_FROM_SSM"
+
+federation_domain_whitelist: []
+
+listeners:
+  - port: 8008
+    tls: false
+    type: http
+    x_forwarded: true
+    bind_addresses: ['0.0.0.0']
+    resources:
+      - names: [client, federation]
+        compress: false
+
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: "REPLACE_POSTGRES_PASSWORD"
+    database: synapse
+    host: postgres
+    cp_min: 5
+    cp_max: 10
+
+log_config: /data/bridge.flip2burn.online.log.config
+
+trusted_key_servers:
+  - server_name: "matrix.org"
+
+suppress_key_server_warning: true
+
+rc_message:
+  per_second: 0.2
+  burst_count: 10
+
+rc_registration:
+  per_second: 0.17
+  burst_count: 3

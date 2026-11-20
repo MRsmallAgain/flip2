@@ -26,6 +26,7 @@ var COMPONENT_META = {
     extraConfirm: 'Removing Null Keyboard makes the keyboard fall back to the stock input method.'
   },
   forkgram: { label: 'Forkgram', kind: 'apk', packageName: 'org.forkgram.classic' },
+  fluffychat: { label: 'FluffyChat', kind: 'apk', packageName: 'chat.fluffy.fluffychat' },
   materialfiles: { label: 'Material Files', kind: 'apk', packageName: 'me.zhanghai.android.files' },
   intertune: { label: 'Intertune', kind: 'apk', packageName: 'dev.skye.intertune' },
   bouncy: { label: 'Bouncy', kind: 'apk', packageName: 'com.dozingcatsoftware.bouncy' },
@@ -57,6 +58,7 @@ var CATALOG_FOR = {
   wallpaper: ['installer-full'],
   tagdrawer: ['tagdrawer'],
   forkgram: ['forkgram'],
+  fluffychat: ['fluffychat'],
   materialfiles: ['materialfiles'],
   intertune: ['intertune'],
   bouncy: ['bouncy'],
