@@ -50,7 +50,8 @@ pipeline/ime/null-keyboard/jni/*.so
 # Electron companion
 companion/node_modules/
 companion/platform-tools-win/
-companion/vcom-driver-win/
+companion/vcom-driver-win/*
+!companion/vcom-driver-win/flip2_preloader_vcom.inf
 
 # External APKs fetched by flip2 source fetch
 pipeline/deploy/sources/

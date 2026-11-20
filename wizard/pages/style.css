@@ -54,6 +54,21 @@ body {
   min-height: 100vh;
 }
 
+.site-experimental-banner {
+  margin: 0;
+  padding: 10px 24px;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--wait-soft) 0%, var(--sun-glow) 100%);
+  border-bottom: 1px solid var(--wait-border);
+}
+
+.site-experimental-banner strong {
+  color: var(--wait);
+}
+
 header {
   padding: 18px 24px;
   border-bottom: 1px solid var(--line);
