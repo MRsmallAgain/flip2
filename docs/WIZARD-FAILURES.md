@@ -29,6 +29,7 @@ Profile matters for install. A missing `profile.list` means full base, and Headw
 | 8 | Footer factory/root **hidden** | In a browser, `unlockAdvancedFooter()` runs after a verify **attempt**. A user stuck on Install never reaches Verify. | Companion shows the **Advanced** footer without verify. Install shows **Continue to verify anyway**. In a browser, run verify once under Prepare. |
 | 9 | Install: `install.sh[N]: : inaccessible or not found` and `syntax error: unexpected 'in '` | `install.sh` / `verify.sh` checked out on Windows with **CRLF**; Android `/system/bin/sh` treats `\r` as part of lines | Repo: LF + `.gitattributes`; push strips `\r` in Companion and WebUSB pipeline. **Quit and reopen Companion** (or hard refresh) after updating. |
 | 10 | Check phone → **Restart phone**: red `Command failed: … adb … shell reboot` while phone **did** reboot | `adb shell reboot` tears down USB before the client exits; Windows reports a failed exec | Companion + UI treat reboot disconnect as success; green **Restart sent** message. Fully quit Companion after updating. |
+| 11 | Chrome / hosted wizard: strip flashes **plug in — Connect phone** right after **Allow** even when WebUSB connected | `pollStripPhone()` (1 Hz) has no Companion `phoneState`; it always repaints the disconnected strip | Browser-only path: skip strip poll when `ADB.connected` or `stripLastReady.ok`; clear strip on `flip2OnWebUsbLost` after USB drop |
 
 ## UI traps (no way out without knowing secrets)
 

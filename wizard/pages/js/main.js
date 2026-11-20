@@ -1500,6 +1500,24 @@ function onWebUsbAdbReady() {
   if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
 }
 
+function onWebUsbLost() {
+  if (window.FLIP2_NATIVE) return;
+  stripLastReady = null;
+  var hasWebUsb = typeof navigator !== 'undefined' && navigator.usb;
+  setStatus('strip-phone', hasWebUsb ? 'no device — Connect phone' : 'needs Chrome or Companion', 'wait');
+  var hint = $('strip-hint');
+  if (hint) {
+    hint.textContent = hasWebUsb
+      ? 'WebUSB dropped. Expand Get ready and press Connect phone again.'
+      : 'Use Chrome on Linux, or open this site inside Flip 2 Companion for host adb.';
+  }
+  setStripBox('live');
+  updateGetReadyCollapse();
+  if (typeof refreshDeviceTransport === 'function') refreshDeviceTransport();
+}
+
+window.flip2OnWebUsbLost = onWebUsbLost;
+
 var webUsbConnectGen = 0;
 var WEBUSB_CONNECT_MS = 90000;
 
@@ -2135,6 +2153,9 @@ function paintStripPhone(mode, ready) {
 function pollStripPhone() {
   var N = window.FLIP2_NATIVE;
   if (!N || !N.phoneState) {
+    if ((stripLastReady && stripLastReady.ok) || (typeof ADB !== 'undefined' && ADB && ADB.connected)) {
+      return;
+    }
     var hasWebUsb = typeof navigator !== 'undefined' && navigator.usb;
     setStatus('strip-phone', hasWebUsb ? 'plug in — Connect phone' : 'needs Chrome or Companion', 'wait');
     var plain = $('strip-hint');

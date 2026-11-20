@@ -238,11 +238,15 @@ var ADB = {
   },
 
   _failConnect: function (err) {
+    var wasConnected = this.connected;
     this.connected = false;
     if (this.connectResolve) {
       var r = this.connectResolve;
       this.connectResolve = null;
       r.reject(err instanceof Error ? err : new Error(String(err)));
+    }
+    if (wasConnected && typeof window.flip2OnWebUsbLost === 'function') {
+      try { window.flip2OnWebUsbLost(); } catch (e) { /* noop */ }
     }
   },
 
