@@ -31,28 +31,31 @@ function phoneReadyForGetReady() {
   return false;
 }
 
+function updateGetReadyConnectButton() {
+  var connectBtn = $('get-ready-connect');
+  if (!connectBtn) return;
+  var hide = !!(window.FLIP2_NATIVE || phoneReadyForGetReady());
+  connectBtn.classList.toggle('hidden', hide);
+}
+
 function updateGetReadyCollapse() {
   var details = $('get-ready-details');
   if (!details) return;
   if (phoneReadyForGetReady()) details.removeAttribute('open');
+  updateGetReadyConnectButton();
 }
 
 function updateStripPhoneChrome(name) {
   var actions = document.querySelector('.strip-phone-actions');
   var facts = $('phone-facts');
   var next = $('phone-next');
-  var connectBtn = $('get-ready-connect');
   var inPrepare = PREPARE.indexOf(name) >= 0;
   if (actions) {
     actions.classList.toggle('strip-actions--prepare-download', name === 'download');
     actions.classList.toggle('strip-actions--udev-only', name === 'udev');
     actions.classList.toggle('strip-actions--usb-step', name === 'usb');
   }
-  if (connectBtn && window.FLIP2_NATIVE) {
-    connectBtn.classList.add('hidden');
-  } else if (connectBtn) {
-    connectBtn.classList.remove('hidden');
-  }
+  updateGetReadyConnectButton();
   if (facts && inPrepare && name === 'download') facts.classList.add('hidden');
   else if (facts) facts.classList.remove('hidden');
   if (next) next.classList.toggle('hidden', inPrepare && name === 'download');
@@ -1684,7 +1687,7 @@ function initGetReady() {
       getReady: true
     }).finally(function () { connectBtn.disabled = false; });
   });
-  if (window.FLIP2_NATIVE) connectBtn.classList.add('hidden');
+  updateGetReadyConnectButton();
   var resetKeyBtn = $('get-ready-reset-adb-key');
   if (resetKeyBtn && !window.FLIP2_NATIVE) {
     resetKeyBtn.addEventListener('click', function (ev) {
