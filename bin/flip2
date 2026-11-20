@@ -27,8 +27,9 @@ Commands:
   navoverlay <sub>   framework-res RRO (menu bar/navbar 0px): build | install | status | rollback
   tagdrawer <sub>    Pixel Tag Drawer system (Magisk): pack | install | rollback | status
   vmouse <sub>       Simple mouse (neutronscott simple-release1): install | status
-  flipmouse <sub>    FlipMouse virtual mouse (vendored, Magisk): build | install | status | rollback
-  flipmouse-arcade   FlipMouse Arcade (gamepad + mouse daemon, Magisk): build | install | status | rollback
+  flip2burn-mouse    flip2burnMouse (gamepad + cursor + STT * handoff, Magisk): build | install | status | rollback
+  flipmouse          FlipMouse (deprecated portrait mouse, Base profile): build | install | status | rollback
+  flipmouse-arcade   (deprecated) use flip2 flip2burn-mouse — old FlipMouseArcade module frozen
   gamepad <sub>      Landscape virtual gamepad (Magisk): build | install | status | rollback
   forkgram <sub>     Patched Forkgram APK: patch | release (BACK deletes in text fields)
   astro-loop <sub>   Astro Loop game: patch (display) | install (F-Droid stock)
@@ -166,38 +167,49 @@ case "$cmd" in
       *) echo "Unknown vmouse subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;
+  flip2burn-mouse|flip2burnmouse)
+    sub="${1:-help}"
+    shift || true
+    case "$sub" in
+      build)    exec "$FLIP2_ROOT/pipeline/flip2burn-mouse/build.sh" "$@" ;;
+      install)  exec "$FLIP2_ROOT/pipeline/flip2burn-mouse/install.sh" ;;
+      status)   exec "$FLIP2_ROOT/pipeline/flip2burn-mouse/status.sh" ;;
+      rollback) exec "$FLIP2_ROOT/pipeline/flip2burn-mouse/rollback.sh" ;;
+      help|-h|--help)
+        echo "Usage: flip2 flip2burn-mouse {build|install|status|rollback}"
+        echo "  Unified: gamepad, landscape cursor, portrait mouse, star IME handoff."
+        echo "  docs/FLIPMOUSE-ARCADE.md — Config: /data/local/flip2/gamepad.conf"
+        ;;
+      *) echo "Unknown flip2burn-mouse subcommand: $sub" >&2; exit 1 ;;
+    esac
+    ;;
   flipmouse)
     sub="${1:-help}"
     shift || true
     case "$sub" in
-      build)         exec "$FLIP2_ROOT/pipeline/flipmouse/build.sh" "$@" ;;
-      build-system)  exec "$FLIP2_ROOT/pipeline/flipmouse/build-system.sh" "$@" ;;
-      install)       exec "$FLIP2_ROOT/pipeline/flipmouse/install.sh" ;;
+      build)    exec "$FLIP2_ROOT/pipeline/flipmouse/build.sh" "$@" ;;
+      install)  exec "$FLIP2_ROOT/pipeline/flipmouse/install.sh" ;;
       status)   exec "$FLIP2_ROOT/pipeline/flipmouse/status.sh" ;;
       rollback) exec "$FLIP2_ROOT/pipeline/flipmouse/rollback.sh" ;;
+      build-system)
+        exec "$FLIP2_ROOT/pipeline/flipmouse/build-system.sh" "$@" ;;
       help|-h|--help)
-        echo "Usage: flip2 flipmouse {build|install|status|rollback}"
-        echo "  Vendored TylerBoni/FlipMouse, flip2-patched: soft-left 1s hold toggles"
-        echo "  Hold upper-left soft key 1s + release to toggle. Star also exits."
-        echo "  Right soft key passes through (Shortcuts). Drag is DEL. See pipeline/flipmouse/VENDORED.md."
+        echo "Usage: flip2 flipmouse {build|install|status|rollback|build-system}"
+        echo "  Deprecated portrait mouse — Base/Slim wizard. No new features."
+        echo "  Arcade stack: flip2 flip2burn-mouse"
         ;;
       *) echo "Unknown flipmouse subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;
   flipmouse-arcade)
+    echo "flip2: flipmouse-arcade is deprecated — use: flip2 flip2burn-mouse $*" >&2
     sub="${1:-help}"
     shift || true
     case "$sub" in
-      build)    exec "$FLIP2_ROOT/pipeline/flipmouse-arcade/build.sh" "$@" ;;
-      install)  exec "$FLIP2_ROOT/pipeline/flipmouse-arcade/install.sh" ;;
-      status)   exec "$FLIP2_ROOT/pipeline/flipmouse-arcade/status.sh" ;;
-      rollback) exec "$FLIP2_ROOT/pipeline/flipmouse-arcade/rollback.sh" ;;
-      help|-h|--help)
-        echo "Usage: flip2 flipmouse-arcade {build|install|status|rollback}"
-        echo "  Single daemon: landscape gamepad, landscape cursor, portrait FlipMouse."
-        echo "  Arcade profile in the wizard; do not run alongside FlipMouse module."
-        echo "  Config: /data/local/flip2/gamepad.conf"
-        ;;
+      build)    exec "$FLIP2_ROOT/pipeline/flip2burn-mouse/build.sh" "$@" ;;
+      install)  exec "$FLIP2_ROOT/pipeline/flip2burn-mouse/install.sh" ;;
+      status)   exec "$FLIP2_ROOT/pipeline/flip2burn-mouse/status.sh" ;;
+      rollback) exec "$FLIP2_ROOT/pipeline/flip2burn-mouse/rollback.sh" ;;
       *) echo "Unknown flipmouse-arcade subcommand: $sub" >&2; exit 1 ;;
     esac
     ;;

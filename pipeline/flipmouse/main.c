@@ -1,4 +1,7 @@
 /*
+ * DEPRECATED — Base/Slim/Managed wizard only. No new features; maintenance freeze.
+ * Active stack: pipeline/flip2burn-mouse/ (wizard Arcade profile).
+ *
  * Virtual mouse for keypad phones — vendored from https://github.com/TylerBoni/FlipMouse
  * Original by tyler boni <tyler.boni@gmail.com> (MIT per upstream README).
  *

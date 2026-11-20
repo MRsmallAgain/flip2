@@ -21,7 +21,7 @@ Run the full rooted flip2 install over adb, in the verified order:
 
   1. navoverlay      Magisk module (reboot required)
   2. keypad          Magisk module, backspace remap (reboot required)
-  3. flipmouse       Magisk module, daemon started immediately
+  3. flipmouse       FlipMouse (deprecated portrait mouse), daemon started immediately
   4. tagdrawer       Magisk module, /system/app PixelTagDrawer (reboot required)
   5. launcher4       user APK + default HOME
   6. ime             Null Keyboard APK + IME settings + STT models
@@ -112,7 +112,7 @@ step_wallpaper() {
 
 step navoverlay  step_navoverlay
 step keypad      step_keypad
-step flipmouse   step_flipmouse
+step flipmouse       step_flipmouse
 step tagdrawer   step_tagdrawer
 step launcher4   step_launcher4
 step ime         step_ime

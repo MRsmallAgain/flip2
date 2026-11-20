@@ -6,12 +6,12 @@
       "label": "Arcade",
       "enabled": true,
       "experimental": true,
-      "summary": "Same as Base but FlipMouse Arcade: landscape gamepad, rotated landscape cursor, portrait mouse in one daemon.",
+      "summary": "Same as Base but flip2burnMouse: landscape gamepad, rotated landscape cursor, portrait mouse, star IME handoff in one daemon.",
       "warning": "Experimental — landscape gamepad stack is rough around the edges.",
       "components": [
         "navoverlay",
         "keypad",
-        "flipmouse_arcade",
+        "flip2burn_mouse",
         "tagdrawer",
         "launcher_overlay",
         "launcher4",
@@ -35,7 +35,7 @@
       "id": "base",
       "label": "Base",
       "enabled": true,
-      "summary": "Today's full wizard install: modules, Launcher4, Null Keyboard, Forkgram, Material Files, AppShelf, F-Droid Basic, NewPipe, VLC, Intertune, Bouncy, home keys, 321\u00d7428, wallpaper, Sherpa-ONNX STT (EN+UK).",
+      "summary": "Today's full wizard install: modules, Launcher4, Null Keyboard, Forkgram, Material Files, AppShelf, F-Droid Basic, NewPipe, VLC, Intertune, Bouncy, home keys, 321\u00d7428, wallpaper, Sherpa-ONNX STT (EN+UK). FlipMouse (deprecated portrait mouse) — not flip2burnMouse.",
       "components": [
         "navoverlay",
         "keypad",

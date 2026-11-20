@@ -93,10 +93,12 @@ fi
 
 # --- flip2 Magisk modules (base / full: rooted module unpack) ------------
 if { [ "$FLAVOR" = full ] || [ "$FLAVOR" = base ]; } && [ -f "$MOD/payload/data/modules.txt" ]; then
-  # Stop both mouse supervisors + daemons first: unzip cannot replace the
-  # executing mouse binary (Text file busy), and exactly one may run after.
+  # Stop mouse supervisors + legacy daemons: unzip cannot replace the executing
+  # mouse binary (Text file busy).
+  pkill -f 'flip2burnMouse/service.sh' 2>/dev/null
   pkill -f 'FlipMouse/service.sh' 2>/dev/null
   pkill -f 'FlipMouseArcade/service.sh' 2>/dev/null
+  pkill -f 'flip2burnMouse/mouse' 2>/dev/null
   pkill -f 'FlipMouse/mouse' 2>/dev/null
   pkill -f 'FlipMouseArcade/mouse' 2>/dev/null
   sleep 1
@@ -104,11 +106,8 @@ if { [ "$FLAVOR" = full ] || [ "$FLAVOR" = base ]; } && [ -f "$MOD/payload/data/
     [ -n "$line" ] || continue
     mid=${line%% *}
     f=${line#* }
-    # The full payload ships FlipMouseArcade.zip because the wizard extracts
-    # it from here, but flashing the zip installs Base only. Arcade is a
-    # wizard profile, and two enabled mouse modules fight over one daemon.
-    if [ "$mid" = FlipMouseArcade ]; then
-      echo "skip module: FlipMouseArcade (wizard Arcade profile only)"
+    if [ "$mid" = flip2burnMouse ]; then
+      echo "skip module: flip2burnMouse (wizard Arcade profile only)"
       continue
     fi
     T=/data/adb/modules/$mid
@@ -119,16 +118,14 @@ if { [ "$FLAVOR" = full ] || [ "$FLAVOR" = base ]; } && [ -f "$MOD/payload/data/
       echo "FAILED to unpack module: $mid"
     fi
   done < "$MOD/payload/data/modules.txt"
-  # A phone that ran Arcade before must not keep it enabled under Base.
-  ARC=/data/adb/modules/FlipMouseArcade
-  if [ -d "$ARC" ]; then
-    touch "$ARC/disable"
-    rm -f "$ARC/update"
-    echo "disabled FlipMouseArcade (Base is the flash default)"
-  fi
-  # Magisk 25.2 stages CLI-installed modules until reboot; in-place unpack
-  # works but nothing starts FlipMouse's daemon until service time — start it
-  # now (same treatment as pipeline/flipmouse/scripts/ondevice-install.sh).
+  for LEG in FlipMouseArcade flip2burnMouse; do
+    L=/data/adb/modules/$LEG
+    if [ -d "$L" ]; then
+      touch "$L/disable"
+      rm -f "$L/update"
+      echo "disabled $LEG (Base flash default is FlipMouse)"
+    fi
+  done
   FM=/data/adb/modules/FlipMouse
   if [ -x "$FM/mouse" ]; then
     rm -f "$FM/update" "$FM/disable"

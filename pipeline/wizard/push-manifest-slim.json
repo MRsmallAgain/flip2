@@ -5,7 +5,7 @@
     "payload/modules/flip2_nav_overlay-magisk.zip",
     "payload/modules/flip2_keypad_backspace-magisk.zip",
     "payload/modules/FlipMouse.zip",
-    "payload/modules/FlipMouseArcade.zip",
+    "payload/modules/flip2burnMouse.zip",
     "payload/modules/flip2_launcher_overlay-magisk.zip"
   ],
   "installerApkPaths": [
@@ -42,7 +42,7 @@
     "flip2_nav_overlay-magisk.zip",
     "flip2_keypad_backspace-magisk.zip",
     "FlipMouse.zip",
-    "FlipMouseArcade.zip",
+    "flip2burnMouse.zip",
     "flip2_launcher_overlay-magisk.zip",
     "flip2_pixel_tag_drawer-magisk.zip",
     "launcher4.apk",
@@ -63,7 +63,7 @@
     "flip2_nav_overlay-magisk.zip",
     "flip2_keypad_backspace-magisk.zip",
     "FlipMouse.zip",
-    "FlipMouseArcade.zip",
+    "flip2burnMouse.zip",
     "flip2_launcher_overlay-magisk.zip",
     "flip2_pixel_tag_drawer-magisk.zip",
     "launcher4.apk",

@@ -2,7 +2,7 @@
 // then runs install.sh as root and mirrors its output to the log.
 //
 // Layout of the published installer zip (verified by unzip -l):
-//   payload/modules/{flip2_nav_overlay,flip2_keypad_backspace,FlipMouse,
+//   payload/modules/{flip2_nav_overlay,flip2_keypad_backspace,flip2burnMouse,
 //     flip2_pixel_tag_drawer,flip2_launcher_overlay}-magisk.zip  (module zips)
 //   payload/apks/{launcher4.apk,nullkeyboard.apk,…} — may include prefetched
 //   forkgram.apk materialfiles.apk when host sources/ were bundled at pack time
@@ -40,7 +40,7 @@ var INCOMING_FOR_COMPONENT = {
   navoverlay: ['flip2_nav_overlay-magisk.zip'],
   keypad: ['flip2_keypad_backspace-magisk.zip'],
   flipmouse: ['FlipMouse.zip'],
-  flipmouse_arcade: ['FlipMouseArcade.zip'],
+  flip2burn_mouse: ['flip2burnMouse.zip'],
   tagdrawer: ['flip2_pixel_tag_drawer-magisk.zip'],
   launcher_overlay: ['flip2_launcher_overlay-magisk.zip'],
   launcher4: ['launcher4.apk'],
