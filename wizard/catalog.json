@@ -232,8 +232,8 @@
       "file": "flip2-companion-1.4.0-alpha.37-win-x64.exe",
       "purpose": "TCL Flip2 Manager desktop app (Windows x64). Bundled adb and MediaTek VCOM driver pack — Start · Bundled Apps · Device · Set up.",
       "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.37-win-x64.exe",
-      "size": 90555674,
-      "sha256": "de99a7b1a74f55da0e8ab43da0f4fc964527ba6d0dfbaf76b428881a7a934b48",
+      "size": 90555680,
+      "sha256": "59ba8a0e590044b4a9ca55fcbfe7524f494ee72078c87e71ee668020d8f3300f",
       "license": "MIT (companion); wizard assets see flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "flip2 master 9d9f1ab — native Windows pack after gen-pipeline-js / pack docs merge (bundled platform-tools)"
