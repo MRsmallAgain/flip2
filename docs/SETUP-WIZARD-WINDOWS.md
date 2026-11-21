@@ -4,9 +4,9 @@ Windows checklist for **TCL Flip2 Manager** (Flip 2 Companion). Full step-by-ste
 
 ## Primary install — Windows `.exe` (recommended)
 
-On Windows, use the **release installer** — not the browser wizard or a from-source `npm start` unless you are developing.
+On Windows, use the **release installer** from [flip2burn.online/packages](https://flip2burn.online/packages/) — not the browser wizard alone. Mirror pins require a **native** pack (~86–90 MB with bundled adb), not GitLab Wine CI (~78 MB). See [WIZARD-FAILURES.md](WIZARD-FAILURES.md) item 12.
 
-1. Build **`flip2-companion-<version>-win-x64.exe`** (NSIS installer or portable) — see the build step below. No prebuilt Windows `.exe` is published at the moment.
+1. Download **`flip2-companion-<version>-win-x64.exe`** from the mirror (verify SHA256 in catalog.json), **or** build natively — [companion/README.md](../companion/README.md#native-windows-pack-mirror--flip2burnonline).
 2. Run the installer (or the portable `.exe`). Window title: **TCL Flip2 Manager**.
 3. **No separate adb install** — the app bundles Google **Platform Tools** under `resources\platform-tools\` (`adb.exe` + USB DLLs). Override only if needed with env var **`FLIP2_ADB`** pointing at another `adb.exe`.
 4. For **adb** (Prepare) and **fastboot** (`0e8d:201c` after rooting), install Google’s USB driver from the **direct ZIP** (no Google account): [usb_driver_r13-windows.zip](https://dl.google.com/android/repository/usb_driver_r13-windows.zip) → unpack → Device Manager → Update driver → Browse → `usb_driver` folder. **Rooting VCOM** is separate — already bundled in the app (see below); do not hunt for MediaTek on developer.android.com.

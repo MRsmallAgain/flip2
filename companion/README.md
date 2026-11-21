@@ -47,5 +47,37 @@ npm run pack:linux  # Linux: AppImage + unpacked dir
 
 Packaged builds embed `wizard/` via `extraResources`. On **Windows**, `prepack:win` bundles Google **platform-tools** (adb/fastboot) and **MediaTek USB VCOM** (`vcom-driver-win/` → `resources/vcom-driver/`). Rooting uses Web Serial in-app — no Python or mtkclient; Rooting → **VCOM driver steps** opens the bundled INF folder for Device Manager install. Linux/Windows: put **adb** on `PATH` only when not using the packaged copy (or set `FLIP2_ADB` / `FLIP2_VCOM_DRIVER_DIR` on Windows).
 
+## Native Windows pack (mirror / flip2burn.online)
+
+GitLab **companion:win** (Linux+Wine) can pass the bundled-adb gate but ships a smaller portable (~78 MB). **Publish only a native Windows pack** (~86–90 MB) to the mirror — see [WIZARD-FAILURES.md](../docs/WIZARD-FAILURES.md) item 12.
+
+**On a Windows PC** (from a full repo checkout):
+
+```powershell
+git pull origin master
+# Git Bash/WSL, from repo root:
+bash pipeline/wizard/gen-pipeline-js.sh
+
+cd companion
+npm ci
+npm run prepack:win
+npm run pack:win
+# dist\flip2-companion-<version>-win-x64.exe (portable)
+```
+
+**Sanity:** portable size ~86–90 MB; `dist\win-unpacked\resources\platform-tools\adb.exe` exists.
+
+**Publish** (machine with AWS + repo):
+
+```bash
+cp <path-to-native.exe> pipeline/deploy/dist/
+sha256sum pipeline/deploy/dist/flip2-companion-*.exe   # update wizard/catalog.json companion-win if new hash
+./bin/flip2 wizard pins
+bash pipeline/deploy/sync-site-packages.sh
+./bin/flip2 site deploy --skip-packages   # or full site deploy if wizard changed
+```
+
+**Dev without repack:** `\.\companion\run-companion.ps1` uses live `wizard/` and `main.js` after `git pull` + `gen-pipeline-js.sh`.
+
 **Windows checklist:** [docs/SETUP-WIZARD-WINDOWS.md](../docs/SETUP-WIZARD-WINDOWS.md)  
 **Full Prepare walkthrough:** [docs/SETUP-WIZARD-DETAILED.md](../docs/SETUP-WIZARD-DETAILED.md)
