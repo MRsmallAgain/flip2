@@ -56,8 +56,8 @@ var INCOMING_FOR_COMPONENT = {
   fdroid_basic: ['fdroid-basic.apk'],
   newpipe: ['newpipe.apk'],
   vlc: ['vlc.apk'],
-  'sherpa-en': ['sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2'],
-  'sherpa-uk': ['sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2'],
+  'sherpa-en': ['sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2'],
+  'sherpa-uk': ['sherpa-onnx-moonshine-base-uk-quantized-2026-02-27.tar.bz2'],
   wallpaper: ['flip2-wallpaper.png']
 };
 
@@ -168,8 +168,8 @@ var PIPE = {
       var withVoices = manifest.requiredIncomingWithVoices;
       if (withVoices) need = withVoices.slice();
       else {
-        if (wantSherpaEn) need.push('sherpa-onnx-streaming-zipformer-en-20M-2023-02-17-mobile.tar.bz2');
-        if (wantSherpaUk) need.push('sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2');
+        if (wantSherpaEn) need.push('sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2');
+        if (wantSherpaUk) need.push('sherpa-onnx-moonshine-base-uk-quantized-2026-02-27.tar.bz2');
       }
     }
     if (allowed) {
