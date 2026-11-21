@@ -218,25 +218,25 @@
     },
     {
       "id": "companion-linux",
-      "file": "flip2-companion-1.4.0-alpha.36-linux-x86_64.AppImage",
+      "file": "flip2-companion-1.4.0-alpha.37-linux-x86_64.AppImage",
       "purpose": "TCL Flip2 Manager desktop app (Linux x86_64 AppImage). Same wizard UI as flip2burn.online — Start · Bundled Apps · Device · Set up.",
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.36-linux-x86_64.AppImage",
-      "size": 109233053,
-      "sha256": "7aa4bcee7573a1548e2ddc7daab9ee988ebf45faa4d8a0c9020692831f1d59bd",
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.37-linux-x86_64.AppImage",
+      "size": 109241286,
+      "sha256": "0576d65275cb56b81cd7b4bee95178b4aff47c986295ac9ee45011d86e695ad1",
       "license": "MIT (companion); wizard assets see flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.36-flip2"
+      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.37-flip2 (MR !12 CI jobs 18242042513)"
     },
     {
       "id": "companion-win",
-      "file": "flip2-companion-1.4.0-alpha.36-win-x64.exe",
+      "file": "flip2-companion-1.4.0-alpha.37-win-x64.exe",
       "purpose": "TCL Flip2 Manager desktop app (Windows x64). Bundled adb and MediaTek VCOM driver pack — Start · Bundled Apps · Device · Set up.",
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.36-win-x64.exe",
-      "size": 75358283,
-      "sha256": "035ecd830362cae23d655b23ae300d999023aaf20bf9f94b6df1c7aa3472884b",
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.37-win-x64.exe",
+      "size": 75361784,
+      "sha256": "5319668d4c90095d3175ad63c11fa13fe4b48de945ccf499d64e3d8c7ebbe76a",
       "license": "MIT (companion); wizard assets see flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
-      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.36-flip2"
+      "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.37-flip2 (MR !12 CI jobs 18242042514)"
     }
   ],
   "not_downloaded": [

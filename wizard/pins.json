@@ -138,17 +138,17 @@
     },
     {
       "id": "companion-linux",
-      "file": "flip2-companion-1.4.0-alpha.36-linux-x86_64.AppImage",
-      "sha256": "7aa4bcee7573a1548e2ddc7daab9ee988ebf45faa4d8a0c9020692831f1d59bd",
-      "size": 109233053,
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.36-linux-x86_64.AppImage"
+      "file": "flip2-companion-1.4.0-alpha.37-linux-x86_64.AppImage",
+      "sha256": "0576d65275cb56b81cd7b4bee95178b4aff47c986295ac9ee45011d86e695ad1",
+      "size": 109241286,
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.37-linux-x86_64.AppImage"
     },
     {
       "id": "companion-win",
-      "file": "flip2-companion-1.4.0-alpha.36-win-x64.exe",
-      "sha256": "035ecd830362cae23d655b23ae300d999023aaf20bf9f94b6df1c7aa3472884b",
-      "size": 75358283,
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.36-win-x64.exe"
+      "file": "flip2-companion-1.4.0-alpha.37-win-x64.exe",
+      "sha256": "5319668d4c90095d3175ad63c11fa13fe4b48de945ccf499d64e3d8c7ebbe76a",
+      "size": 75361784,
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.37-win-x64.exe"
     }
   ]
 }
