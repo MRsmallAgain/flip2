@@ -250,8 +250,10 @@ mirror_upload() {  # mirror_upload <name>...
   # invalidated. Invalidate, then poll, rather than failing on a cache artefact
   # or claiming success on one.
   if [[ -n "$dist_id" && "$dist_id" != None ]]; then
-    echo "==> invalidating ${#paths[@]} mirror path(s)"
-    aws cloudfront create-invalidation --distribution-id "$dist_id" --paths "${paths[@]}" >/dev/null
+    # One /* invalidation (same as deploy-site.sh). Passing many paths via
+    # "${paths[@]}" breaks aws cloudfront create-invalidation on Git Bash/Windows.
+    echo "==> invalidating CloudFront /* (${#paths[@]} package(s) uploaded)"
+    aws cloudfront create-invalidation --distribution-id "$dist_id" --paths "/*" >/dev/null
   else
     echo "WARN: stack $STACK has no DistributionId; skipping invalidation" >&2
   fi
@@ -349,7 +351,7 @@ if [[ "$HOST" == gitlab ]]; then
   if [[ "$REPUBLISH" -eq 1 && -z "$NOTES" ]]; then
     notes_tmp="$(mktemp)"
     trap 'rm -f "$notes_tmp"' EXIT
-    existing="$(glab api "/projects/$(urlenc "$PROJECT")/releases/$(urlenc "$TAG")" 2>/dev/null || true)"
+    existing="$(glab api "projects/$(urlenc "$PROJECT")/releases/$(urlenc "$TAG")" 2>/dev/null || true)"
     if [[ -z "$existing" ]] || [[ -n "$(printf '%s' "$existing" | jq -r '.message // empty')" ]]; then
       echo "no readable release $TAG on $PROJECT to republish" >&2
       exit 1
@@ -379,7 +381,7 @@ if [[ "$HOST" == gitlab ]]; then
 
   # Read it back. A release page whose links 404 is precisely the failure this
   # backend exists to prevent, so the published state is checked, not assumed.
-  published="$(glab api "/projects/$(urlenc "$PROJECT")/releases/$(urlenc "$TAG")" 2>/dev/null || true)"
+  published="$(glab api "projects/$(urlenc "$PROJECT")/releases/$(urlenc "$TAG")" 2>/dev/null || true)"
   [[ -n "$published" ]] || { echo "release $TAG is not readable after publishing" >&2; exit 1; }
   [[ "$(printf '%s' "$published" | jq -r '.tag_name // empty')" == "$TAG" ]] \
     || { echo "release $TAG came back with the wrong tag" >&2; exit 1; }
