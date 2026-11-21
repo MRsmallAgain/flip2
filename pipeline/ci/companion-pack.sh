@@ -10,17 +10,31 @@ COMPANION="$ROOT/companion"
 
 usage() {
   cat <<EOF
-Usage: pipeline/ci/companion-pack.sh <smoke|linux|win>
+Usage: pipeline/ci/companion-pack.sh <smoke|linux|prepack-win|win>
 
-  smoke   npm install (if needed), electron --smoke
-  linux   prepack:linux + electron-builder --linux (AppImage, dir)
-  win     prepack:win + electron-builder --win (NSIS, portable)
+  smoke       npm install (if needed), electron --smoke
+  linux       prepack:linux + electron-builder --linux (AppImage, dir)
+  prepack-win npm run prepack:win + verify platform-tools-win (CI network fetch)
+  win         prepack:win + electron-builder --win; fails if extraResources omit adb
 
 Artifacts: companion/dist/
 EOF
 }
 
 log() { printf '==> %s\n' "$*"; }
+
+verify_prepack_win() {
+  local adb_src="$COMPANION/platform-tools-win/adb.exe"
+  local need=("adb.exe" "AdbWinApi.dll" "AdbWinUsbApi.dll")
+  local f
+  for f in "${need[@]}"; do
+    if [[ ! -f "$COMPANION/platform-tools-win/$f" ]]; then
+      echo "FATAL: prepack:win missing platform-tools-win/$f" >&2
+      exit 1
+    fi
+  done
+  log "verified platform-tools-win ($(stat -c '%s' "$adb_src") byte adb.exe)"
+}
 
 ensure_companion_deps() {
   if [[ -n "${CI:-}" ]] && [[ -f "$COMPANION/package-lock.json" ]]; then
@@ -50,20 +64,22 @@ case "$cmd" in
     ensure_companion_deps
     (cd "$COMPANION" && npm run pack:linux)
     ;;
+  prepack-win)
+    ensure_companion_deps
+    log "prepack:win (platform-tools + VCOM for extraResources)"
+    (cd "$COMPANION" && npm run prepack:win)
+    verify_prepack_win
+    ;;
   win)
     ensure_companion_deps
     log "prepack:win (platform-tools + VCOM for extraResources)"
     (cd "$COMPANION" && npm run prepack:win)
+    verify_prepack_win
     if [[ -n "${CI:-}" ]]; then
       log "CI: portable-only (NSIS under Wine fails on uninstaller stub)"
       (cd "$COMPANION" && npm run pack:win:ci)
     else
       (cd "$COMPANION" && npm run pack:win)
-    fi
-    adb_src="$COMPANION/platform-tools-win/adb.exe"
-    if [[ ! -f "$adb_src" ]]; then
-      echo "FATAL: prepack:win did not produce platform-tools-win/adb.exe" >&2
-      exit 1
     fi
     unpacked_adb="$COMPANION/dist/win-unpacked/resources/platform-tools/adb.exe"
     if [[ ! -f "$unpacked_adb" ]]; then
