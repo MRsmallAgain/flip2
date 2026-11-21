@@ -190,42 +190,38 @@ TDE
 
   cat <<'FM'
 
-# --- FlipMouse: Base and Arcade are mutually exclusive ----------------------
-# Both modules ship a `mouse` daemon whose supervisor restarts it whenever
-# `pidof mouse` is empty, so two enabled modules fight over the same process.
-# A profile switch must leave exactly one module enabled and one daemon.
-# No profile.list means today's full base install: keep Base, disable Arcade.
-FM_BASE=/data/adb/modules/FlipMouse
-FM_ARCADE=/data/adb/modules/FlipMouseArcade
-if want flipmouse; then
-  FM=$FM_BASE
-  FM_OTHER=$FM_ARCADE
-  FM_NAME=FlipMouse
-elif want flipmouse_arcade; then
-  FM=$FM_ARCADE
-  FM_OTHER=$FM_BASE
-  FM_NAME="FlipMouse Arcade"
-else
-  FM=
-fi
+# --- FlipMouse: Base, legacy Arcade, and flip2burnMouse are mutually exclusive
+	# Each ships a `mouse` daemon; only one may run. Arcade profile uses flip2burn_mouse.
+	FM_BASE=/data/adb/modules/FlipMouse
+	FM_ARCADE=/data/adb/modules/FlipMouseArcade
+	FM_BURN=/data/adb/modules/flip2burnMouse
+	if want flipmouse; then
+	  FM=$FM_BASE
+	  FM_NAME=FlipMouse
+	elif want flipmouse_arcade; then
+	  FM=$FM_ARCADE
+	  FM_NAME="Flip Mouse Arcade"
+	elif want flip2burn_mouse; then
+	  FM=$FM_BURN
+	  FM_NAME=flip2burnMouse
+	else
+	  FM=
+	fi
 if [ -z "$FM" ]; then
-  echo "NOTE: skip flipmouse"
+  echo "NOTE: skip mouse daemon"
 else
-  if [ -d "$FM_OTHER" ]; then
-    # Magisk honours this flag at boot; the process is killed just below.
-    touch "$FM_OTHER/disable" || fail "could not disable $(basename "$FM_OTHER")"
-    rm -f "$FM_OTHER/update" 2>/dev/null
-    ok "disabled $(basename "$FM_OTHER") — one mouse daemon per phone"
-  fi
-  # Both supervisors restart `mouse` whenever `pidof mouse` is empty, so kill
-  # every straggler (and any stale wanted daemon) before starting the one we
-  # want, or the loser of the race keeps the slot.
-  pkill -f "$FM_OTHER/service.sh" 2>/dev/null
-  pkill -f "$FM_OTHER/mouse" 2>/dev/null
+  for OTHER in "$FM_BASE" "$FM_ARCADE" "$FM_BURN"; do
+    [ "$OTHER" = "$FM" ] && continue
+    if [ -d "$OTHER" ]; then
+      touch "$OTHER/disable" || fail "could not disable $(basename "$OTHER")"
+      rm -f "$OTHER/update" 2>/dev/null
+      ok "disabled $(basename "$OTHER") — one mouse daemon per phone"
+    fi
+    pkill -f "$OTHER/service.sh" 2>/dev/null
+    pkill -f "$OTHER/mouse" 2>/dev/null
+  done
   pkill -f "$FM/mouse" 2>/dev/null
   sleep 1
-  # Nothing starts the daemon until Magisk service time — start it now, the
-  # way installer/service.sh does.
   [ -x "$FM/mouse" ] || fail "$FM_NAME module has no mouse binary"
   rm -f "$FM/update" "$FM/disable" 2>/dev/null
   chmod 755 "$FM/mouse" "$FM/service.sh" 2>/dev/null

@@ -66,11 +66,29 @@ companion:linux:
       - companion/dist/*-linux-*/
   timeout: 30m
 
+# Fetch Google platform-tools + VCOM before the slow Wine pack; fails fast if dl.google.com is blocked.
+companion:prepack-win:
+  extends: .companion_before
+  stage: build
+  script:
+    - bash pipeline/ci/companion-pack.sh prepack-win
+  artifacts:
+    when: on_success
+    expire_in: 1 day
+    paths:
+      - companion/platform-tools-win/
+      - companion/vcom-driver-win/
+  timeout: 15m
+
 # NSIS/portable targets need a Windows toolchain. electron-builder can use Wine on
 # Linux; if this job flakes, build on a tagged Windows runner or locally (pack:win).
+# companion-pack.sh win re-runs prepack:win then fails unless win-unpacked bundles adb.exe.
 companion:win:
   extends: .companion_before
   stage: build
+  needs:
+    - gates
+    - companion:prepack-win
   before_script:
     - apt-get update -qq
     - dpkg --add-architecture i386

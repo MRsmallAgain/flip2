@@ -73,7 +73,12 @@ section "generated wizard artefacts (no drift)"
 ./bin/flip2 wizard check || bad "wizard check reported drift (run: flip2 wizard render)"
 ./bin/flip2 wizard pins --check || bad "pins.json is stale (run: flip2 wizard pins)"
 
-# --- 5. catalog installer pins match dist/ (when zips exist) ---------------
+# --- 5. profiles.json component ids vs Companion PROFILE_IDS ---------------
+# Missing ids cause "profile.list rejected" on Arcade/Messaging Apply.
+section "profile component ids vs PROFILE_IDS"
+bash "$ROOT/pipeline/ci/gate-profile-ids.sh" || bad "profile ids gate failed (see pipeline/ci/gate-profile-ids.sh)"
+
+# --- 6. catalog installer pins match dist/ (when zips exist) ---------------
 # Repacks often keep the same byte count; only SHA catches stale pins or stale cache.
 section "catalog installer pins vs dist"
 DIST="$ROOT/pipeline/deploy/dist"

@@ -1506,11 +1506,12 @@ async function wizardHostWriteRootFile(serial, destPath, content, mode) {
 // cleanup deletes incoming/*, and the page must not choose another path.
 const PROFILE_PATH = DP.profileList;
 const PROFILE_IDS = {
-  navoverlay: true, keypad: true, flipmouse: true, flipmouse_arcade: true, tagdrawer: true,
-  launcher_overlay: true, launcher4: true, ime: true, forkgram: true,
+  navoverlay: true, keypad: true, flipmouse: true, flipmouse_arcade: true, flip2burn_mouse: true,
+  tagdrawer: true, launcher_overlay: true, launcher4: true, ime: true, forkgram: true,
   materialfiles: true, appshelf: true, fdroid_basic: true, newpipe: true, vlc: true,
   intertune: true, bouncy: true, home_keys: true,
   display: true, wallpaper: true, 'sherpa-en': true, 'sherpa-uk': true, headwind: true, where: true,
+  fluffychat: true,
   block_camera: true, enable_camera: true, block_browser: true, enable_browser: true,
 };
 
