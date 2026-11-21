@@ -65,6 +65,13 @@ case "$cmd" in
       echo "FATAL: prepack:win did not produce platform-tools-win/adb.exe" >&2
       exit 1
     fi
+    unpacked_adb="$COMPANION/dist/win-unpacked/resources/platform-tools/adb.exe"
+    if [[ ! -f "$unpacked_adb" ]]; then
+      echo "FATAL: packaged build missing dist/win-unpacked/resources/platform-tools/adb.exe" >&2
+      echo "  Wine/CI packs can pass prepack but omit extraResources — do not publish this artifact." >&2
+      exit 1
+    fi
+    log "verified bundled adb in win-unpacked: $unpacked_adb"
     ;;
   -h|--help) usage; exit 0 ;;
   *) echo "Unknown command: ${cmd:-}" >&2; usage; exit 1 ;;
