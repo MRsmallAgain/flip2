@@ -14,7 +14,7 @@ Commands:
   slot <1-9> <pkg>   Set one menu slot and run apply
   swap <a> <b>       Swap two menu slots (1–9) and apply
   editor             Start web editor (http://127.0.0.1:${FLIP2_EDITOR_PORT})
-  companion          Setup wizard in Electron (one-click udev, auto USB pick)
+  companion <sub>    Manager app: (no args) launch | publish-win (mirror pin + S3)
   recovery           Remove bad launcher Magisk module, restore stock Launcher3, apply overlay
   pack-overlay       Build Magisk zip for overlay only (launcher-overlay/dist/)
   home-keys          Apply home-keys.json to Settings.Global
@@ -78,7 +78,25 @@ case "$cmd" in
     exec python3 "$FLIP2_OVERLAY/scripts/serve-editor.py"
     ;;
   companion)
-    exec "$FLIP2_ROOT/companion/run-companion.sh" "$@"
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      publish-win)
+        exec bash "$FLIP2_ROOT/pipeline/companion/publish-win.sh" "$@"
+        ;;
+      help|-h|--help)
+        echo "Usage: flip2 companion [publish-win|help]"
+        echo "  (no sub)     launch TCL Flip2 Manager (Electron)"
+        echo "  publish-win  pin native .exe to catalog + optional S3 (--file PATH)"
+        exit 0
+        ;;
+      "")
+        exec "$FLIP2_ROOT/companion/run-companion.sh" "$@"
+        ;;
+      *)
+        exec "$FLIP2_ROOT/companion/run-companion.sh" "$sub" "$@"
+        ;;
+    esac
     ;;
   recovery)
     exec "$FLIP2_PIPELINE/recovery/resolve.sh"

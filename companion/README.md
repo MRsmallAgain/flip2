@@ -70,11 +70,9 @@ npm run pack:win
 **Publish** (machine with AWS + repo):
 
 ```bash
-cp <path-to-native.exe> pipeline/deploy/dist/
-sha256sum pipeline/deploy/dist/flip2-companion-*.exe   # update wizard/catalog.json companion-win if new hash
-./bin/flip2 wizard pins
-bash pipeline/deploy/sync-site-packages.sh
-./bin/flip2 site deploy --skip-packages   # or full site deploy if wizard changed
+./bin/flip2 companion publish-win --file /path/to/flip2-companion-*-win-x64.exe
+# optional: --commit "Repin companion-win native build"
+# only this package on S3 (no neutron.img): sync uses --only companion-win internally
 ```
 
 **Dev without repack:** `\.\companion\run-companion.ps1` uses live `wizard/` and `main.js` after `git pull` + `gen-pipeline-js.sh`.
