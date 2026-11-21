@@ -107,7 +107,6 @@
   <p class="guide-intro">Your profile decides which apps, Magisk modules, and phone settings this setup installs—pick one below.</p>
   <div id="profile-list"></div>
   <p id="profile-msg" class="status"></p>
-  <p class="callout-forkgram">Messenger: <b>Forkgram Classic</b> only — not Client.</p>
   <div id="arcade-acceptance" class="profile-flags hidden" role="group" aria-labelledby="arcade-accept-label">
     <label class="profile-flag" id="arcade-accept-label">
       <input type="checkbox" id="arcade-accept-cb">
@@ -131,9 +130,10 @@
 
     <article class="tier-block" id="tier-operate">
       <h3 class="tier-title"><span class="tier-n">2</span> Operate</h3>
-      <p class="tier-lead">Apply, <code>manage</code>, backup, <code>unroot</code>.</p>
+      <p class="tier-lead">Apply, <code>manage</code>, backup on <b>Device</b>, <code>unroot</code>.</p>
       <p class="tier-jumps">
-        <button type="button" class="tier-jump" data-goto-step="apps">Bundled Apps</button>
+        <button type="button" class="tier-jump" data-goto-step="apps">Bundled Apps</button><span class="sep">·</span>
+        <button type="button" class="tier-jump" data-goto-step="device">Device (backup)</button>
       </p>
     </article>
 
@@ -206,22 +206,7 @@
       <span id="apps-unroot-msg" class="status"></span>
     </div>
   </details>
-  <details class="apps-panel">
-    <summary>Backup / restore</summary>
-    <p id="apps-backup-info" class="note">No saved backup read yet.</p>
-    <div class="btn-grid">
-      <button type="button" id="apps-backup-refresh" class="ghost">Refresh info</button>
-      <button type="button" id="apps-backup-contacts">Backup contacts</button>
-      <button type="button" id="apps-backup-messages">Backup messages</button>
-      <button type="button" id="apps-backup-apps">Backup apps</button>
-      <button type="button" id="apps-restore-contacts">Restore contacts</button>
-      <button type="button" id="apps-restore-messages">Restore messages</button>
-      <button type="button" id="apps-restore-apps">Restore apps</button>
-      <button type="button" id="apps-restore-prewipe-contacts" class="ghost">Pre-wipe contacts</button>
-      <button type="button" id="apps-restore-prewipe-messages" class="ghost">Pre-wipe messages</button>
-    </div>
-    <span id="apps-backup-msg" class="status"></span>
-	</details>
+  <p class="note">Contacts, messages, and apps backup live on the <b>Device</b> tab.</p>
 </section>
 
 <section class="step step-compact hidden" id="step-credit" hidden aria-hidden="true"></section>
@@ -404,13 +389,29 @@
   <label class="inline"><input id="erase-input" autocomplete="off" size="8"></label></p>
   <p><button id="root-open" disabled>Show the steps</button></p>
   <div id="root-body" class="hidden">
+    <div id="stage-backup">
+      <h3 class="stage-h"><span class="stage-n">1</span> Back up before you wipe</h3>
+      <p class="danger"><b>Unlock and flashing erase everything on the phone.</b> Save contacts, messages, and apps to this PC now, and save a boot image copy if you use <b>Return to factory</b> later.</p>
+      <p class="note">Phone on USB with debugging allowed. Saved to <code>~/flip2-pre-wipe-backup</code> and companion backup folders on this computer.</p>
+      <p id="root-backup-info" class="note">No saved backup read yet.</p>
+      <div class="btn-grid">
+        <button type="button" id="root-backup-refresh" class="ghost">Refresh info</button>
+        <button type="button" id="root-backup-all">Back up contacts, messages &amp; apps</button>
+        <button type="button" id="root-backup-contacts" class="ghost">Contacts only</button>
+        <button type="button" id="root-backup-messages" class="ghost">Messages only</button>
+        <button type="button" id="root-backup-apps" class="ghost">Apps only</button>
+        <button type="button" id="root-backup-boot" class="ghost">Save boot image (factory path)</button>
+      </div>
+      <span id="root-backup-msg" class="status"></span>
+      <p class="action-row"><button type="button" id="root-backup-next" class="big-btn">I have backed up — continue to rooting</button></p>
+    </div>
     <div class="now bad hidden" id="wake-box">
       <div class="now-row"><span class="now-label">Do this first</span> <span id="wake-title" class="status">Wake the phone first</span></div>
       <ol id="wake-steps" class="wake-steps"></ol>
       <p class="now-hint" id="wake-hint">This panel changes on its own when the phone is back.</p>
     </div>
     <div id="stage-catch" class="hidden">
-      <h3 class="stage-h"><span class="stage-n">1</span> Catch the phone as it starts</h3>
+      <h3 class="stage-h"><span class="stage-n">2</span> Catch the phone as it starts</h3>
       <p>The phone has a one-second startup mode before Android loads, and that is the only moment the wizard can take over. <b>Nothing shows on the phone screen</b> — read the panel below, not the phone.</p>
       <div class="now" id="now-box">
         <div class="now-row"><span class="now-label">Phone right now</span> <span id="phone-now" class="status">checking…</span></div>
@@ -425,7 +426,7 @@
     </div>
 
     <div id="stage-flash" class="hidden">
-      <h3 class="stage-h"><span class="stage-n">2</span> Install the new boot image</h3>
+      <h3 class="stage-h"><span class="stage-n">3</span> Install the new boot image</h3>
       <p>The phone is in flashing mode, so the hard part is done. Press <b>Connect to the phone</b>. If it reports the phone is still locked, <b>Unlock</b> comes next and asks you to confirm on the keypad — that erases the phone. After the image is installed, press <b>Restart the phone</b>.</p>
       <p id="fb-need" class="warn hidden">Verify the pinned <code>neutron.img</code> below before <b>Install boot image</b>. Fastboot only — <b>adb is not required</b> until Android boots with root.</p>
       <h4 class="stage-sub">Boot image</h4>
@@ -447,7 +448,7 @@
       <pre class="log hidden" id="fb-log"></pre>
     </div>
     <div id="after-box" class="hidden">
-      <h3 class="stage-h"><span class="stage-n">3</span> Finish on the phone</h3>
+      <h3 class="stage-h"><span class="stage-n">4</span> Finish on the phone</h3>
       <ol class="wake-steps">
         <li>Wait for the phone to finish starting. The first start after a wipe takes a few minutes.</li>
         <li>Magisk finishes setting itself up on the first start, and may ask to restart — let it. If root still does not work afterwards, open the phone dialer and type <code>*#*#217703#*#*</code>.</li>
@@ -482,6 +483,18 @@
       <p>If the phone still starts, save a copy of the boot image it is running now — that is the image this step will later put back. Nothing is written to the phone. Leave it switched on and plugged in.</p>
       <p><button id="fac-backup">Save a copy from the phone</button> <span id="fac-backup-msg" class="status"></span></p>
       <div id="fac-backup-facts" class="now hidden"></div>
+
+      <h4 class="stage-h">Personal data (before the wipe in step 5)</h4>
+      <p class="note">While the phone still starts on USB with adb allowed, save contacts, messages, and apps. Same folders as the <b>Device</b> tab (<code>~/flip2-pre-wipe-backup</code>).</p>
+      <p id="fac-personal-info" class="note">No saved backup read yet.</p>
+      <div class="btn-grid">
+        <button type="button" id="fac-personal-refresh" class="ghost">Refresh info</button>
+        <button type="button" id="fac-personal-all">Back up contacts, messages &amp; apps</button>
+        <button type="button" id="fac-personal-contacts" class="ghost">Contacts only</button>
+        <button type="button" id="fac-personal-messages" class="ghost">Messages only</button>
+        <button type="button" id="fac-personal-apps" class="ghost">Apps only</button>
+      </div>
+      <span id="fac-personal-msg" class="status"></span>
 
       <h4 class="stage-h">Copies already on this computer</h4>
       <p>If the phone will not start, use a copy you saved on an earlier visit. This is the only way to bring a phone that will not boot back.</p>
@@ -606,6 +619,43 @@
     <button type="button" data-device-action data-key="6">End</button>
   </div>
   <span id="device-key-msg" class="status"></span>
+
+  <details class="apps-panel" id="device-backup" open>
+    <summary>Backup &amp; restore (before any wipe)</summary>
+    <p class="note">Use before <b>Erase and root</b> or factory reset. Set where backups are saved and browse what is on disk (Companion only).</p>
+    <details class="apps-panel" id="device-backup-locations">
+      <summary>Backup folders on this PC</summary>
+      <p class="note">Personal = contacts, messages, catalog apps. Boot = factory restore images. Pre-wipe = readable dumps for restore (e.g. pipeline exports).</p>
+      <div id="device-backup-loc-rows" class="backup-loc-rows"></div>
+      <div class="action-row action-row--compact">
+        <button type="button" id="device-backup-loc-reset" class="ghost small">Reset to defaults</button>
+        <span id="device-backup-loc-msg" class="status"></span>
+      </div>
+    </details>
+    <details class="apps-panel" id="device-backup-browser">
+      <summary>Browse saved backups</summary>
+      <div class="action-row action-row--compact">
+        <button type="button" id="device-backup-browse-btn" class="ghost">Refresh list</button>
+      </div>
+      <pre class="log backup-browse-log" id="device-backup-browse-out">—</pre>
+      <span id="device-backup-browse-msg" class="status"></span>
+    </details>
+    <p id="device-backup-info" class="note">No saved backup read yet.</p>
+    <div class="btn-grid">
+      <button type="button" id="device-backup-refresh" class="ghost">Refresh info</button>
+      <button type="button" id="device-backup-contacts">Backup contacts</button>
+      <button type="button" id="device-backup-messages">Backup messages</button>
+      <button type="button" id="device-backup-apps">Backup apps</button>
+      <button type="button" id="device-backup-all" class="ghost">All personal (contacts + messages + apps)</button>
+      <button type="button" id="device-restore-contacts">Restore contacts</button>
+      <button type="button" id="device-restore-messages">Restore messages</button>
+      <button type="button" id="device-restore-apps">Restore apps</button>
+      <button type="button" id="device-restore-prewipe-contacts" class="ghost">Pre-wipe contacts</button>
+      <button type="button" id="device-restore-prewipe-messages" class="ghost">Pre-wipe messages</button>
+      <button type="button" id="device-backup-boot" class="ghost">Save boot image (factory restore)</button>
+    </div>
+    <span id="device-backup-msg" class="status"></span>
+  </details>
 </section>
 
 </main>
@@ -656,8 +706,8 @@
   <p id="footer-wipe-always" class="note hidden">To wipe userdata only: use the phone’s factory reset (Settings or recovery). The wizard never wipes over the cable.</p>
   <p class="note footer-links">
     <b>Downloads:</b> <a href="/packages/flip2-installer-full-magisk.zip">full installer</a> ·
-    <a href="/packages/flip2-companion-1.4.0-alpha.36-linux-x86_64.AppImage">TCL Flip2 Manager (Linux)</a> ·
-    <a href="/packages/flip2-companion-1.4.0-alpha.36-win-x64.exe">TCL Flip2 Manager (Windows)</a> ·
+    <a href="/packages/flip2-companion-1.4.0-alpha.37-linux-x86_64.AppImage">TCL Flip2 Manager (Linux)</a> ·
+    <a href="/packages/flip2-companion-1.4.0-alpha.37-win-x64.exe">TCL Flip2 Manager (Windows)</a> ·
     <a href="../catalog.json">catalog.json</a> (all files + SHA-256) ·
     <code>/packages/&lt;filename&gt;</code> on this domain<br>
     <b>Source:</b> <a href="https://gitlab.com/mrsmallagain-group/flip2" rel="noopener">GitLab</a> ·

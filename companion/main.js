@@ -3,7 +3,7 @@
 // Web Serial dialogs, and installs the udev rules through pkexec so step 3
 // is one click instead of a sudo recipe.
 
-const { app, BrowserWindow, ipcMain, protocol, session, shell, net } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, session, shell, net, dialog } = require('electron');
 const { execFile, spawn } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -1034,7 +1034,205 @@ async function phoneIdentity() {
   return props;
 }
 
-const BACKUP_DIR = () => path.join(downloadDir(), 'backups');
+const BACKUP_PATHS_FILE = 'backup-paths.json';
+
+function defaultBackupPaths() {
+  return {
+    personal: path.join(os.homedir(), 'flip2-personal-backup'),
+    boot: path.join(downloadDir(), 'backups'),
+    prewipe: path.join(os.homedir(), 'flip2-pre-wipe-backup'),
+  };
+}
+
+let backupPathsCache = null;
+
+function loadBackupPathsFromDisk() {
+  const file = path.join(app.getPath('userData'), BACKUP_PATHS_FILE);
+  const defs = defaultBackupPaths();
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!raw || typeof raw !== 'object') return Object.assign({}, defs);
+    const out = Object.assign({}, defs);
+    ['personal', 'boot', 'prewipe'].forEach(function (k) {
+      const v = String(raw[k] || '').trim();
+      if (v && path.isAbsolute(v)) out[k] = v;
+    });
+    return out;
+  } catch (e) {
+    return Object.assign({}, defs);
+  }
+}
+
+function getBackupPaths() {
+  if (!backupPathsCache) backupPathsCache = loadBackupPathsFromDisk();
+  return Object.assign({}, backupPathsCache);
+}
+
+async function setBackupPaths(patch) {
+  const cur = getBackupPaths();
+  const next = Object.assign({}, cur);
+  if (patch && typeof patch === 'object') {
+    ['personal', 'boot', 'prewipe'].forEach(function (k) {
+      if (patch[k] === undefined) return;
+      const v = String(patch[k] || '').trim();
+      if (!v) return;
+      if (!path.isAbsolute(v)) throw new Error('backup folder must be an absolute path');
+      next[k] = v;
+    });
+  }
+  const file = path.join(app.getPath('userData'), BACKUP_PATHS_FILE);
+  await fsp.mkdir(path.dirname(file), { recursive: true });
+  const tmp = file + '.tmp';
+  await fsp.writeFile(tmp, JSON.stringify(next, null, 2) + '\n');
+  await fsp.rename(tmp, file);
+  backupPathsCache = next;
+  return next;
+}
+
+function bootBackupsDir() {
+  return getBackupPaths().boot;
+}
+
+function personalRoot() {
+  return getBackupPaths().personal;
+}
+
+function prewipeRoot() {
+  return getBackupPaths().prewipe;
+}
+
+async function pathInsideRoot(root, filePath) {
+  let realRoot;
+  try { realRoot = await fsp.realpath(root); } catch (e) { return false; }
+  let real;
+  try { real = await fsp.realpath(filePath); } catch (e) { return false; }
+  return real === realRoot || real.startsWith(realRoot + path.sep);
+}
+
+function formatBytes(n) {
+  if (typeof n !== 'number' || !isFinite(n) || n < 0) return '?';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KiB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MiB';
+}
+
+async function browsePersonalBackup() {
+  const root = personalRoot();
+  const items = [];
+  const checks = [
+    { rel: 'contacts2.db', kind: 'contacts database' },
+    { rel: 'mmssms.db', kind: 'messages database' },
+    { rel: 'manifest.json', kind: 'manifest' },
+  ];
+  for (let i = 0; i < checks.length; i++) {
+    const c = checks[i];
+    const full = path.join(root, c.rel);
+    try {
+      const st = await fsp.stat(full);
+      if (st.isFile()) {
+        items.push({ name: c.rel, kind: c.kind, size: st.size, sizeLabel: formatBytes(st.size), mtime: st.mtime.toISOString() });
+      }
+    } catch (e) { /* absent */ }
+  }
+  const appsDir = path.join(root, 'apps');
+  try {
+    const names = await fsp.readdir(appsDir);
+    for (let j = 0; j < names.length; j++) {
+      if (!/\.apk$/.test(names[j])) continue;
+      const full = path.join(appsDir, names[j]);
+      const st = await fsp.stat(full);
+      if (!st.isFile()) continue;
+      items.push({ name: 'apps/' + names[j], kind: 'catalog apk', size: st.size, sizeLabel: formatBytes(st.size), mtime: st.mtime.toISOString() });
+    }
+  } catch (e) { /* no apps */ }
+  return { ok: true, root: root, items: items };
+}
+
+async function browsePrewipeBackup() {
+  const root = prewipeRoot();
+  const items = [];
+  async function walk(rel, label) {
+    const full = path.join(root, rel);
+    try {
+      const st = await fsp.stat(full);
+      if (st.isFile()) {
+        items.push({ name: rel, kind: label, size: st.size, sizeLabel: formatBytes(st.size), mtime: st.mtime.toISOString() });
+        return;
+      }
+      if (st.isDirectory() && items.length < 60) {
+        const kids = await fsp.readdir(full);
+        for (let i = 0; i < kids.length && items.length < 60; i++) {
+          await walk(path.join(rel, kids[i]), label);
+        }
+      }
+    } catch (e) { /* skip */ }
+  }
+  await walk('readable/contacts2.db', 'pre-wipe contacts');
+  await walk('readable/mmssms.db', 'pre-wipe messages');
+  await walk('readable', 'pre-wipe readable');
+  return { ok: true, root: root, items: items };
+}
+
+async function backupBrowse(payload) {
+  const which = String(payload && payload.which || 'all');
+  const out = { ok: true, locations: getBackupPaths(), sections: {} };
+  if (which === 'all' || which === 'boot') {
+    const boots = await listBootBackups();
+    out.sections.boot = {
+      root: bootBackupsDir(),
+      items: boots.map(function (b) {
+        return {
+          name: b.name,
+          kind: 'boot image',
+          size: b.size,
+          sizeLabel: formatBytes(b.size),
+          mtime: b.takenAt || b.mtime,
+          serial: b.serial,
+          model: b.model,
+        };
+      }),
+    };
+  }
+  if (which === 'all' || which === 'personal') out.sections.personal = await browsePersonalBackup();
+  if (which === 'all' || which === 'prewipe') out.sections.prewipe = await browsePrewipeBackup();
+  return out;
+}
+
+async function backupOpenFolder(which) {
+  const loc = getBackupPaths();
+  const key = String(which || 'personal');
+  if (!loc[key]) throw new Error('unknown backup location');
+  await fsp.mkdir(loc[key], { recursive: true }).catch(function () {});
+  const err = await shell.openPath(loc[key]);
+  if (err) throw new Error(err);
+  return { ok: true, path: loc[key] };
+}
+
+async function backupPickFolder(which) {
+  const loc = getBackupPaths();
+  const key = String(which || 'personal');
+  const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  const opts = {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Choose folder for ' + key + ' backups',
+    defaultPath: loc[key] || os.homedir(),
+  };
+  const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (result.canceled || !result.filePaths || !result.filePaths.length) {
+    return { ok: false, canceled: true };
+  }
+  const picked = result.filePaths[0];
+  await setBackupPaths({ [key]: picked });
+  return { ok: true, which: key, path: picked, locations: getBackupPaths() };
+}
+
+async function backupLocationsReset() {
+  backupPathsCache = null;
+  const defaults = defaultBackupPaths();
+  await setBackupPaths(defaults);
+  return { ok: true, locations: getBackupPaths() };
+}
+
 const sha256Of = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
 // A restored copy brings back a boot image, not root as a separate thing — root
@@ -1062,7 +1260,7 @@ async function writeSidecar(dest, info) {
 // only: no partition is written, and the copy on sdcard is removed afterwards.
 async function backupBoot() {
   const serial = await adbSerial();
-  const dir = BACKUP_DIR();
+  const dir = bootBackupsDir();
   await fsp.mkdir(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const dest = path.join(dir, 'boot-' + stamp + '.img');
@@ -1107,11 +1305,11 @@ async function backupBoot() {
 // not, so a copy with no sidecar is still usable and still named honestly.
 async function listBootBackups() {
   let names = [];
-  try { names = await fsp.readdir(BACKUP_DIR()); } catch (e) { return []; }
+  try { names = await fsp.readdir(bootBackupsDir()); } catch (e) { return []; }
   const out = [];
   for (const name of names) {
     if (!/\.img$/.test(name)) continue;
-    const full = path.join(BACKUP_DIR(), name);
+    const full = path.join(bootBackupsDir(), name);
     let st;
     try { st = await fsp.stat(full); } catch (e) { continue; }
     if (!st.isFile()) continue;
@@ -1147,7 +1345,7 @@ async function listBootBackups() {
 // path from the page cannot reach out to something else on this computer.
 async function readBootBackup(dest) {
   let realDir = null;
-  try { realDir = await fsp.realpath(BACKUP_DIR()); } catch (e) { realDir = null; }
+  try { realDir = await fsp.realpath(bootBackupsDir()); } catch (e) { realDir = null; }
   let real;
   try { real = await fsp.realpath(String(dest || '')); }
   catch (e) { throw new Error('that backup file is not on this computer any more'); }
@@ -1787,16 +1985,8 @@ async function wizardHostVerify(payload) {
   }
 }
 
-// Personal backups: catalog APKs, contacts, and text messages.
-// Stored in ~/flip2-personal-backup, outside the boot-backup folder, so
-// factoryReadBackup cannot read them. Contacts are version-checked and
-// byte-copied. Messages are rebuilt with personal_db.py. snapshot() runs
-// only on a disposable temp copy, never on ~/flip2-pre-wipe-backup.
+// Personal backups: paths from getBackupPaths(); stored outside boot copies.
 // Counts only cross IPC. This does not wipe userdata, set device owner, or drop root.
-function personalRoot() {
-  return path.join(os.homedir(), 'flip2-personal-backup');
-}
-
 const PERSONAL_DB = {
   contacts: {
     file: 'contacts2.db',
@@ -2003,7 +2193,7 @@ async function savedDatabase(fileName) {
 
 function prewipeDatabase(fileName) {
   if (fileName !== 'contacts2.db' && fileName !== 'mmssms.db') throw new Error('unknown backup');
-  const file = path.join(os.homedir(), 'flip2-pre-wipe-backup', 'readable', fileName);
+  const file = path.join(prewipeRoot(), 'readable', fileName);
   if (!fs.existsSync(file)) throw new Error('pre-wipe backup is not on this PC');
   return file;
 }
@@ -2059,9 +2249,10 @@ async function personalBackupInfo() {
   Object.keys(CATALOG_PACKAGES).forEach(function (pkg) {
     if (fs.existsSync(path.join(root, 'apps', pkg + '.apk'))) apps += 1;
   });
-  const prewipeDir = path.join(os.homedir(), 'flip2-pre-wipe-backup', 'readable');
+  const prewipeDir = path.join(prewipeRoot(), 'readable');
   const prewipe = fs.existsSync(path.join(prewipeDir, 'contacts2.db')) && fs.existsSync(path.join(prewipeDir, 'mmssms.db'));
-  return { ok: true, contacts: contacts, messages: messages, apps: apps, prewipe: prewipe };
+  const loc = getBackupPaths();
+  return { ok: true, contacts: contacts, messages: messages, apps: apps, prewipe: prewipe, locations: loc };
 }
 
 async function personalBackupContacts() {
@@ -2575,6 +2766,28 @@ app.whenReady().then(function () {
   ipcMain.handle('factory-state', function (_e, fp) { return factoryState(fp); });
   ipcMain.handle('factory-list-backups', function () { return listBootBackups(); });
   ipcMain.handle('factory-read-backup', function (_e, dest) { return readBootBackup(dest); });
+  ipcMain.handle('backup-locations-get', function () {
+    return Promise.resolve({ ok: true, locations: getBackupPaths() });
+  });
+  ipcMain.handle('backup-locations-set', function (_e, patch) {
+    return setBackupPaths(patch).then(function (locations) {
+      return { ok: true, locations: locations };
+    });
+  });
+  ipcMain.handle('backup-locations-reset', function () { return backupLocationsReset(); });
+  ipcMain.handle('backup-browse', function (_e, payload) {
+    return backupBrowse(payload).catch(function (e) {
+      return { ok: false, error: (e && e.message) || String(e) };
+    });
+  });
+  ipcMain.handle('backup-open-folder', function (_e, which) {
+    return backupOpenFolder(which).catch(function (e) {
+      return { ok: false, error: (e && e.message) || String(e) };
+    });
+  });
+  ipcMain.handle('backup-pick-folder', function (_e, which) {
+    return backupPickFolder(which);
+  });
   ipcMain.handle('wizard-host-adb-ready', function () { return wizardHostAdbReady(); });
   ipcMain.handle('wizard-host-shell', function (_e, payload) { return wizardHostShell(payload); });
   ipcMain.handle('wizard-host-prepare', function () { return wizardHostPrepare(); });

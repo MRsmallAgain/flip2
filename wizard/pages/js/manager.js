@@ -935,82 +935,107 @@ function initApps() {
   refreshAppsStatus();
 }
 
-function initPersonalBackup() {
+var backupBusy = false;
+
+function backupNtext(n) {
+  return (typeof n === 'number' && isFinite(n) && Math.floor(n) === n) ? String(n) : '?';
+}
+
+function backupContactsCounts(c) {
+  if (!c) return 'none saved';
+  return backupNtext(c.named) + ' named, ' + backupNtext(c.blankNames) + ' blank, ' + backupNtext(c.data) + ' data';
+}
+
+function backupMessagesCounts(m) {
+  if (!m) return 'none saved';
+  return backupNtext(m.sms) + ' sms, ' + backupNtext(m.threads) + ' threads, ' + backupNtext(m.inbox) + ' inbox, ' + backupNtext(m.sent) + ' sent';
+}
+
+function backupPaintInfo(infoId, r) {
+  var info = $(infoId);
+  if (!info) return;
+  if (!r || r.ok === false) {
+    info.textContent = (r && typeof r.error === 'string' && r.error) ? r.error : 'No saved backup read yet.';
+    return;
+  }
+  info.textContent = 'Contacts: ' + backupContactsCounts(r.contacts) +
+    '. Messages: ' + backupMessagesCounts(r.messages) +
+    '. Apps: ' + backupNtext(r.apps) +
+    '. Pre-wipe readable backup: ' + (r.prewipe ? 'yes' : 'no') + '.';
+}
+
+function backupFailText(r) {
+  var parts = [];
+  var i;
+  if (r && typeof r.error === 'string' && r.error) parts.push(r.error);
+  if (r && typeof r.installed === 'number' && r.failed && r.failed.length) {
+    parts.push(backupNtext(r.installed) + ' installed');
+  }
+  if (r && r.failed && r.failed.length) {
+    for (i = 0; i < r.failed.length; i++) {
+      var item = r.failed[i] || {};
+      var name = (typeof item.packageName === 'string' && item.packageName) ? item.packageName : 'package';
+      var err = (typeof item.error === 'string' && item.error) ? item.error : 'install failed';
+      parts.push(name + ': ' + err);
+    }
+  }
+  return parts.length ? parts.join('. ') : 'personal backup failed';
+}
+
+function wirePersonalBackupPanel(opts) {
   var N = window.FLIP2_NATIVE || {};
+  var prefix = opts.prefix;
+  var infoId = opts.infoId;
+  var msgId = opts.msgId;
   var savedInfoGen = 0;
-
-  function ntext(n) {
-    return (typeof n === 'number' && isFinite(n) && Math.floor(n) === n) ? String(n) : '?';
-  }
-
-  function contactsCounts(c) {
-    if (!c) return 'none saved';
-    return ntext(c.named) + ' named, ' + ntext(c.blankNames) + ' blank, ' + ntext(c.data) + ' data';
-  }
-
-  function messagesCounts(m) {
-    if (!m) return 'none saved';
-    return ntext(m.sms) + ' sms, ' + ntext(m.threads) + ' threads, ' + ntext(m.inbox) + ' inbox, ' + ntext(m.sent) + ' sent';
-  }
+  var paintIds = opts.paintAllInfoIds || [infoId];
 
   function say(text, cls) {
-    setStatus('apps-backup-msg', text, cls);
+    setStatus(msgId, text, cls);
   }
 
-  function failText(r) {
-    var parts = [];
+  function paintAll(r) {
     var i;
-    if (r && typeof r.error === 'string' && r.error) parts.push(r.error);
-    if (r && typeof r.installed === 'number' && r.failed && r.failed.length) {
-      parts.push(ntext(r.installed) + ' installed');
-    }
-    if (r && r.failed && r.failed.length) {
-      for (i = 0; i < r.failed.length; i++) {
-        var item = r.failed[i] || {};
-        var name = (typeof item.packageName === 'string' && item.packageName) ? item.packageName : 'package';
-        var err = (typeof item.error === 'string' && item.error) ? item.error : 'install failed';
-        parts.push(name + ': ' + err);
-      }
-    }
-    return parts.length ? parts.join('. ') : 'personal backup failed';
-  }
-
-  function paintBackupInfo(r) {
-    var info = $('apps-backup-info');
-    if (!info) return;
-    if (!r || r.ok === false) {
-      info.textContent = (r && typeof r.error === 'string' && r.error) ? r.error : 'No saved backup read yet.';
-      return;
-    }
-    info.textContent = 'Contacts: ' + contactsCounts(r.contacts) +
-      '. Messages: ' + messagesCounts(r.messages) +
-      '. Apps: ' + ntext(r.apps) +
-      '. Pre-wipe readable backup: ' + (r.prewipe ? 'yes' : 'no') + '.';
+    for (i = 0; i < paintIds.length; i++) backupPaintInfo(paintIds[i], r);
   }
 
   function refreshSaved(fromClick) {
-    var info = $('apps-backup-info');
+    var info = $(infoId);
     if (typeof N.personalBackupInfo !== 'function') {
       if (info) info.textContent = 'Open this page in Flip 2 Companion. Relaunch Companion if this window was already open.';
       return;
     }
     var gen = ++savedInfoGen;
-    if (fromClick && !appsBusy) say('Reading the saved backup\u2026', 'wait');
+    var blockMsg = opts.useAppsLock && appsBusy;
+    if (fromClick && !backupBusy && !blockMsg) say('Reading the saved backup\u2026', 'wait');
     N.personalBackupInfo().then(function (r) {
       if (gen !== savedInfoGen) return;
-      paintBackupInfo(r);
-      if (!fromClick || appsBusy) return;
-      if (!r || r.ok === false) say(failText(r), 'bad');
+      paintAll(r);
+      if (!fromClick || backupBusy || blockMsg) return;
+      if (!r || r.ok === false) say(backupFailText(r), 'bad');
       else say('Saved backup updated.', 'ok');
     }).catch(function (e) {
       if (gen !== savedInfoGen) return;
       var msg = cleanErr(e);
-      if (info) info.textContent = msg;
-      if (fromClick && !appsBusy) say(msg, 'bad');
+      paintAll({ ok: false, error: msg });
+      if (fromClick && !backupBusy && !blockMsg) say(msg, 'bad');
     });
   }
 
-  function arm(id, methodName) {
+  function tryLock() {
+    if (opts.useAppsLock) return appsLock();
+    if (backupBusy) return false;
+    backupBusy = true;
+    return true;
+  }
+
+  function unlock() {
+    if (opts.useAppsLock) appsUnlock();
+    else backupBusy = false;
+  }
+
+  function arm(suffix, methodName) {
+    var id = prefix + '-' + suffix;
     var btn = $(id);
     if (!btn) return null;
     if (typeof N[methodName] !== 'function') {
@@ -1022,101 +1047,364 @@ function initPersonalBackup() {
 
   function runPersonal(btn, waitText, call, okText) {
     if (!btn || btn.disabled) return;
-    if (!appsLock()) {
-      say('Another Apps action is still running.', 'wait');
+    if (!tryLock()) {
+      say(opts.useAppsLock ? 'Another Apps action is still running.' : 'Another backup is still running.', 'wait');
       return;
     }
     btn.disabled = true;
     say(waitText, 'wait');
     Promise.resolve().then(call).then(function (r) {
       if (!r || r.ok === false) {
-        say(failText(r), 'bad');
+        say(backupFailText(r), 'bad');
         return;
       }
       say(okText(r), 'ok');
     }).catch(function (e) {
       say(cleanErr(e), 'bad');
     }).then(function () {
-      appsUnlock();
+      unlock();
       btn.disabled = false;
       refreshSaved(false);
+      if (typeof window.refreshAllBackupInfo === 'function') window.refreshAllBackupInfo(false);
     });
   }
 
-  var refreshBtn = arm('apps-backup-refresh', 'personalBackupInfo');
+  function wireBoot(btnId) {
+    var btn = $(btnId);
+    if (!btn) return;
+    if (!N.factoryBackupBoot) {
+      btn.disabled = true;
+      return;
+    }
+    btn.addEventListener('click', function () {
+      if (!tryLock()) {
+        say('Another backup is still running.', 'wait');
+        return;
+      }
+      btn.disabled = true;
+      say('copying the boot image off the phone\u2026', 'wait');
+      N.factoryBackupBoot().then(function (info) {
+        var okHeader = info.magic === 'ANDROID!';
+        if (!okHeader) {
+          say('That file is not a boot image. Nothing was written.', 'bad');
+          return;
+        }
+        say('Boot image saved on this computer for factory restore.', 'ok');
+      }).catch(function (e) {
+        say(cleanErr(e), 'bad');
+      }).then(function () {
+        unlock();
+        btn.disabled = false;
+      });
+    });
+  }
+
+  function runAllPersonal(btn) {
+    if (!btn || btn.disabled) return;
+    if (!tryLock()) {
+      say('Another backup is still running.', 'wait');
+      return;
+    }
+    btn.disabled = true;
+    say('Backing up contacts, messages, and apps\u2026', 'wait');
+    N.personalBackupContacts()
+      .then(function (r) { if (!r || r.ok === false) throw r; return N.personalBackupMessages(); })
+      .then(function (r) { if (!r || r.ok === false) throw r; return N.personalBackupApps(); })
+      .then(function (r) {
+        if (!r || r.ok === false) throw r;
+        say('Contacts, messages, and apps saved.', 'ok');
+      })
+      .catch(function (e) {
+        if (e && e.ok === false) say(backupFailText(e), 'bad');
+        else say(cleanErr(e), 'bad');
+      })
+      .then(function () {
+        unlock();
+        btn.disabled = false;
+        refreshSaved(false);
+        if (typeof window.refreshAllBackupInfo === 'function') window.refreshAllBackupInfo(false);
+      });
+  }
+
+  var refreshBtn = arm('refresh', 'personalBackupInfo');
   if (refreshBtn) refreshBtn.addEventListener('click', function () { refreshSaved(true); });
 
-  var backupContacts = arm('apps-backup-contacts', 'personalBackupContacts');
+  var backupContacts = arm('contacts', 'personalBackupContacts');
   if (backupContacts) backupContacts.addEventListener('click', function () {
     runPersonal(backupContacts, 'Backing up contacts\u2026', function () {
       return N.personalBackupContacts();
     }, function (r) {
-      return 'Contacts saved. ' + contactsCounts(r.contacts) + '.';
+      return 'Contacts saved. ' + backupContactsCounts(r.contacts) + '.';
     });
   });
 
-  var backupMessages = arm('apps-backup-messages', 'personalBackupMessages');
+  var backupMessages = arm('messages', 'personalBackupMessages');
   if (backupMessages) backupMessages.addEventListener('click', function () {
     runPersonal(backupMessages, 'Backing up messages\u2026', function () {
       return N.personalBackupMessages();
     }, function (r) {
-      return 'Messages saved. ' + messagesCounts(r.messages) + '.';
+      return 'Messages saved. ' + backupMessagesCounts(r.messages) + '.';
     });
   });
 
-  var backupApps = arm('apps-backup-apps', 'personalBackupApps');
+  var backupApps = arm('apps', 'personalBackupApps');
   if (backupApps) backupApps.addEventListener('click', function () {
     runPersonal(backupApps, 'Backing up apps\u2026', function () {
       return N.personalBackupApps();
     }, function (r) {
-      return 'Apps saved: ' + ntext(r.apps) + '.';
+      return 'Apps saved: ' + backupNtext(r.apps) + '.';
     });
   });
 
-  var restoreContacts = arm('apps-restore-contacts', 'personalRestoreContacts');
+  var backupAll = $(prefix + '-all');
+  if (backupAll) backupAll.addEventListener('click', function () { runAllPersonal(backupAll); });
+
+  var restoreContacts = arm('restore-contacts', 'personalRestoreContacts');
   if (restoreContacts) restoreContacts.addEventListener('click', function () {
     runPersonal(restoreContacts, 'Restoring saved contacts\u2026', function () {
       return N.personalRestoreContacts({ source: 'saved' });
     }, function (r) {
-      return 'Contacts restored. ' + contactsCounts(r.contacts) + '.';
+      return 'Contacts restored. ' + backupContactsCounts(r.contacts) + '.';
     });
   });
 
-  var restoreMessages = arm('apps-restore-messages', 'personalRestoreMessages');
+  var restoreMessages = arm('restore-messages', 'personalRestoreMessages');
   if (restoreMessages) restoreMessages.addEventListener('click', function () {
     runPersonal(restoreMessages, 'Restoring saved messages\u2026', function () {
       return N.personalRestoreMessages({ source: 'saved' });
     }, function (r) {
-      return 'Messages restored. ' + messagesCounts(r.messages) + '.';
+      return 'Messages restored. ' + backupMessagesCounts(r.messages) + '.';
     });
   });
 
-  var restoreApps = arm('apps-restore-apps', 'personalRestoreApps');
+  var restoreApps = arm('restore-apps', 'personalRestoreApps');
   if (restoreApps) restoreApps.addEventListener('click', function () {
     runPersonal(restoreApps, 'Restoring saved apps\u2026', function () {
       return N.personalRestoreApps();
     }, function (r) {
-      return 'Apps restored. ' + ntext(r.installed) + ' installed.';
+      return 'Apps restored. ' + backupNtext(r.installed) + ' installed.';
     });
   });
 
-  var prewipeContacts = arm('apps-restore-prewipe-contacts', 'personalRestoreContacts');
+  var prewipeContacts = arm('restore-prewipe-contacts', 'personalRestoreContacts');
   if (prewipeContacts) prewipeContacts.addEventListener('click', function () {
     runPersonal(prewipeContacts, 'Restoring pre-wipe contacts\u2026', function () {
       return N.personalRestoreContacts({ source: 'prewipe' });
     }, function (r) {
-      return 'Pre-wipe contacts restored. ' + contactsCounts(r.contacts) + '.';
+      return 'Pre-wipe contacts restored. ' + backupContactsCounts(r.contacts) + '.';
     });
   });
 
-  var prewipeMessages = arm('apps-restore-prewipe-messages', 'personalRestoreMessages');
+  var prewipeMessages = arm('restore-prewipe-messages', 'personalRestoreMessages');
   if (prewipeMessages) prewipeMessages.addEventListener('click', function () {
     runPersonal(prewipeMessages, 'Restoring pre-wipe messages\u2026', function () {
       return N.personalRestoreMessages({ source: 'prewipe' });
     }, function (r) {
-      return 'Pre-wipe messages restored. ' + messagesCounts(r.messages) + '.';
+      return 'Pre-wipe messages restored. ' + backupMessagesCounts(r.messages) + '.';
     });
   });
 
+  wireBoot(prefix + '-boot');
   refreshSaved(false);
+  return refreshSaved;
+}
+
+var BACKUP_INFO_IDS = ['device-backup-info', 'root-backup-info', 'fac-personal-info'];
+
+var BACKUP_LOC_LABELS = {
+  personal: 'Personal (contacts, messages, apps)',
+  boot: 'Boot images (factory restore)',
+  prewipe: 'Pre-wipe readable dump'
+};
+
+function paintBackupLocations(loc) {
+  var box = $('device-backup-loc-rows');
+  if (!box) return;
+  box.textContent = '';
+  ['personal', 'boot', 'prewipe'].forEach(function (key) {
+    var row = document.createElement('div');
+    row.className = 'backup-loc-row';
+    var label = document.createElement('span');
+    label.className = 'backup-loc-label';
+    label.textContent = BACKUP_LOC_LABELS[key] || key;
+    var pathEl = document.createElement('code');
+    pathEl.className = 'backup-loc-path';
+    pathEl.textContent = (loc && loc[key]) ? loc[key] : '—';
+    var actions = document.createElement('span');
+    actions.className = 'backup-loc-actions';
+    var openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.className = 'ghost small';
+    openBtn.textContent = 'Open';
+    openBtn.setAttribute('data-loc-open', key);
+    var pickBtn = document.createElement('button');
+    pickBtn.type = 'button';
+    pickBtn.className = 'ghost small';
+    pickBtn.textContent = 'Choose…';
+    pickBtn.setAttribute('data-loc-pick', key);
+    actions.appendChild(openBtn);
+    actions.appendChild(pickBtn);
+    row.appendChild(label);
+    row.appendChild(pathEl);
+    row.appendChild(actions);
+    box.appendChild(row);
+  });
+}
+
+function formatBackupBrowse(r) {
+  var lines = [];
+  var loc = r.locations || {};
+  lines.push('Personal: ' + (loc.personal || '—'));
+  lines.push('Boot: ' + (loc.boot || '—'));
+  lines.push('Pre-wipe: ' + (loc.prewipe || '—'));
+  lines.push('');
+  var sec = r.sections || {};
+  function section(title, data) {
+    if (!data) return;
+    lines.push('== ' + title + ' ==');
+    lines.push('Folder: ' + (data.root || '—'));
+    var items = data.items || [];
+    if (!items.length) {
+      lines.push('  (nothing found)');
+    } else {
+      items.forEach(function (it) {
+        var extra = it.serial ? ' serial ' + it.serial : '';
+        if (it.model) extra += ' ' + it.model;
+        lines.push('  • ' + (it.name || '?') + ' — ' + (it.kind || '') + ', ' + (it.sizeLabel || it.size || '?') + extra);
+      });
+    }
+    lines.push('');
+  }
+  section('Boot images', sec.boot);
+  section('Personal', sec.personal);
+  section('Pre-wipe', sec.prewipe);
+  return lines.join('\n');
+}
+
+function initBackupBrowser() {
+  var N = window.FLIP2_NATIVE || {};
+  var locMsg = 'device-backup-loc-msg';
+  var browseMsg = 'device-backup-browse-msg';
+
+  function sayLoc(text, cls) {
+    setStatus(locMsg, text, cls);
+  }
+  function sayBrowse(text, cls) {
+    setStatus(browseMsg, text, cls);
+  }
+
+  function loadLocations() {
+    if (typeof N.backupLocationsGet !== 'function') {
+      paintBackupLocations(null);
+      return;
+    }
+    N.backupLocationsGet().then(function (r) {
+      if (r && r.locations) paintBackupLocations(r.locations);
+    }).catch(function () {});
+  }
+
+  var rows = $('device-backup-loc-rows');
+  if (rows) {
+    rows.addEventListener('click', function (ev) {
+      var openKey = ev.target.getAttribute && ev.target.getAttribute('data-loc-open');
+      var pickKey = ev.target.getAttribute && ev.target.getAttribute('data-loc-pick');
+      if (openKey && N.backupOpenFolder) {
+        sayLoc('Opening folder…', 'wait');
+        N.backupOpenFolder(openKey).then(function (r) {
+          if (!r || r.ok === false) sayLoc((r && r.error) || 'Could not open folder', 'bad');
+          else sayLoc('Opened in file manager.', 'ok');
+        }).catch(function (e) {
+          sayLoc(cleanErr(e), 'bad');
+        });
+        return;
+      }
+      if (pickKey && N.backupPickFolder) {
+        sayLoc('Choose a folder in the dialog…', 'wait');
+        N.backupPickFolder(pickKey).then(function (r) {
+          if (r && r.canceled) {
+            sayLoc('', '');
+            return;
+          }
+          if (!r || r.ok === false) {
+            sayLoc((r && r.error) || 'Folder not changed', 'bad');
+            return;
+          }
+          paintBackupLocations(r.locations);
+          sayLoc('Saved folder for ' + pickKey + '.', 'ok');
+          if (typeof window.refreshAllBackupInfo === 'function') window.refreshAllBackupInfo(false);
+        }).catch(function (e) {
+          sayLoc(cleanErr(e), 'bad');
+        });
+      }
+    });
+  }
+
+  var resetBtn = $('device-backup-loc-reset');
+  if (resetBtn && N.backupLocationsReset) {
+    resetBtn.addEventListener('click', function () {
+      sayLoc('Resetting…', 'wait');
+      N.backupLocationsReset().then(function (r) {
+        if (!r || r.ok === false) {
+          sayLoc('Reset failed', 'bad');
+          return;
+        }
+        paintBackupLocations(r.locations);
+        sayLoc('Default folders restored.', 'ok');
+        if (typeof window.refreshAllBackupInfo === 'function') window.refreshAllBackupInfo(false);
+      }).catch(function (e) {
+        sayLoc(cleanErr(e), 'bad');
+      });
+    });
+  }
+
+  var browseBtn = $('device-backup-browse-btn');
+  var browseOut = $('device-backup-browse-out');
+  if (browseBtn && N.backupBrowse) {
+    browseBtn.addEventListener('click', function () {
+      sayBrowse('Scanning disks…', 'wait');
+      N.backupBrowse({ which: 'all' }).then(function (r) {
+        if (!r || r.ok === false) {
+          if (browseOut) browseOut.textContent = (r && r.error) || 'Browse failed';
+          sayBrowse((r && r.error) || 'Browse failed', 'bad');
+          return;
+        }
+        if (browseOut) browseOut.textContent = formatBackupBrowse(r);
+        if (r.locations) paintBackupLocations(r.locations);
+        sayBrowse('List updated.', 'ok');
+      }).catch(function (e) {
+        if (browseOut) browseOut.textContent = cleanErr(e);
+        sayBrowse(cleanErr(e), 'bad');
+      });
+    });
+  }
+
+  loadLocations();
+}
+
+function initPersonalBackup() {
+  var refreshShared = wirePersonalBackupPanel({
+    prefix: 'device-backup',
+    infoId: 'device-backup-info',
+    msgId: 'device-backup-msg',
+    useAppsLock: false,
+    paintAllInfoIds: BACKUP_INFO_IDS
+  });
+  wirePersonalBackupPanel({
+    prefix: 'root-backup',
+    infoId: 'root-backup-info',
+    msgId: 'root-backup-msg',
+    useAppsLock: false,
+    paintAllInfoIds: BACKUP_INFO_IDS
+  });
+  wirePersonalBackupPanel({
+    prefix: 'fac-personal',
+    infoId: 'fac-personal-info',
+    msgId: 'fac-personal-msg',
+    useAppsLock: false,
+    paintAllInfoIds: BACKUP_INFO_IDS
+  });
+  window.refreshAllBackupInfo = function (fromClick) {
+    refreshShared(fromClick);
+  };
+  initBackupBrowser();
 }

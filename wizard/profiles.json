@@ -2,40 +2,10 @@
   "$comment": "Flip2 manager profiles. Canonical copy; wizard/profiles.json must stay byte-identical so the page can fetch it. Component ids match pipeline/deploy/manifest.json, plus sherpa-en and sherpa-uk (speech tarballs, not manifest components).",
   "profiles": [
     {
-      "id": "arcade",
-      "label": "Arcade",
-      "enabled": true,
-      "experimental": true,
-      "summary": "Same as Base but flip2burnMouse: landscape gamepad, rotated landscape cursor, portrait mouse, star IME handoff in one daemon.",
-      "warning": "Experimental — landscape gamepad stack is rough around the edges.",
-      "components": [
-        "navoverlay",
-        "keypad",
-        "flip2burn_mouse",
-        "tagdrawer",
-        "launcher_overlay",
-        "launcher4",
-        "ime",
-        "forkgram",
-        "materialfiles",
-        "appshelf",
-        "fdroid_basic",
-        "newpipe",
-        "vlc",
-        "intertune",
-        "bouncy",
-        "home_keys",
-        "display",
-        "wallpaper",
-        "sherpa-en",
-        "sherpa-uk"
-      ]
-    },
-    {
       "id": "base",
       "label": "Base",
       "enabled": true,
-      "summary": "Today's full wizard install: modules, Launcher4, Null Keyboard, Forkgram, Material Files, AppShelf, F-Droid Basic, NewPipe, VLC, Intertune, Bouncy, home keys, 321\u00d7428, wallpaper, Sherpa-ONNX STT (EN+UK). FlipMouse (deprecated portrait mouse) — not flip2burnMouse.",
+      "summary": "Today's full wizard install: modules, Launcher4, Null Keyboard, Forkgram, Material Files, AppShelf, F-Droid Basic, NewPipe, VLC, Intertune, Bouncy, home keys, 321×428, wallpaper, Sherpa-ONNX STT (EN+UK). FlipMouse (deprecated portrait mouse) — not flip2burnMouse.",
       "components": [
         "navoverlay",
         "keypad",
@@ -86,18 +56,6 @@
       ]
     },
     {
-      "id": "messaging",
-      "label": "Messaging",
-      "enabled": true,
-      "experimental": true,
-      "extends": "base",
-      "adds": [
-        "fluffychat"
-      ],
-      "summary": "Base plus FluffyChat (Matrix) for bridged WhatsApp, Signal, and Google Voice. Forkgram stays for Telegram. See docs/BRIDGES-FLIP2.md.",
-      "warning": "Requires Matrix homeserver and bridges (tier 1–2). Patched FluffyChat mirror not in catalog yet — use flip2 fluffychat release --fdroid."
-    },
-    {
       "id": "managed",
       "label": "Managed",
       "enabled": true,
@@ -122,6 +80,48 @@
           "default": true
         }
       ]
+    },
+    {
+      "id": "arcade",
+      "label": "Arcade",
+      "enabled": true,
+      "experimental": true,
+      "summary": "Same as Base but flip2burnMouse: landscape gamepad, rotated landscape cursor, portrait mouse, star IME handoff in one daemon.",
+      "warning": "Experimental — landscape gamepad stack is rough around the edges.",
+      "components": [
+        "navoverlay",
+        "keypad",
+        "flip2burn_mouse",
+        "tagdrawer",
+        "launcher_overlay",
+        "launcher4",
+        "ime",
+        "forkgram",
+        "materialfiles",
+        "appshelf",
+        "fdroid_basic",
+        "newpipe",
+        "vlc",
+        "intertune",
+        "bouncy",
+        "home_keys",
+        "display",
+        "wallpaper",
+        "sherpa-en",
+        "sherpa-uk"
+      ]
+    },
+    {
+      "id": "messaging",
+      "label": "Messaging",
+      "enabled": true,
+      "experimental": true,
+      "extends": "base",
+      "adds": [
+        "fluffychat"
+      ],
+      "summary": "Base plus FluffyChat (Matrix) for bridged WhatsApp, Signal, and Google Voice. Forkgram stays for Telegram. See docs/BRIDGES-FLIP2.md.",
+      "warning": "Requires Matrix homeserver and bridges (tier 1–2). Patched FluffyChat mirror not in catalog yet — use flip2 fluffychat release --fdroid."
     },
     {
       "id": "secure",
