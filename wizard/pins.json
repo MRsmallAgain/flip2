@@ -146,8 +146,8 @@
     {
       "id": "companion-win",
       "file": "flip2-companion-1.4.0-alpha.37-win-x64.exe",
-      "sha256": "49e7e4a23d0fe6286df4a52ad440489cd52509da0f4d0b1c34c8c8f8182768fc",
-      "size": 90555668,
+      "sha256": "de99a7b1a74f55da0e8ab43da0f4fc964527ba6d0dfbaf76b428881a7a934b48",
+      "size": 90555674,
       "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.37-win-x64.exe"
     }
   ]
