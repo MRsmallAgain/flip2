@@ -182,6 +182,10 @@ function showStep(name) {
   syncStepCollapsePanels(name);
   updatePrepareStrip(name);
   if (name === 'download') updateCreditStatusRows();
+  if ((name === 'device' || name === 'root' || name === 'factory') &&
+      typeof window.refreshAllBackupInfo === 'function') {
+    window.refreshAllBackupInfo(false);
+  }
   // The first call is the page load. Later calls jump to that section
   // without hiding the rest of the page. Instant, because a smooth jump
   // started from a pill click is ignored in this window.
@@ -1933,7 +1937,9 @@ var stageName = null;
 // instead of leaving two panels side by side to compete for attention.
 function renderStage() {
   var woken = !$('wake-box').classList.contains('hidden');
-  var name = stageName || 'catch';
+  var name = stageName || 'backup';
+  var stageBackup = $('stage-backup');
+  if (stageBackup) stageBackup.classList.toggle('hidden', woken || name !== 'backup');
   $('stage-catch').classList.toggle('hidden', woken || name !== 'catch');
   $('stage-flash').classList.toggle('hidden', woken || name !== 'flash');
   $('after-box').classList.toggle('hidden', woken || name !== 'done');
@@ -2017,7 +2023,7 @@ function showPhoneState(state) {
   // Stage 1 needs Web Serial (Start watching), not adb visibility. On Windows the
   // companion often cannot list preloader; unknown/absent/android are expected during
   // the battery pull — do not cover the catch panel with a wake card.
-  var catchStage = stageName === 'catch' || stageName === null;
+  var catchStage = stageName === 'catch' || stageName === 'backup' || stageName === null;
   var catchOkModes = { absent: 1, android: 1, unknown: 1 };
   if (catchStage && catchOkModes[mode]) {
     hideWake();
@@ -2352,10 +2358,18 @@ function initRoot() {
     $('boot-log').classList.add('hidden');
     $('fb-log').textContent = '';
     $('fb-log').classList.add('hidden');
-    setStage('catch');
+    setStage('backup');
+    if (typeof window.refreshAllBackupInfo === 'function') window.refreshAllBackupInfo(false);
     pollPhoneState();
     if (!phonePoller) phonePoller = setInterval(pollPhoneState, 1000);
   });
+  var rootBackupNext = $('root-backup-next');
+  if (rootBackupNext) {
+    rootBackupNext.addEventListener('click', function () {
+      setStage('catch');
+      pollPhoneState();
+    });
+  }
   $('boot-btn').addEventListener('click', function () {
     if (!navigator.serial) {
       setStatus('boot-msg', 'This browser cannot talk to USB serial. Use the Companion app.', 'bad');
