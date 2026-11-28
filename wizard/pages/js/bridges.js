@@ -99,12 +99,86 @@ function bridgesOpenBotDm(mxid) {
   });
 }
 
+function bridgesSyncSecretUi() {
+  var N = window.FLIP2_NATIVE;
+  var manual = $('bridges-secret-manual');
+  var wrap = $('bridges-secret-wrap');
+  var hint = $('bridges-secret-hint');
+  if (!hint) return;
+  if (!N || !N.bridgeMatrixHasLocalSecret) {
+    hint.textContent = 'Matrix registration needs Flip 2 Companion — paste registration secret manually if needed.';
+    if (wrap) wrap.classList.remove('hidden');
+    if (manual) manual.checked = true;
+    return;
+  }
+  N.bridgeMatrixHasLocalSecret().then(function (r) {
+    if (!r || !r.ok) return;
+    if (r.hasSecret && manual && !manual.checked) {
+      hint.textContent = 'Using registration secret from pipeline/bridge-kit/.env on this PC.';
+      if (wrap) wrap.classList.add('hidden');
+    } else if (manual && manual.checked) {
+      hint.textContent = 'Paste SYNAPSE_REGISTRATION_SHARED_SECRET from VPS .env (not admin password).';
+      if (wrap) wrap.classList.remove('hidden');
+    } else {
+      hint.textContent = 'No local .env — paste secret or run flip2 bridges rotate-creds.';
+      if (wrap) wrap.classList.remove('hidden');
+    }
+  }).catch(function () { /* ignore */ });
+}
+
+function bridgesShowCreds(result) {
+  var box = $('bridges-creds');
+  if (!box || !result) return;
+  var mxid = $('bridges-creds-mxid');
+  var pass = $('bridges-creds-pass');
+  if (mxid) mxid.textContent = result.userId || '';
+  if (pass) pass.textContent = result.password || '';
+  box.classList.remove('hidden');
+}
+
+function bridgesCreateMatrixAccount() {
+  var N = window.FLIP2_NATIVE;
+  if (!N || !N.bridgeMatrixRegisterUser) {
+    setStatus('bridges-msg', 'Create account needs Flip 2 Companion.', 'bad');
+    return;
+  }
+  var username = ($('bridges-username') && $('bridges-username').value.trim()) || '';
+  if (!username) {
+    setStatus('bridges-msg', 'Enter a username (localpart).', 'bad');
+    return;
+  }
+  var payload = {
+    homeserverUrl: bridgesHomeserverUrl(),
+    username: username,
+    password: ($('bridges-password') && $('bridges-password').value) || ''
+  };
+  if ($('bridges-secret-manual') && $('bridges-secret-manual').checked) {
+    payload.registrationSharedSecret = ($('bridges-reg-secret') && $('bridges-reg-secret').value.trim()) || '';
+  }
+  var btn = $('bridges-create-account');
+  if (btn) btn.disabled = true;
+  setStatus('bridges-msg', 'Creating Matrix user…', 'wait');
+  N.bridgeMatrixRegisterUser(payload).then(function (r) {
+    if (btn) btn.disabled = false;
+    if (!r || !r.ok) {
+      setStatus('bridges-msg', (r && r.error) || 'Registration failed.', 'bad');
+      return;
+    }
+    bridgesShowCreds(r);
+    setStatus('bridges-msg', 'Account created — sign in on Flip with password above, then Open sign-in.', 'ok');
+  }).catch(function (e) {
+    if (btn) btn.disabled = false;
+    setStatus('bridges-msg', cleanErr(e), 'bad');
+  });
+}
+
 function syncBridgesPanel() {
   var panel = $('bridges-panel');
   if (!panel) return;
   panel.classList.toggle('hidden', !bridgesTierVisible());
   var hs = $('bridges-homeserver');
   if (hs && !hs.dataset.touched) hs.value = BRIDGES_CONFIG.defaultHomeserver;
+  bridgesSyncSecretUi();
 }
 
 function initBridges() {
@@ -119,6 +193,23 @@ function initBridges() {
     bridgesCopyText(bridgesHomeserverUrl(), 'bridges-msg');
   });
   $('bridges-open-signin') && $('bridges-open-signin').addEventListener('click', bridgesOpenFluffySignIn);
+  $('bridges-create-account') && $('bridges-create-account').addEventListener('click', bridgesCreateMatrixAccount);
+  $('bridges-secret-manual') && $('bridges-secret-manual').addEventListener('change', bridgesSyncSecretUi);
+  $('bridges-copy-pass') && $('bridges-copy-pass').addEventListener('click', function () {
+    var el = $('bridges-creds-pass');
+    if (el) bridgesCopyText(el.textContent, 'bridges-msg');
+  });
+  $('bridges-copy-creds') && $('bridges-copy-creds').addEventListener('click', function () {
+    var mxid = $('bridges-creds-mxid');
+    var pass = $('bridges-creds-pass');
+    var hs = bridgesHomeserverUrl();
+    if (!mxid || !pass) return;
+    bridgesCopyText(
+      'Homeserver: ' + hs + '\nUser: ' + mxid.textContent + '\nPassword: ' + pass.textContent,
+      'bridges-msg'
+    );
+  });
+  bridgesSyncSecretUi();
 
   var tier = $('bridges-tier');
   if (tier) {

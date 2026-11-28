@@ -58,4 +58,6 @@ contextBridge.exposeInMainWorld('FLIP2_NATIVE', {
   devicePushFile: function (payload) { return ipcRenderer.invoke('device-push-file', payload); },
   deviceScreencap: function () { return ipcRenderer.invoke('device-screencap'); },
   deviceKey: function (payload) { return ipcRenderer.invoke('device-key', payload); },
+  bridgeMatrixHasLocalSecret: function () { return ipcRenderer.invoke('bridge-matrix-has-local-secret'); },
+  bridgeMatrixRegisterUser: function (payload) { return ipcRenderer.invoke('bridge-matrix-register-user', payload); },
 });

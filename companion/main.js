@@ -18,6 +18,82 @@ const {
   resolveInstallInf,
   stageVcomFromBundled,
 } = require('./lib/vcom-driver-fetch');
+const { registerMatrixUserSharedSecret, randomPassword } = require('./lib/matrix-register');
+
+function flip2RepoRoot() {
+  if (app.isPackaged) return null;
+  return path.join(__dirname, '..');
+}
+
+function bridgeDotEnvPath() {
+  const root = flip2RepoRoot();
+  if (!root) return null;
+  const p = path.join(root, 'pipeline', 'bridge-kit', '.env');
+  return fs.existsSync(p) ? p : null;
+}
+
+function parseDotEnv(text) {
+  const out = {};
+  String(text || '').split(/\r?\n/).forEach(function (line) {
+    line = line.trim();
+    if (!line || line.charAt(0) === '#') return;
+    const i = line.indexOf('=');
+    if (i < 1) return;
+    const k = line.slice(0, i).trim();
+    let v = line.slice(i + 1).trim();
+    if ((v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') ||
+        (v.charAt(0) === "'" && v.charAt(v.length - 1) === "'")) {
+      v = v.slice(1, -1);
+    }
+    out[k] = v;
+  });
+  return out;
+}
+
+async function bridgeMatrixHasLocalSecret() {
+  const envPath = bridgeDotEnvPath();
+  if (!envPath) return { ok: true, hasSecret: false };
+  try {
+    const raw = await fsp.readFile(envPath, 'utf8');
+    const env = parseDotEnv(raw);
+    return { ok: true, hasSecret: !!String(env.SYNAPSE_REGISTRATION_SHARED_SECRET || '').trim() };
+  } catch (_e) {
+    return { ok: true, hasSecret: false };
+  }
+}
+
+async function bridgeMatrixRegisterUser(payload) {
+  payload = payload || {};
+  const homeserverUrl = String(payload.homeserverUrl || '').replace(/\/$/, '');
+  const username = String(payload.username || '').trim();
+  let password = payload.password != null ? String(payload.password) : '';
+  let registrationSharedSecret = String(payload.registrationSharedSecret || '').trim();
+
+  if (!registrationSharedSecret) {
+    const envPath = bridgeDotEnvPath();
+    if (envPath) {
+      const raw = await fsp.readFile(envPath, 'utf8');
+      const env = parseDotEnv(raw);
+      registrationSharedSecret = String(env.SYNAPSE_REGISTRATION_SHARED_SECRET || '').trim();
+    }
+  }
+
+  if (!registrationSharedSecret) {
+    return {
+      ok: false,
+      error: 'Registration shared secret required — paste from VPS .env or run flip2 bridges rotate-creds on this PC.',
+    };
+  }
+
+  if (!password) password = randomPassword(16);
+
+  return registerMatrixUserSharedSecret(net.fetch.bind(net), {
+    homeserverUrl,
+    username,
+    password,
+    registrationSharedSecret,
+  });
+}
 
 function wizardRoot() {
   if (app.isPackaged) {
@@ -2831,6 +2907,8 @@ app.whenReady().then(function () {
   ipcMain.handle('device-push-file', function (_e, payload) { return devicePushFile(payload); });
   ipcMain.handle('device-screencap', function () { return deviceScreencap(); });
   ipcMain.handle('device-key', function (_e, payload) { return deviceKey(payload); });
+  ipcMain.handle('bridge-matrix-has-local-secret', function () { return bridgeMatrixHasLocalSecret(); });
+  ipcMain.handle('bridge-matrix-register-user', function (_e, payload) { return bridgeMatrixRegisterUser(payload); });
   createWindow();
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

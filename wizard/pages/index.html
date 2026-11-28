@@ -173,6 +173,28 @@
       <button type="button" id="bridges-copy-hs" class="ghost small">Copy URL</button>
       <button type="button" id="bridges-open-signin" class="small">Open sign-in on phone</button>
     </div>
+    <div class="bridges-account-block" id="bridges-account-block">
+      <p class="note" id="bridges-secret-hint">Create an end-user Matrix account (not admin).</p>
+      <label class="stacked">Username (localpart)
+        <input type="text" id="bridges-username" class="wide" autocomplete="off" spellcheck="false" placeholder="alice">
+      </label>
+      <label class="stacked">Password <span class="note">(optional — generated if blank)</span>
+        <input type="password" id="bridges-password" class="wide" autocomplete="new-password">
+      </label>
+      <label class="stacked hidden" id="bridges-secret-wrap">Registration shared secret
+        <input type="password" id="bridges-reg-secret" class="wide" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="inline"><input type="checkbox" id="bridges-secret-manual"> Paste registration secret manually</label>
+      <div class="action-row action-row--compact">
+        <button type="button" id="bridges-create-account">Create Matrix account</button>
+      </div>
+      <div id="bridges-creds" class="bridges-creds hidden">
+        <p><strong id="bridges-creds-mxid"></strong></p>
+        <p class="note">Password (shown once): <code id="bridges-creds-pass"></code>
+          <button type="button" id="bridges-copy-pass" class="small ghost">Copy</button></p>
+        <button type="button" id="bridges-copy-creds" class="small ghost">Copy all for FluffyChat</button>
+      </div>
+    </div>
     <label class="inline">Bridge tier:
       <select id="bridges-tier">
         <option value="1">1 — on-device (try first)</option>
