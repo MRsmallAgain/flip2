@@ -745,9 +745,11 @@ function appendDlGetAction(actions, f) {
 }
 
 function downloadListIds() {
+  var skip = (CATALOG.notDownloadedIds) ? CATALOG.notDownloadedIds : {};
   var ids = (typeof requiredCatalog === 'function')
     ? requiredCatalog().slice()
     : CATALOG.list.map(function (f) { return f.id; });
+  ids = ids.filter(function (id) { return !skip[id]; });
   // Tier 3 erase-and-root needs pinned neutron.img verified in-session, but it
   // must not block Prepare Continue — show it in Files with Get / pick anyway.
   if (CATALOG.byId['neutron'] && ids.indexOf('neutron') < 0) ids.push('neutron');

@@ -41,12 +41,16 @@ var APK_INCOMING = {
 };
 
 function requiredCatalog() {
-  if (typeof PROFILES !== 'undefined' && PROFILES.data) return PROFILES.catalogIds();
+  var skip = (CATALOG.notDownloadedIds) ? CATALOG.notDownloadedIds : {};
+  if (typeof PROFILES !== 'undefined' && PROFILES.data) {
+    return PROFILES.catalogIds().filter(function (id) { return !skip[id]; });
+  }
   var ids = [];
   var i, id;
   for (i = 0; i < CATALOG.list.length; i++) {
     id = CATALOG.list[i].id;
     if (id === 'neutron' || id === 'headwind-launcher' || id === 'where-app') continue;
+    if (skip[id]) continue;
     ids.push(id);
   }
   return ids;

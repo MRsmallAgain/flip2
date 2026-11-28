@@ -243,6 +243,10 @@
     {
       "id": "chrome",
       "reason": "Menu slot 7 stays org.chromium.chrome — already on the phone; the wizard never downloads a browser."
+    },
+    {
+      "id": "companion-win",
+      "reason": "Windows Manager builds paused temporarily; use the hosted wizard in Chrome or build from GitLab. catalog.json still lists the last pinned .exe for mirrors that already have it."
     }
   ]
 }

@@ -35,6 +35,10 @@ function loadCatalog() {
     CATALOG.list = (cat.files || []).map(function (f) { return mergePinFields(f, pinById[f.id]); });
     CATALOG.byId = {};
     CATALOG.list.forEach(function (f) { CATALOG.byId[f.id] = f; });
+    CATALOG.notDownloadedIds = {};
+    (cat.not_downloaded || []).forEach(function (row) {
+      if (row && row.id) CATALOG.notDownloadedIds[row.id] = row.reason || true;
+    });
     var stamp = document.getElementById('wizard-build');
     if (stamp) {
       var ver = (pins.version || cat.version || '').trim();

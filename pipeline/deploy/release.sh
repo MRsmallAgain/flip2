@@ -147,7 +147,9 @@ if [[ -n "$COMPANION_VER" ]]; then
     COMPANION_LINUX_NAME=""
   fi
   COMPANION_WIN_NAME="flip2-companion-${COMPANION_VER}-win-x64.exe"
-  if [[ ! -f "$DIST/$COMPANION_WIN_NAME" && ! -f "$COMPANION_DIST/$COMPANION_WIN_NAME" ]]; then
+  if jq -e --arg id companion-win '.not_downloaded[]? | select(.id == $id)' "$ROOT/wizard/catalog.json" >/dev/null 2>&1; then
+    COMPANION_WIN_NAME=""
+  elif [[ ! -f "$DIST/$COMPANION_WIN_NAME" && ! -f "$COMPANION_DIST/$COMPANION_WIN_NAME" ]]; then
     COMPANION_WIN_NAME=""
   fi
 fi
