@@ -218,11 +218,11 @@
     },
     {
       "id": "companion-linux",
-      "file": "flip2-companion-1.4.0-alpha.37-linux-x86_64.AppImage",
+      "file": "flip2-companion-1.4.0-alpha.38-linux-x86_64.AppImage",
       "purpose": "TCL Flip2 Manager desktop app (Linux x86_64 AppImage). Same wizard UI as flip2burn.online — Start · Bundled Apps · Device · Set up.",
-      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.37-linux-x86_64.AppImage",
-      "size": 109241286,
-      "sha256": "0576d65275cb56b81cd7b4bee95178b4aff47c986295ac9ee45011d86e695ad1",
+      "url": "https://flip2burn.online/packages/flip2-companion-1.4.0-alpha.38-linux-x86_64.AppImage",
+      "size": 115267916,
+      "sha256": "b92a185c9ca4af60c176d9d6daaa4249b95e09294cdfe055ba6743f27a1cb23e",
       "license": "MIT (companion); wizard assets see flip2 repo",
       "author": "MRsmallAgain (flip2 project)",
       "upstream": "gitlab.com/mrsmallagain-group/flip2 release 1.4.0-alpha.37-flip2 (MR !12 CI jobs 18242042513)"

@@ -849,6 +849,11 @@ function setRow(id, text, cls) {
   el.className = 'dl-file-status' + (cls ? ' status ' + cls : '');
 }
 
+function clearBadLines() {
+  var el = $('dl-results');
+  if (el) el.innerHTML = '';
+}
+
 function badLine(msg) {
   var div = document.createElement('div');
   div.textContent = 'BAD: ' + msg;
@@ -1084,6 +1089,7 @@ function useLocalFiles() {
   }
   var btn = $('dl-local-btn');
   btn.disabled = true;
+  clearBadLines();
   setStatus('dl-msg', 'looking for copies already on this PC…', 'wait');
   return window.FLIP2_NATIVE.localFiles().then(function (found) {
     var ids = CATALOG.list.map(function (f) { return f.id; })
@@ -1127,6 +1133,7 @@ function downloadAll() {
     maybeFetchVcomAfterCatalog().then(function () { applyDownloadLock(); });
     return;
   }
+  clearBadLines();
   setStatus('dl-msg', 'Starting download — first run often takes 10+ minutes. Files verify one at a time…', 'wait');
   var done = 0;
   var seq = Promise.resolve();
@@ -1372,6 +1379,7 @@ function initDownloads() {
       applyDownloadLock();
       return;
     }
+    clearBadLines();
     setStatus('dl-msg', 'checking ' + files.length + ' file(s)…', 'wait');
     checkDownloads(files);
   });
