@@ -126,6 +126,10 @@ function bridgesSyncSecretUi() {
   }).catch(function () { /* ignore */ });
 }
 
+function bridgesLastCreds() {
+  return bridgesLastCreds._data || null;
+}
+
 function bridgesShowCreds(result) {
   var box = $('bridges-creds');
   if (!box || !result) return;
@@ -134,6 +138,69 @@ function bridgesShowCreds(result) {
   if (mxid) mxid.textContent = result.userId || '';
   if (pass) pass.textContent = result.password || '';
   box.classList.remove('hidden');
+  bridgesLastCreds._data = {
+    userId: result.userId,
+    password: result.password,
+    homeserverUrl: result.homeserverUrl
+  };
+  var waPass = $('bridges-wa-password');
+  if (waPass && result.password) waPass.value = result.password;
+}
+
+function bridgesWhatsappQrProjector() {
+  var N = window.FLIP2_NATIVE;
+  if (!N || !N.bridgeWhatsappQrProjector) {
+    setStatus('bridges-msg', 'WhatsApp QR needs Flip 2 Companion.', 'bad');
+    return;
+  }
+  var creds = bridgesLastCreds();
+  var userId = creds && creds.userId ? creds.userId : '';
+  var password = ($('bridges-wa-password') && $('bridges-wa-password').value) ||
+    (creds && creds.password) || '';
+  if (!userId) {
+    var uname = ($('bridges-username') && $('bridges-username').value.trim()) || '';
+    if (uname) {
+      try {
+        userId = '@' + uname + ':' + new URL(bridgesHomeserverUrl()).hostname;
+      } catch (_e) {
+        userId = '@' + uname + ':bridge.flip2burn.online';
+      }
+    }
+  }
+  if (!password) {
+    setStatus('bridges-msg', 'Enter Matrix password (create account or type above).', 'bad');
+    return;
+  }
+  if (!userId) {
+    setStatus('bridges-msg', 'Create a Matrix account first or set username.', 'bad');
+    return;
+  }
+  var btn = $('bridges-wa-qr');
+  var display = $('bridges-wa-qr-display');
+  var img = $('bridges-wa-qr-img');
+  var hint = $('bridges-wa-qr-hint');
+  if (btn) btn.disabled = true;
+  if (display) display.classList.add('hidden');
+  setStatus('bridges-msg', 'Logging in and asking bridge for QR (up to ~2 min)…', 'wait');
+  N.bridgeWhatsappQrProjector({
+    homeserverUrl: bridgesHomeserverUrl(),
+    userId: userId,
+    password: password,
+    timeoutMs: 120000
+  }).then(function (r) {
+    if (btn) btn.disabled = false;
+    if (!r || !r.ok) {
+      setStatus('bridges-msg', (r && r.error) || 'WhatsApp QR failed.', 'bad');
+      return;
+    }
+    if (img && r.qrDataUrl) img.src = r.qrDataUrl;
+    if (hint) hint.textContent = r.hint || 'Scan with smartphone WhatsApp.';
+    if (display) display.classList.remove('hidden');
+    setStatus('bridges-msg', 'QR ready — scan with your phone WhatsApp.', 'ok');
+  }).catch(function (e) {
+    if (btn) btn.disabled = false;
+    setStatus('bridges-msg', cleanErr(e), 'bad');
+  });
 }
 
 function bridgesCreateMatrixAccount() {
@@ -194,6 +261,7 @@ function initBridges() {
   });
   $('bridges-open-signin') && $('bridges-open-signin').addEventListener('click', bridgesOpenFluffySignIn);
   $('bridges-create-account') && $('bridges-create-account').addEventListener('click', bridgesCreateMatrixAccount);
+  $('bridges-wa-qr') && $('bridges-wa-qr').addEventListener('click', bridgesWhatsappQrProjector);
   $('bridges-secret-manual') && $('bridges-secret-manual').addEventListener('change', bridgesSyncSecretUi);
   $('bridges-copy-pass') && $('bridges-copy-pass').addEventListener('click', function () {
     var el = $('bridges-creds-pass');

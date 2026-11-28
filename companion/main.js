@@ -19,6 +19,7 @@ const {
   stageVcomFromBundled,
 } = require('./lib/vcom-driver-fetch');
 const { registerMatrixUserSharedSecret, randomPassword } = require('./lib/matrix-register');
+const { whatsappQrProjector } = require('./lib/matrix-wa-qr');
 
 function flip2RepoRoot() {
   if (app.isPackaged) return null;
@@ -92,6 +93,17 @@ async function bridgeMatrixRegisterUser(payload) {
     username,
     password,
     registrationSharedSecret,
+  });
+}
+
+async function bridgeWhatsappQrProjector(payload) {
+  payload = payload || {};
+  return whatsappQrProjector(net.fetch.bind(net), {
+    homeserverUrl: payload.homeserverUrl || 'https://bridge.flip2burn.online',
+    userId: payload.userId,
+    password: payload.password,
+    botMxid: payload.botMxid,
+    timeoutMs: payload.timeoutMs || 120000,
   });
 }
 
@@ -2909,6 +2921,7 @@ app.whenReady().then(function () {
   ipcMain.handle('device-key', function (_e, payload) { return deviceKey(payload); });
   ipcMain.handle('bridge-matrix-has-local-secret', function () { return bridgeMatrixHasLocalSecret(); });
   ipcMain.handle('bridge-matrix-register-user', function (_e, payload) { return bridgeMatrixRegisterUser(payload); });
+  ipcMain.handle('bridge-whatsapp-qr-projector', function (_e, payload) { return bridgeWhatsappQrProjector(payload); });
   createWindow();
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

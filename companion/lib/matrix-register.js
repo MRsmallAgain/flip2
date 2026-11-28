@@ -113,4 +113,5 @@ async function registerMatrixUserSharedSecret(fetchFn, opts) {
 module.exports = {
   registerMatrixUserSharedSecret,
   randomPassword,
+  hsHostFromUrl,
 };

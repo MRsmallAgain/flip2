@@ -1171,6 +1171,25 @@ table.safety-paths td:first-child {
   word-break: break-all;
 }
 
+.bridges-wa-qr-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border, #ddd);
+}
+
+.bridges-wa-qr-display {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.bridges-wa-qr-display img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  background: #fff;
+}
+
 .dl-files-panel summary.dl-files-summary {
   display: flex;
   align-items: center;

@@ -194,6 +194,19 @@
           <button type="button" id="bridges-copy-pass" class="small ghost">Copy</button></p>
         <button type="button" id="bridges-copy-creds" class="small ghost">Copy all for FluffyChat</button>
       </div>
+      <div class="bridges-wa-qr-block" id="bridges-wa-qr-block">
+        <p class="note">Pair WhatsApp: Matrix password from creds above or type here. Scan QR with smartphone WhatsApp (Linked devices).</p>
+        <label class="stacked">Matrix password (for desktop QR)
+          <input type="password" id="bridges-wa-password" class="wide" autocomplete="current-password">
+        </label>
+        <div class="action-row action-row--compact">
+          <button type="button" id="bridges-wa-qr">Show WhatsApp QR on desktop</button>
+        </div>
+        <div id="bridges-wa-qr-display" class="bridges-wa-qr-display hidden">
+          <img id="bridges-wa-qr-img" alt="WhatsApp login QR" width="280" height="280">
+          <p class="note" id="bridges-wa-qr-hint"></p>
+        </div>
+      </div>
     </div>
     <label class="inline">Bridge tier:
       <select id="bridges-tier">
