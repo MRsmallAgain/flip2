@@ -66,3 +66,6 @@ vendor/
 
 # Local scratch (smoke tests, module extracts)
 **/_tmp/
+
+# Bridge VPS secrets (generate with pipeline/bridge-kit/scripts/rotate-bridge-creds.sh)
+pipeline/bridge-kit/.env

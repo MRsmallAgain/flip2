@@ -302,6 +302,12 @@ case "$cmd" in
       pack)
         exec "$FLIP2_ROOT/pipeline/bridge-kit/pack.sh" "$@"
         ;;
+      rotate-creds)
+        exec "$FLIP2_ROOT/pipeline/bridge-kit/scripts/rotate-bridge-creds.sh" "$@"
+        ;;
+      push-ssm)
+        exec "$FLIP2_ROOT/pipeline/bridge-kit/scripts/push-env-ssm.sh" "$@"
+        ;;
       on-device)
         osub="${1:-help}"
         shift || true
@@ -315,9 +321,11 @@ case "$cmd" in
         esac
         ;;
       help|-h|--help|*)
-        echo "Usage: flip2 bridges {doc|pack|on-device}"
+        echo "Usage: flip2 bridges {doc|pack|rotate-creds|push-ssm|on-device}"
         echo "  doc — runbook paths"
         echo "  pack [OUT_DIR] — tarball Synapse + mautrix kit for VPS"
+        echo "  rotate-creds [OUT] — write pipeline/bridge-kit/.env (FLIP2_BRIDGE_ROTATE_FORCE=1 to overwrite)"
+        echo "  push-ssm [ENV] — upload .env secrets to SSM /flip2/bridge/*"
         echo "  on-device {status|open-signin} — phone tier-1 helpers"
         ;;
     esac
